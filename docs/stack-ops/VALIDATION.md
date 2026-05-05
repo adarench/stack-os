@@ -112,9 +112,13 @@ Brad pastes credentials in chat → I write to `web/.env.local` (gitignored). Fo
    - All S3 vars wired (endpoint, region, bucket, access key id, secret access key)
    - Round-trip probe validated: HeadBucket / PutObject / signed PUT URL / signed GET URL / HTTP fetch via URL (body matches) / DeleteObject — all green
    - Photo upload via `/api/uploads/sign` is functionally ready; remaining validation is the in-browser flow (camera capture → signed PUT → attachment row → grid render), gated on a real Clerk org session
-4. **Vercel** — ⏳ pending
-   - Repo is ready to push (7 clean commits on main, no remote yet)
-   - Brad either authenticates `gh` locally or creates a GitHub repo + pastes URL
+4. **Vercel** — ✅ **DONE 2026-05-05**
+   - Repo at `adarench/stack-os` (private)
+   - Project at `adam-renchers-projects/stack-os` (Next.js, Node 24.x, rootDirectory=`web`)
+   - All 12 env vars synced to production + preview + development
+   - Production live: https://stack-os-six.vercel.app + https://stack-os-adam-renchers-projects.vercel.app
+   - GitHub integration connected; `git push` to `main` auto-deploys
+   - Preview URLs gated by Vercel Deployment Protection (SSO required for non-team-members; can be disabled or bypass-tokened later)
 5. **Resend** — ✅ **DONE 2026-05-05**
    - `RESEND_API_KEY` wired
    - `RESEND_FROM_EMAIL="onboarding@resend.dev"` for testing

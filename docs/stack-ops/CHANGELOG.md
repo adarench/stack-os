@@ -14,13 +14,20 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-05 · orchestrator · Vercel wired and live. Repo pushed to
+  `adarench/stack-os` (private). Project linked at
+  `adam-renchers-projects/stack-os` with `rootDirectory=web` (set via REST
+  API). All 12 env vars from `web/.env.local` synced to all three Vercel
+  environments (production, preview, development). First production
+  deploy succeeded after refactoring `/contracts` `/db` `/inngest` into
+  `/web/src/` — Vercel only uploads files under the linked rootDirectory,
+  and the original repo-root layout broke the build. GitHub auto-deploys
+  on push are now wired; future merges to `main` will redeploy
+  automatically. Production URLs: stack-os-six.vercel.app,
+  stack-os-adam-renchers-projects.vercel.app.
 - 2026-05-05 · orchestrator · R2 fully wired and validated. Brad's first
-  paste was a `cfat_` Cloudflare user API token (REST API, not S3). After
-  he found the R2-specific token page, the proper S3 keys arrived. Probe
-  script confirmed full round-trip: HeadBucket / PutObject / signed PUT
-  URL / signed GET URL / HTTP fetch via signed URL / body matches /
-  DeleteObject — all green. R2 is production-ready. Resend wired earlier.
-  GitHub push pending `gh auth login` device-flow completion.
+  paste was a `cfat_` Cloudflare user API token; the R2-specific page
+  gave the proper S3 keys. Round-trip probe confirmed end-to-end.
 - 2026-05-05 · orchestrator · Clerk validated in keyless mode. Audited
   for deprecated APIs (none). Switched `withStaffScope` to use Next's
   `redirect()` so unauthenticated requests bounce cleanly. 45/45 tests
@@ -49,6 +56,14 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
   6 RLS integration tests `todo` (skipped without `DATABASE_URL`).
 
 ## History
+
+### 2026-05-05 · GitHub + Vercel wired
+
+- Wired · GitHub · Repo `adarench/stack-os` (private) created via `gh repo create`. 11 commits pushed.
+- Wired · Vercel · Project `adam-renchers-projects/stack-os` linked. All 12 env vars synced to production + preview + development via `scripts/push-vercel-env.sh` (FD-3 trick to avoid `vercel env` consuming the file's stdin; explicit empty git-branch arg for Preview).
+- Wired · Vercel · `rootDirectory=web` set via PATCH `/v9/projects/{id}` (CLI doesn't expose this setting). GitHub integration connected; future pushes to `main` auto-deploy.
+- Wired · Vercel · Production live at https://stack-os-six.vercel.app and https://stack-os-adam-renchers-projects.vercel.app. Preview URLs sit behind Vercel Deployment Protection (SSO required).
+- Refactor · Layout · Moved `/contracts`, `/db`, `/inngest` into `/web/src/`. Original split was for agent file-ownership clarity at the repo level; same clarity is preserved at `/web/src/{contracts,db,inngest}/` and the build now ships cleanly. tsconfig paths, vitest aliases, drizzle.config, and migration scripts updated. 45/45 tests still pass.
 
 ### 2026-05-05 · R2 fully wired (round-trip validated)
 
