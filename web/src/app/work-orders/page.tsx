@@ -18,14 +18,22 @@ export default async function WorkOrdersPage({
 
   return (
     <main className="mx-auto max-w-md p-4 pb-24">
-      <header className="mb-3 flex items-center justify-between">
+      <header className="mb-3 flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Work orders</h1>
-        <Link
-          href="/work-orders/new"
-          className="rounded-full bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
-        >
-          + New
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/board"
+            className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs uppercase tracking-wide text-neutral-600"
+          >
+            Board
+          </Link>
+          <Link
+            href="/work-orders/new"
+            className="rounded-full bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
+          >
+            + New
+          </Link>
+        </div>
       </header>
 
       <nav className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-2 text-xs">

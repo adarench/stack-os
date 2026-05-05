@@ -44,3 +44,20 @@ Signoff: <orchestrator name>
 - [ ] Staff captures `before_photo` from phone camera; image uploads via signed URL; appears in WO grid
 - [ ] Staff transitions `assigned → scheduled → in_progress → resolved → verified → closed`
 - [ ] All transitions audited; cross-org RLS smoke test passes
+
+## P2 (first push)
+
+### 2026-05-05 · P2 · kanban board + filters + dispatcher view
+- Tests: 5 new vitest unit tests green (board grouping, drop adjacency vs state machine, priority guard). Total 18 unit + 6 todo.
+- Typecheck: clean
+- Manual QA: deferred — needs real DATABASE_URL + a few seeded WOs to drag
+- Signoff: code-side complete; awaiting external creds + Day-3 walkthrough
+
+### Day-3 board QA checklist (pending creds)
+- [ ] Open `/board` on desktop with seeded WOs across statuses
+- [ ] Drag a "new" card to "triaged" → moves and persists; refresh confirms
+- [ ] Drag a "new" card to "in_progress" → snap-back; error toast shows "Cannot move new → in progress"
+- [ ] Switch view to "Dispatcher" → only `new` / `triaged` / `blocked` columns populated
+- [ ] Filter by property → board re-renders, deep link works (paste URL into new tab)
+- [ ] On phone: tap a card → opens detail. Tap "Move…" → choose next state from chip list. Persists.
+- [ ] "Show closed" toggle reveals `closed` + `cancelled` columns; toggle off hides them.

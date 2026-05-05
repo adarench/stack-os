@@ -8,6 +8,7 @@ import {
   updateWorkOrderStatus,
   assignVendor,
 } from "@/lib/server/work-orders";
+import type { WorkOrderStatus } from "@contracts/state-machines/work-order";
 import { createComment } from "@/lib/server/comments";
 import { createAttachment } from "@/lib/server/attachments";
 import { signUploadUrl, storageConfigured } from "@/lib/server/storage";
@@ -25,6 +26,26 @@ export async function transitionStatusAction(formData: FormData) {
   await updateWorkOrderStatus({ id, to: to as never });
   revalidatePath(`/work-orders/${id}`);
   revalidatePath("/work-orders");
+  revalidatePath("/board");
+}
+
+/**
+ * Used by the kanban board on drop. Throws on invalid transition; the client
+ * pre-checks via `canTransition` so this is a defense-in-depth.
+ */
+export async function moveWorkOrderAction(
+  id: string,
+  to: WorkOrderStatus,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await updateWorkOrderStatus({ id, to });
+    revalidatePath(`/work-orders/${id}`);
+    revalidatePath("/work-orders");
+    revalidatePath("/board");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 export async function addCommentAction(formData: FormData) {

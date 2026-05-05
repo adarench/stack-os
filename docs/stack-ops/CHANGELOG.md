@@ -14,14 +14,29 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-05 · orchestrator · P2 first push landed: kanban board with
+  dnd-kit drag-drop between columns, optimistic updates with rollback on
+  invalid transition, mobile fallback "Move…" menu inside each card,
+  filters (view preset, property, priority, archived toggle), URL-driven
+  state, dispatcher preset. 18 unit tests green. List view (`/work-orders`)
+  and board (`/board`) cross-link. Next: wire creds for Day-3 phone
+  validation OR begin P3 (recurring + scheduling + notifications).
 - 2026-05-05 · orchestrator · P1 first push landed (server lib + actions for
   WO/properties/units/vendors/comments/attachments + signed-URL upload +
   vendor magic-link + mobile UI + admin UI + tests). 13 unit tests green;
-  6 RLS integration tests `todo` (skipped without `DATABASE_URL`). Next:
-  hook up real Neon/Clerk/R2 envs, run `pnpm db:migrate`, exercise
-  end-to-end flow on a real phone (Day 3 validation).
+  6 RLS integration tests `todo` (skipped without `DATABASE_URL`).
 
 ## History
+
+### 2026-05-05 · P2 (first push)
+
+- P2 · UI · `/board` (server) · `/components/board/{kanban-board,column,card,filter-select}.tsx` (client) · created · kanban with @dnd-kit/core. Drag a card between columns; client pre-validates via `canTransition`; on drop, optimistic update + `moveWorkOrderAction` server call + rollback if rejected.
+- P2 · UI · mobile drag is unreliable cross-browser, so each card carries a `<details>Move…</details>` menu listing only the legally-allowed next states. Same `moveWorkOrderAction` path. PointerSensor + TouchSensor with delay/tolerance keep tap-to-open-detail working.
+- P2 · UI · filter chips: view preset (all / dispatcher / mine), property dropdown, priority dropdown, "show closed" toggle. URL-driven; deep-linkable. Dispatcher preset narrows columns to "needs dispatch" set (new + triaged + blocked).
+- P2 · Backend · `/web/src/lib/server/board.ts` · `loadBoard(filters)` returns `{ byStatus, total, filters }`. Pure helpers (`groupByStatus`, `isBoardPriority`, `emptyBoard`, column constants) are testable.
+- P2 · Backend · `/web/src/app/work-orders/_actions.ts` · `moveWorkOrderAction(id, to)` typed server action used by the board. Returns `{ ok }` so the client can roll back.
+- P2 · Tests · 5 new vitest tests (board grouping, transition adjacency, priority guard). Total 18 unit + 6 todo. `server-only` shim added so server modules can be tested directly.
+- P2 · Nav · `/work-orders` and `/board` cross-link in their headers.
 
 ### 2026-05-05 · P1 (first push)
 
