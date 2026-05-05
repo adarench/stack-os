@@ -12,7 +12,7 @@
  */
 import { strict as assert } from "node:assert";
 
-const BASE = process.argv[2] ?? "https://stack-os-omega.vercel.app";
+const BASE = process.argv[2] ?? "https://stack-os-six.vercel.app";
 
 interface Result {
   path: string;

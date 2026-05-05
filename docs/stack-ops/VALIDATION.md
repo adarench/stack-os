@@ -116,7 +116,7 @@ Brad pastes credentials in chat → I write to `web/.env.local` (gitignored). Fo
    - Repo at `adarench/stack-os` (private)
    - Project at `adam-renchers-projects/stack-os` (Next.js, Node 24.x)
    - All 16 env vars synced to production + preview + development (incl. real Clerk keys)
-   - **Production live: https://stack-os-omega.vercel.app**
+   - **Production live: https://stack-os-six.vercel.app**
      - `/` → 307 → `/sign-in`
      - `/sign-in` → 200 (Clerk renders)
      - `/api/health` → 200 JSON
@@ -366,7 +366,7 @@ What's automatable in P2 has been automated. Two scripts cover the
 mechanical surface:
 
 **`scripts/p2-smoke.ts`** — hits the deployed site
-(`https://stack-os-omega.vercel.app`) and asserts HTTP behavior:
+(`https://stack-os-six.vercel.app`) and asserts HTTP behavior:
 
 ```
 ✅ /sign-in                                    200
