@@ -7,15 +7,17 @@ export function FilterSelect({
   value,
   options,
   preserve,
+  action = "/board",
 }: {
   name: string;
   value: string;
   options: Array<{ value: string; label: string }>;
   preserve: Array<[string, string]>; // other querystring entries to keep
+  action?: string;
 }) {
   const formRef = useRef<HTMLFormElement | null>(null);
   return (
-    <form ref={formRef} method="GET" action="/board" className="inline">
+    <form ref={formRef} method="GET" action={action} className="inline">
       {preserve.map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}

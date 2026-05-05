@@ -14,19 +14,39 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-05 · orchestrator · P1/P2 hardening landed: route groups (`(app)`
+  with Clerk, `(vendor)` without — fixes prerender), `pnpm build` green
+  without external creds, work-order search across title/description/WO-#
+  with property + priority filters and richer cards, dispatcher list view
+  at `/dispatcher` with priority-then-FIFO sort + inline triage/assign,
+  mobile photo upload hardened (multi-file, per-file progress, 25MB cap,
+  single retry on 403, error states). 41 unit tests green (up from 18).
+  Next: wire real Neon/Clerk/R2 creds for Day-3 phone walkthrough; P3
+  intentionally deferred per Brad.
 - 2026-05-05 · orchestrator · P2 first push landed: kanban board with
   dnd-kit drag-drop between columns, optimistic updates with rollback on
   invalid transition, mobile fallback "Move…" menu inside each card,
   filters (view preset, property, priority, archived toggle), URL-driven
-  state, dispatcher preset. 18 unit tests green. List view (`/work-orders`)
-  and board (`/board`) cross-link. Next: wire creds for Day-3 phone
-  validation OR begin P3 (recurring + scheduling + notifications).
+  state, dispatcher preset. 18 unit tests green.
 - 2026-05-05 · orchestrator · P1 first push landed (server lib + actions for
   WO/properties/units/vendors/comments/attachments + signed-URL upload +
   vendor magic-link + mobile UI + admin UI + tests). 13 unit tests green;
   6 RLS integration tests `todo` (skipped without `DATABASE_URL`).
 
 ## History
+
+### 2026-05-05 · P1/P2 hardening
+
+- Hardening · Build · Route groups: `(app)` wraps Clerk, `(vendor)` does not. `/vendor/invalid` and other vendor-portal pages prerender successfully without `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`. Sign-in/sign-up/select-org/home marked `force-dynamic` so build is green at any phase. `next.config.ts` `experimental.typedRoutes` → top-level `typedRoutes`.
+- Hardening · Build · `pnpm build` is now clean without any external creds; ready for Vercel preview deploys when keys land. `pnpm dev` boots; Clerk runs in keyless dev mode.
+- Hardening · Search · `/web/src/lib/server/work-orders.ts` extended: `searchPattern` (escapes `%`/`_`/`\\`, returns `null` for empty), `parseWoNumber` (matches `WO-123` / `wo-123` / `WO123` / `123`), `listWorkOrders` accepts `q`, `priority`, `propertyId`, `unitId`, `status`. `q` ILIKEs title + description and exact-matches WO-#.
+- Hardening · Search UI · `/work-orders` now has a `<WoSearch>` debounced search bar (auto-submits on clear or 3+ char idle), property + priority filters, "Clear" link, result count, friendlier empty state. Cards show priority dot + property/unit context.
+- Hardening · Dispatcher view · `/dispatcher` (server) + `/lib/server/dispatcher.ts` + `/components/dispatcher-row.tsx` (client). Tabs: All / New / Triaged / Blocked with live counts. `sortByPriorityThenAge` floats urgent above high above normal above low; within priority, oldest first (FIFO — don't let stuff rot). Each row has inline vendor-assign select + Triage button.
+- Hardening · Mobile photo upload · `<PhotoCapture>` now accepts multiple files, shows per-file progress via `XMLHttpRequest.upload.onprogress`, enforces 25 MB max with friendly error, retries once on `403` (signed URL expired) before giving up, accepts `image/heic` / `image/heif` for iOS. Sequential uploads keep the revalidation loop stable.
+- Hardening · Format · `/web/src/lib/format.ts` `relativeTime(d)` for "5m ago" / "3d ago".
+- Hardening · Tests · 23 new unit tests across search/format/dispatcher/move-menu. Total **41 unit + 6 todo**. The new `mobile-move-menu` suite asserts that for every status, the touch "Move…" surface is in lockstep with the FSM (no state reachable via drag that isn't reachable via menu, and vice versa).
+- Hardening · Nav · `/work-orders`, `/board`, `/dispatcher` all cross-link in their headers.
+- Hardening · Imports · After moving routes into `(app)/`, server-action imports updated from `@/app/work-orders/_actions` → `@/app/(app)/work-orders/_actions`.
 
 ### 2026-05-05 · P2 (first push)
 

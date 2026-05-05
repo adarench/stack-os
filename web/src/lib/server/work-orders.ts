@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { workOrders } from "@db/schema/work-orders";
 import { assignments } from "@db/schema/assignments";
 import { vendorUsers } from "@db/schema/vendor-users";
@@ -10,11 +10,35 @@ import {
   WORK_ORDER_STATUSES,
   canTransition,
   type WorkOrderStatus,
+  type WorkOrderPriority,
 } from "@contracts/state-machines/work-order";
 import { withStaffScope, type ScopedDB } from "./db";
 import { writeAudit } from "./audit";
 import { nextWorkOrderNumber } from "./sequence";
 import { ensureUserRow } from "./sync-user";
+
+/**
+ * Build a `WHERE`-friendly LIKE pattern from a free-text query. Returns null
+ * for empty/whitespace input so callers can omit the clause entirely.
+ */
+export function searchPattern(q: string | null | undefined): string | null {
+  if (q === null || q === undefined) return null;
+  const trimmed = q.trim();
+  if (!trimmed) return null;
+  // Escape ILIKE wildcards, then wrap in %…%.
+  const escaped = trimmed.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+  return `%${escaped}%`;
+}
+
+/** Coerce a possibly-numeric query into a WO number for "WO-1234" lookups. */
+export function parseWoNumber(q: string | null | undefined): number | null {
+  if (!q) return null;
+  const trimmed = q.trim().toUpperCase();
+  const m = /^WO-?(\d+)$/.exec(trimmed) ?? /^(\d+)$/.exec(trimmed);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 export const createWorkOrderInput = z.object({
   title: z.string().min(1).max(200),
@@ -69,6 +93,8 @@ export const listFilter = z.object({
   status: z.enum(WORK_ORDER_STATUSES).optional(),
   propertyId: z.string().uuid().optional(),
   unitId: z.string().uuid().optional(),
+  priority: z.enum(WORK_ORDER_PRIORITIES).optional(),
+  q: z.string().max(200).optional(),
   limit: z.number().int().min(1).max(200).default(50),
 });
 
@@ -76,11 +102,29 @@ export type ListFilter = z.infer<typeof listFilter>;
 
 export async function listWorkOrders(filter: Partial<ListFilter> = {}) {
   const parsed = listFilter.parse(filter);
+  const pattern = searchPattern(parsed.q ?? null);
+  const woNumber = parseWoNumber(parsed.q ?? null);
+
   return withStaffScope(async (tx, ctx) => {
-    const conditions = [eq(workOrders.orgId, ctx.orgId)];
+    const conditions: SQL[] = [eq(workOrders.orgId, ctx.orgId)];
     if (parsed.status) conditions.push(eq(workOrders.status, parsed.status));
     if (parsed.propertyId) conditions.push(eq(workOrders.propertyId, parsed.propertyId));
     if (parsed.unitId) conditions.push(eq(workOrders.unitId, parsed.unitId));
+    if (parsed.priority) conditions.push(eq(workOrders.priority, parsed.priority));
+
+    if (pattern || woNumber !== null) {
+      const textOrNumber: SQL[] = [];
+      if (pattern) {
+        textOrNumber.push(ilike(workOrders.title, pattern));
+        textOrNumber.push(ilike(workOrders.description, pattern));
+      }
+      if (woNumber !== null) {
+        textOrNumber.push(eq(workOrders.number, woNumber));
+      }
+      const combined = or(...textOrNumber);
+      if (combined) conditions.push(combined);
+    }
+
     return tx
       .select()
       .from(workOrders)

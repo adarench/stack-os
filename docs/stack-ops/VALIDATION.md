@@ -61,3 +61,49 @@ Signoff: <orchestrator name>
 - [ ] Filter by property → board re-renders, deep link works (paste URL into new tab)
 - [ ] On phone: tap a card → opens detail. Tap "Move…" → choose next state from chip list. Persists.
 - [ ] "Show closed" toggle reveals `closed` + `cancelled` columns; toggle off hides them.
+
+## P1/P2 hardening
+
+### 2026-05-05 · Build verification (no creds)
+- `pnpm install` clean
+- `pnpm typecheck` passes silently
+- `pnpm build` green without `DATABASE_URL`, Clerk, R2, Resend, Twilio, Inngest envs (route groups isolate Clerk init to `(app)`; `/vendor/invalid` prerenders statically)
+- `pnpm dev` boots; Clerk runs in keyless dev mode; `/api/health` returns `200 {ok:true}`; `/sign-in` and `/vendor/invalid` render `200`
+- Routes registered: `/`, `/sign-in`, `/sign-up`, `/select-org`, `/work-orders`, `/work-orders/new`, `/work-orders/[id]`, `/board`, `/dispatcher`, `/admin/properties`, `/admin/vendors`, `/vendor`, `/vendor/invalid`, plus 4 API routes
+
+### 2026-05-05 · Search + dispatcher + photo hardening
+- Tests: 41 unit pass (up from 18); 6 RLS integration tests still `todo` (auto-skipped without DATABASE_URL)
+  - search: 7 tests (`searchPattern` escaping + null cases, `parseWoNumber` formats + edge cases)
+  - format: 5 tests (`relativeTime` minutes/hours/days/future/old)
+  - dispatcher: 7 tests (`DISPATCHER_STATUSES`, `isDispatcherTab`, `sortByPriorityThenAge` urgent/age/no-mutate, `countByStatus`)
+  - mobile move menu: 4 tests (FSM ↔ menu lockstep)
+- Typecheck: clean
+- Manual QA: gated on creds. See Day-3 checklists above. New mobile photo upload checklist below.
+
+### Day-3 mobile photo upload checklist (pending creds)
+- [ ] Pick a single 2 MB photo → progress bar fills 0% → 100%, "done" badge appears, photo shows in grid
+- [ ] Pick 3 photos at once → 3 rows show with sequential progress; all land in grid
+- [ ] Pick a 50 MB photo → row immediately shows "error: File too large (max 25MB)"
+- [ ] Force a 403 (e.g. let signed URL expire) → row briefly errors and retries with a fresh URL; succeeds
+- [ ] On iOS, pick a HEIC photo → upload accepted (Safari converts on upload via `image/*`)
+- [ ] Photos render in `/work-orders/[id]` grid with signed read URLs
+
+### What's still gated on creds (cannot run locally yet)
+- End-to-end staff sign-in via real Clerk org (works in keyless dev mode but not against a real org)
+- `pnpm db:migrate` / RLS smoke tests (need Neon `DATABASE_URL`)
+- Photo upload end-to-end (needs R2 bucket + access keys)
+- Vendor magic-link email delivery (needs Resend domain; URL is logged to console as a fallback)
+- Twilio SMS (A2P 10DLC blocker — 2-4 wk regulatory)
+- Vercel preview deploy (needs `vercel link`)
+
+### Day-3 demo readiness
+The codebase is demo-ready in the sense that:
+- Build is green at any time, no env vars required
+- Local `pnpm dev` boots cleanly with Clerk's keyless mode
+- All happy-path UI surfaces exist: list (with search), board, dispatcher, detail, photo capture, comments, magic-link invite
+- 41 unit tests green; FSM, search, sort, photo upload retry, and move-menu logic are pinned
+
+What blocks "real" demo:
+- Real Clerk org so sign-in is meaningful
+- Real Neon DB so any data persists across requests
+- Real R2 so photos round-trip

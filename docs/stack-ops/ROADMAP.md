@@ -4,11 +4,14 @@
 
 ## Current phase
 
-**P2 — kanban board + dispatcher view** (in progress)
+**P1/P2 hardening** (in progress) — making the work-order board and list
+genuinely usable as a Trello/AppFolio replacement before expanding scope.
 
-P0 closed. P1 + P2 code landed (server lib + mobile UI + kanban + filters
-+ dispatcher preset + tests). Pending validation: real Neon/Clerk/R2/Resend
-creds and Day-3 end-to-end on a phone.
+P0 closed. P1 + P2 code landed. Hardening pass added: search, dispatcher
+list view, mobile photo upload (multi-file + progress + retry + 25 MB cap),
+route groups so `pnpm build` is green without creds, 41 unit tests
+(was 18). Pending validation: real Neon/Clerk/R2/Resend creds and Day-3
+end-to-end on a phone. P3 not started — explicitly deferred per Brad.
 
 ## Status legend
 

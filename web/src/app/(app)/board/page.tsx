@@ -46,6 +46,12 @@ export default async function BoardPage({
         <span className="text-xs text-neutral-500">{board.total} cards</span>
         <nav className="ml-auto flex items-center gap-2 text-xs">
           <Link
+            href="/dispatcher"
+            className="rounded-full border border-neutral-300 bg-white px-3 py-1 uppercase tracking-wide text-neutral-600"
+          >
+            Dispatch
+          </Link>
+          <Link
             href="/work-orders"
             className="rounded-full border border-neutral-300 bg-white px-3 py-1 uppercase tracking-wide text-neutral-600"
           >
