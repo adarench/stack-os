@@ -6,7 +6,13 @@
  * P0 stub: just verifies db connectivity. P1 will populate
  * 5 properties / 20 units / 3 vendors per the 72-hour plan.
  */
-import "dotenv/config";
+import { config } from "dotenv";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+
+const __script_dir = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(__script_dir, "..", "web", ".env.local"), quiet: true });
+config({ path: resolve(__script_dir, "..", "web", ".env"), quiet: true });
 
 async function main() {
   const url = process.env.DATABASE_URL;

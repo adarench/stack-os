@@ -136,6 +136,50 @@ in code. Move to BYPASSRLS in a later phase if this becomes load-bearing.
 
 ---
 
+## ADR-006 — App connects via `app_user` role (no BYPASSRLS)
+
+**Date:** 2026-05-05 · **Status:** Accepted
+
+**Context.** Neon's default owner role (`neondb_owner` and equivalents on
+other Postgres providers) has the `BYPASSRLS` attribute. Even with `ENABLE
+ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY`, a connection as the
+owner role silently bypasses every policy. Without this fix, our tenant
+isolation would have been effectively off in production. Caught when the
+real RLS integration tests started running against Neon and showed every
+cross-org SELECT returning rows.
+
+**Decision.** `db/rls-policies.sql` creates an `app_user` role with
+`NOLOGIN` and no `BYPASSRLS`, grants it CRUD + sequence + execute
+privileges, and grants `app_user` membership to the connecting role so
+`SET ROLE` is allowed. `withScope` in `web/src/lib/server/db.ts` and the
+RLS test harness both do `SET LOCAL ROLE app_user` as the FIRST statement
+in every transaction, before setting `app.org_id` / `app.actor_type` /
+`app.vendor_user_id`.
+
+`ALTER DEFAULT PRIVILEGES` ensures future tables created under the owner
+role auto-grant to `app_user` — no manual re-grant after each migration.
+
+The owner role keeps its privileges (and `BYPASSRLS`) so migrations,
+RLS policy applications, and admin scripts can still run unfiltered.
+
+**Alternatives considered.**
+- *Connect directly as `app_user`* — would require a separate connection
+  string with a different password, and SET ROLE inside the transaction
+  is simpler than maintaining two connection strings.
+- *Strip `BYPASSRLS` from the owner role* — Neon manages the owner role;
+  altering it is brittle and breaks Neon's own tooling.
+- *Trust `FORCE ROW LEVEL SECURITY` alone* — `FORCE` enforces RLS for
+  table owners but does NOT override `BYPASSRLS`; that attribute always
+  wins.
+
+**Why.** This is a defense-in-depth correction: app code can now never
+silently bypass tenant isolation, even if a future regression skips
+`SET LOCAL ROLE`. (If `SET LOCAL ROLE` is missing, the connecting role
+still has `BYPASSRLS` — but the four RLS integration tests would catch
+this in CI before it ships.)
+
+---
+
 ## How to add an ADR
 
 1. Append a new section using the template above.

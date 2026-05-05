@@ -14,13 +14,18 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-05 · orchestrator · Neon wired and validated end-to-end. Schema
+  + RLS applied on real Neon dev branch. **All 45 tests passing**, including
+  4 real RLS integration tests. Caught and fixed a real security bug: the
+  default Neon owner role (`neondb_owner`) has `BYPASSRLS`, which would
+  silently defeat tenant isolation. Added an `app_user` role (no BYPASSRLS),
+  with `withScope` and the test harness both doing `SET LOCAL ROLE app_user`
+  per transaction. Filed as ADR-006. Also added the `assignments_vendor_self`
+  policy so the vendor's `work_orders_vendor_assigned` EXISTS subquery can
+  resolve. Next: Clerk keys for sign-in validation.
 - 2026-05-05 · orchestrator · Cred-wiring prep: initial Drizzle migration
-  generated (`/db/migrations/0000_slimy_mac_gargan.sql` — 12 tables,
-  13 enums, all indexes). Replaced the 6 RLS integration test todos
-  with 4 real tests (cross-org isolation + vendor scope + system-actor
-  token lookup) that auto-skip without `DATABASE_URL_UNPOOLED`. Vitest
-  now loads `web/.env.local` via `test/setup-env.ts`. Ready to receive
-  credentials in this order: Neon → Clerk → R2 → Vercel → Resend → Twilio.
+  generated, RLS integration tests rewritten as real tests, vitest loads
+  web/.env.local.
 - 2026-05-05 · orchestrator · P1/P2 hardening landed: route groups (`(app)`
   with Clerk, `(vendor)` without — fixes prerender), `pnpm build` green
   without external creds, work-order search across title/description/WO-#
@@ -39,6 +44,16 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
   6 RLS integration tests `todo` (skipped without `DATABASE_URL`).
 
 ## History
+
+### 2026-05-05 · Neon wired + RLS validated
+
+- Wired · Neon · `web/.env.local` populated with `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct, derived by removing `-pooler` from host). `VENDOR_MAGIC_LINK_SECRET` randomly generated.
+- Wired · DB · `pnpm db:migrate` applied 0000 migration + RLS policies cleanly.
+- Wired · Tests · all 45 tests pass (was 41 unit + 4 todo). RLS integration tests now active: cross-org work_order isolation, missing-`app.org_id` rejection, vendor_user assigned-only SELECT, system-actor cross-org token lookup.
+- **Security fix · `app_user` role** · The Neon default owner role has `BYPASSRLS`. With my original code, every app query bypassed RLS — tenant isolation was effectively off. `db/rls-policies.sql` now creates an `app_user` role (no BYPASSRLS) and grants it CRUD + sequence + execute privileges. `withScope` in `web/src/lib/server/db.ts` and the test harness both do `SET LOCAL ROLE app_user` per transaction. Default privileges are also altered so future tables auto-grant. Filed as ADR-006.
+- Fix · Policies · Added `assignments_vendor_self` SELECT policy so the EXISTS subquery inside `work_orders_vendor_assigned` resolves under the vendor scope (vendors can read their own assignments).
+- Fix · Scripts · `scripts/db-migrate.ts`, `db-rls-apply.ts`, `db-seed.ts` now load `/web/.env.local` explicitly (was relying on `dotenv/config` which only reads `.env`).
+- Fix · Tests · `set local app.org_id = ${val}` doesn't accept parameters (Postgres parser); switched to `select set_config('app.org_id', $1, true)` everywhere.
 
 ### 2026-05-05 · Cred-wiring prep
 

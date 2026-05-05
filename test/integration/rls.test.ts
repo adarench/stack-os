@@ -10,13 +10,9 @@ import { randomUUID } from "node:crypto";
  * Setup expectation:
  *   pnpm db:migrate   # applies schema + RLS policies
  *
- * These tests connect using `postgres` directly (not through Drizzle/Neon-
- * serverless) because they need fine-grained per-statement SET LOCAL
- * control inside each transaction. They also exercise both staff org
- * scoping and the narrow vendor_users_system_lookup policy.
- *
- * The tests assume RLS policies from /db/rls-policies.sql have been
- * applied. If you change policies, re-run `pnpm db:rls:apply`.
+ * Postgres `SET LOCAL` doesn't accept parameters ($1), so we use
+ * `select set_config('app.org_id', $1, true)` everywhere — the third
+ * arg `true` makes it transaction-local (equivalent to SET LOCAL).
  */
 
 const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
@@ -26,9 +22,7 @@ const ORG_A = `org_test_a_${Date.now()}`;
 const ORG_B = `org_test_b_${Date.now()}`;
 const TEST_NS = `rls_${Date.now()}`;
 
-// One shared client for setup/teardown via a privileged path
 let admin: postgres.Sql | null = null;
-// Insert IDs we create so we can clean up
 const created = {
   workOrderIds: [] as string[],
   vendorIds: [] as string[],
@@ -38,7 +32,6 @@ const created = {
 beforeAll(async () => {
   if (skip || !url) return;
   admin = postgres(url, { max: 1 });
-  // Sanity: confirm RLS policies are present.
   const fn = await admin`select to_regprocedure('current_org_id()') as p`;
   if (!fn[0]?.p) {
     throw new Error("current_org_id() not found — run `pnpm db:rls:apply` first");
@@ -47,11 +40,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (!admin) return;
-  // Clean up under a system-actor scope so RLS doesn't block deletes.
-  // We delete narrowly by IDs we tracked.
   await admin.begin(async (tx) => {
-    await tx`set local app.actor_type = 'system'`;
-    await tx`set local app.org_id = ${ORG_A}`;
+    await tx`select set_config('app.actor_type', 'system', true)`;
+    await tx`select set_config('app.org_id', ${ORG_A}, true)`;
     if (created.workOrderIds.length > 0) {
       await tx`delete from audit_log where target_id = any(${created.workOrderIds}::uuid[])`;
       await tx`delete from assignments where target_id = any(${created.workOrderIds}::uuid[])`;
@@ -67,6 +58,19 @@ afterAll(async () => {
   await admin.end();
 });
 
+async function setScope(
+  tx: postgres.Sql,
+  opts: { orgId: string; actorType: "user" | "vendor" | "system"; vendorUserId?: string },
+) {
+  // Drop to the RLS-enforced role just like the runtime app does.
+  await tx`set local role app_user`;
+  await tx`select set_config('app.actor_type', ${opts.actorType}, true)`;
+  await tx`select set_config('app.org_id', ${opts.orgId}, true)`;
+  if (opts.vendorUserId) {
+    await tx`select set_config('app.vendor_user_id', ${opts.vendorUserId}, true)`;
+  }
+}
+
 async function woNumber(sql: postgres.Sql, orgId: string): Promise<number> {
   const r = await sql<{ max: number | null }[]>`
     select coalesce(max(number), 0) as max
@@ -79,8 +83,7 @@ describe.skipIf(skip)("RLS — staff org isolation", () => {
   it("staff in org B cannot read org A's work_order", async () => {
     if (!admin) return;
     const id = await admin.begin(async (tx) => {
-      await tx`set local app.actor_type = 'user'`;
-      await tx`set local app.org_id = ${ORG_A}`;
+      await setScope(tx, { orgId: ORG_A, actorType: "user" });
       const n = await woNumber(tx, ORG_A);
       const r = await tx<{ id: string }[]>`
         insert into work_orders (org_id, number, title, status, kind, priority, created_by_actor_type)
@@ -91,18 +94,14 @@ describe.skipIf(skip)("RLS — staff org isolation", () => {
       return r[0]!.id;
     });
 
-    // Org B should see zero rows.
     const bRows = await admin.begin(async (tx) => {
-      await tx`set local app.actor_type = 'user'`;
-      await tx`set local app.org_id = ${ORG_B}`;
+      await setScope(tx, { orgId: ORG_B, actorType: "user" });
       return tx`select id from work_orders where id = ${id}`;
     });
     expect(bRows.length).toBe(0);
 
-    // Org A still sees the row.
     const aRows = await admin.begin(async (tx) => {
-      await tx`set local app.actor_type = 'user'`;
-      await tx`set local app.org_id = ${ORG_A}`;
+      await setScope(tx, { orgId: ORG_A, actorType: "user" });
       return tx`select id from work_orders where id = ${id}`;
     });
     expect(aRows.length).toBe(1);
@@ -111,8 +110,9 @@ describe.skipIf(skip)("RLS — staff org isolation", () => {
   it("missing app.org_id rejects all queries (returns zero rows)", async () => {
     if (!admin) return;
     const rows = await admin.begin(async (tx) => {
-      // Intentionally do NOT set app.org_id; actor type defaults handled by NULL.
-      await tx`set local app.actor_type = 'user'`;
+      // Drop privileges, set actor_type='user', leave app.org_id unset.
+      await tx`set local role app_user`;
+      await tx`select set_config('app.actor_type', 'user', true)`;
       return tx`select id from work_orders limit 1`;
     });
     expect(rows.length).toBe(0);
@@ -124,8 +124,7 @@ describe.skipIf(skip)("RLS — vendor scope", () => {
     if (!admin) return;
 
     const ctx = await admin.begin(async (tx) => {
-      await tx`set local app.actor_type = 'user'`;
-      await tx`set local app.org_id = ${ORG_A}`;
+      await setScope(tx, { orgId: ORG_A, actorType: "user" });
 
       const v = await tx<{ id: string }[]>`
         insert into vendors (org_id, name) values (${ORG_A}, ${"V " + TEST_NS}) returning id
@@ -152,7 +151,6 @@ describe.skipIf(skip)("RLS — vendor scope", () => {
         values (${ORG_A}, 'work_order', ${wo[0]!.id}, 'vendor_user', ${vu[0]!.id})
       `;
 
-      // And a second WO that is NOT assigned to this vendor_user.
       const n2 = await woNumber(tx, ORG_A);
       const wo2 = await tx<{ id: string }[]>`
         insert into work_orders (org_id, number, title, status, kind, priority, created_by_actor_type)
@@ -165,9 +163,11 @@ describe.skipIf(skip)("RLS — vendor scope", () => {
     });
 
     const visible = await admin.begin(async (tx) => {
-      await tx`set local app.actor_type = 'vendor'`;
-      await tx`set local app.org_id = ${ORG_A}`;
-      await tx`set local app.vendor_user_id = ${ctx.vendorUserId}`;
+      await setScope(tx, {
+        orgId: ORG_A,
+        actorType: "vendor",
+        vendorUserId: ctx.vendorUserId,
+      });
       const rows = await tx<{ id: string }[]>`
         select id from work_orders where id in (${ctx.assignedWoId}, ${ctx.otherWoId})
       `;
@@ -180,11 +180,8 @@ describe.skipIf(skip)("RLS — vendor scope", () => {
 
   it("system actor can SELECT vendor_users cross-org for token lookup", async () => {
     if (!admin) return;
-    // Create a vendor_user in ORG_A, then look it up from a system scope
-    // pretending to not yet know the org (org_id is set to a sentinel).
     const created2 = await admin.begin(async (tx) => {
-      await tx`set local app.actor_type = 'user'`;
-      await tx`set local app.org_id = ${ORG_A}`;
+      await setScope(tx, { orgId: ORG_A, actorType: "user" });
       const v = await tx<{ id: string }[]>`
         insert into vendors (org_id, name) values (${ORG_A}, ${"V2 " + TEST_NS}) returning id
       `;
@@ -198,11 +195,8 @@ describe.skipIf(skip)("RLS — vendor scope", () => {
       return vu[0]!.id;
     });
 
-    // System actor with a sentinel org should still see the row via
-    // vendor_users_system_lookup.
     const found = await admin.begin(async (tx) => {
-      await tx`set local app.actor_type = 'system'`;
-      await tx`set local app.org_id = ${"__lookup__"}`;
+      await setScope(tx, { orgId: "__lookup__", actorType: "system" });
       return tx<{ id: string; org_id: string }[]>`
         select id, org_id from vendor_users where id = ${created2}
       `;

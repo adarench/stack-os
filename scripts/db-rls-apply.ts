@@ -2,10 +2,14 @@
  * Apply only the RLS policies (without running drizzle migrations).
  * Useful when iterating on /db/rls-policies.sql.
  */
-import "dotenv/config";
+import { config } from "dotenv";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+
+const __script_dir = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(__script_dir, "..", "web", ".env.local"), quiet: true });
+config({ path: resolve(__script_dir, "..", "web", ".env"), quiet: true });
 import postgres from "postgres";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

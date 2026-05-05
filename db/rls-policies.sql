@@ -11,11 +11,49 @@
 --   - app.vendor_user_id  — vendor_users.id (when actor_type='vendor')
 --
 -- The app sets these via SET LOCAL inside a per-request transaction.
--- Trusted server code (system/inngest) uses the BYPASSRLS role; everything
--- else hits these policies.
+--
+-- IMPORTANT: Neon's default owner role (e.g. neondb_owner) has BYPASSRLS,
+-- which would defeat RLS entirely. We create an `app_user` role WITHOUT
+-- BYPASSRLS and require app code (and tests) to `SET LOCAL ROLE app_user`
+-- per transaction. The owner role retains BYPASSRLS so migrations and
+-- maintenance can still run.
 --
 -- Re-apply is idempotent: DROP POLICY IF EXISTS + CREATE POLICY.
 -- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- App role (RLS-enforced). Idempotent.
+-- -----------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
+    CREATE ROLE app_user NOLOGIN;
+  END IF;
+END $$;
+
+-- Allow the connecting role (current_user, typically the DB owner) to
+-- `SET ROLE app_user`. Without this, SET ROLE fails with "permission denied".
+DO $$
+DECLARE
+  owner_role text := current_user;
+BEGIN
+  EXECUTE format('GRANT app_user TO %I', owner_role);
+END $$;
+
+GRANT USAGE ON SCHEMA public TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO app_user;
+
+-- Future-proof: any new tables/sequences created under the current role
+-- automatically grant to app_user, so we don't have to re-grant after each
+-- migration.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO app_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT EXECUTE ON FUNCTIONS TO app_user;
 
 -- Enable RLS on every entity table.
 ALTER TABLE properties              ENABLE ROW LEVEL SECURITY;
@@ -117,6 +155,17 @@ USING (
 DROP POLICY IF EXISTS vendor_users_system_lookup ON vendor_users;
 CREATE POLICY vendor_users_system_lookup ON vendor_users FOR SELECT TO PUBLIC
 USING (current_actor_type() = 'system');
+
+-- assignments visible to the vendor user (so the EXISTS subquery in
+-- work_orders_vendor_assigned can resolve under the vendor scope).
+DROP POLICY IF EXISTS assignments_vendor_self ON assignments;
+CREATE POLICY assignments_vendor_self ON assignments FOR SELECT TO PUBLIC
+USING (
+  current_actor_type() = 'vendor'
+  AND org_id = current_org_id()
+  AND assignee_type = 'vendor_user'
+  AND assignee_id = current_vendor_user_id()
+);
 
 -- work_orders assigned to the vendor user
 DROP POLICY IF EXISTS work_orders_vendor_assigned ON work_orders;

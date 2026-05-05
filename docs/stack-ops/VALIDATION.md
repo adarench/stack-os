@@ -89,8 +89,8 @@ Signoff: <orchestrator name>
 - [ ] Photos render in `/work-orders/[id]` grid with signed read URLs
 
 ### What's still gated on creds (cannot run locally yet)
+- ✅ ~~`pnpm db:migrate` / RLS smoke tests~~ DONE 2026-05-05 — Neon wired, 45/45 tests pass
 - End-to-end staff sign-in via real Clerk org (works in keyless dev mode but not against a real org)
-- `pnpm db:migrate` / RLS smoke tests (need Neon `DATABASE_URL` + `DATABASE_URL_UNPOOLED`)
 - Photo upload end-to-end (needs R2 bucket + access keys)
 - Vendor magic-link email delivery (needs Resend domain; URL is logged to console as a fallback)
 - Twilio SMS (A2P 10DLC blocker — 2-4 wk regulatory)
@@ -99,10 +99,10 @@ Signoff: <orchestrator name>
 ### Credential-wiring sequence (in progress)
 Brad pastes credentials in chat → I write to `web/.env.local` (gitignored). For each set:
 
-1. **Neon** (`DATABASE_URL` + `DATABASE_URL_UNPOOLED`)
-   - `pnpm db:migrate` applies schema + RLS
-   - `pnpm test` now exercises 4 real RLS integration tests
-   - Update VALIDATION with PASS/FAIL
+1. **Neon** (`DATABASE_URL` + `DATABASE_URL_UNPOOLED`) — ✅ **DONE 2026-05-05**
+   - `pnpm db:migrate` applied 0000 + RLS cleanly
+   - 45/45 tests pass; 4 RLS integration tests confirm tenant isolation under the `app_user` role
+   - Caught + fixed: `BYPASSRLS` on owner role would have defeated RLS — see ADR-006
 2. **Clerk** (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY`)
    - `pnpm dev`, sign in to real org, walk Day-3 staff checklist
 3. **R2** (`S3_ENDPOINT` + `S3_BUCKET` + `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY`)

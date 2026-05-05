@@ -27,6 +27,10 @@ export async function withScope<T>(
 ): Promise<T> {
   const actorType: ActorType = opts.actorType ?? "user";
   return db.transaction(async (tx) => {
+    // Drop privileges to the RLS-enforced role for the duration of this tx.
+    // The owner role has BYPASSRLS; without SET LOCAL ROLE the policies are
+    // silently ignored and tenant isolation breaks.
+    await tx.execute(sql.raw(`set local role app_user`));
     await tx.execute(sql.raw(`set local app.org_id = '${escapeLiteral(opts.orgId)}'`));
     await tx.execute(sql.raw(`set local app.actor_type = '${escapeLiteral(actorType)}'`));
     if (opts.vendorUserId) {

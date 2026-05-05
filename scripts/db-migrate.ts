@@ -6,10 +6,15 @@
  * After applying SQL migrations, this script also applies the hand-written
  * RLS policies in /db/rls-policies.sql (idempotent).
  */
-import "dotenv/config";
+import { config } from "dotenv";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+
+const __script_dir = dirname(fileURLToPath(import.meta.url));
+// Load /web/.env.local first (highest priority), then /web/.env (fallback).
+config({ path: resolve(__script_dir, "..", "web", ".env.local"), quiet: true });
+config({ path: resolve(__script_dir, "..", "web", ".env"), quiet: true });
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
