@@ -31,11 +31,11 @@ async function main() {
 
   // eslint-disable-next-line no-console
   console.log("[db:migrate] applying drizzle migrations…");
-  await migrate(db, { migrationsFolder: resolve(root, "db/migrations") });
+  await migrate(db, { migrationsFolder: resolve(root, "web/src/db/migrations") });
 
   // eslint-disable-next-line no-console
   console.log("[db:migrate] applying RLS policies…");
-  const rlsSql = readFileSync(resolve(root, "db/rls-policies.sql"), "utf8");
+  const rlsSql = readFileSync(resolve(root, "web/src/db/rls-policies.sql"), "utf8");
   await client.unsafe(rlsSql);
 
   await client.end();

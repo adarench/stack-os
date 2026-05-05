@@ -20,7 +20,7 @@ async function main() {
   if (!url) throw new Error("DATABASE_URL is required");
 
   const client = postgres(url, { max: 1 });
-  const sql = readFileSync(resolve(root, "db/rls-policies.sql"), "utf8");
+  const sql = readFileSync(resolve(root, "web/src/db/rls-policies.sql"), "utf8");
   await client.unsafe(sql);
   await client.end();
   // eslint-disable-next-line no-console
