@@ -1,29 +1,8 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
-const isPublicRoute = createRouteMatcher([
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/api/inngest(.*)",
-  "/api/health",
-  "/api/vendor/(.*)", // vendor magic-link landing handles its own auth
-  "/vendor(.*)", // vendor portal — checks its own session cookie
-  "/manifest.webmanifest",
-]);
-
-export default clerkMiddleware(async (auth, req) => {
-  if (isPublicRoute(req)) return;
-  const { userId, orgId } = await auth();
-  if (!userId) {
-    await auth.protect();
-    return;
-  }
-  // Staff users should always have an active org. If not, send them to org selection.
-  if (!orgId && !req.nextUrl.pathname.startsWith("/select-org")) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/select-org";
-    return Response.redirect(url);
-  }
-});
+// Minimal Clerk middleware — just sets up auth context. Page-level redirects
+// happen in /(app)/page.tsx and via the page's own auth() calls.
+export default clerkMiddleware();
 
 export const config = {
   matcher: [

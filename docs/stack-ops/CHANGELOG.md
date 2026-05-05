@@ -14,15 +14,17 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-05 · orchestrator · Clerk validated in keyless mode. Audited
+  for deprecated APIs (none). Switched `withStaffScope` to use Next's
+  `redirect()` so unauthenticated requests bounce cleanly to `/sign-in`
+  instead of throwing 500s. Simplified middleware to `clerkMiddleware()`
+  with no callback — page/lib code handles the auth-check + redirect at
+  the right time. All routes verified end-to-end: 6 protected routes
+  return 307→/sign-in, 3 public routes return 200, `/api/health` returns
+  JSON. 45/45 tests still pass; build clean. Ready for R2 next.
 - 2026-05-05 · orchestrator · Neon wired and validated end-to-end. Schema
-  + RLS applied on real Neon dev branch. **All 45 tests passing**, including
-  4 real RLS integration tests. Caught and fixed a real security bug: the
-  default Neon owner role (`neondb_owner`) has `BYPASSRLS`, which would
-  silently defeat tenant isolation. Added an `app_user` role (no BYPASSRLS),
-  with `withScope` and the test harness both doing `SET LOCAL ROLE app_user`
-  per transaction. Filed as ADR-006. Also added the `assignments_vendor_self`
-  policy so the vendor's `work_orders_vendor_assigned` EXISTS subquery can
-  resolve. Next: Clerk keys for sign-in validation.
+  + RLS applied on real Neon dev branch. All 45 tests pass; ADR-006 + 7
+  filed.
 - 2026-05-05 · orchestrator · Cred-wiring prep: initial Drizzle migration
   generated, RLS integration tests rewritten as real tests, vitest loads
   web/.env.local.
@@ -44,6 +46,15 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
   6 RLS integration tests `todo` (skipped without `DATABASE_URL`).
 
 ## History
+
+### 2026-05-05 · Clerk validated in keyless mode
+
+- Wired · Clerk · No keys needed yet — Clerk's keyless dev mode auto-creates a temporary application. The "claim your keys" callout will appear in browser when Brad opens `/`. `web/.env.local` does NOT contain `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` or `CLERK_SECRET_KEY`.
+- Audit · Clerk · No deprecated APIs in use. No `<SignedIn>`/`<SignedOut>` (using `auth()` in server components instead, which is also valid). No `authMiddleware`. No `_app.tsx`. All Clerk imports are from `@clerk/nextjs` or `@clerk/nextjs/server`.
+- Fix · Auth flow · `withStaffScope` in `web/src/lib/server/db.ts` was throwing `Error("not_authenticated")` for unauthed requests, surfacing as 500s on every protected route. Switched to Next's `redirect("/sign-in")` / `redirect("/select-org")` — `redirect()` throws `NEXT_REDIRECT` which the framework catches and returns as a 307. All protected pages now bounce cleanly without per-page boilerplate.
+- Fix · Middleware · Simplified to `clerkMiddleware()` with no callback. The custom callback wasn't running in dev (still investigating why; possibly a Clerk + keyless-mode interaction), and we don't actually need it: page/lib code handles redirects at the right time, and `/api/uploads/sign` returns JSON 401 explicitly.
+- Validated · Routes · 6/6 protected routes (`/`, `/work-orders`, `/board`, `/dispatcher`, `/admin/properties`, `/admin/vendors`) → 307 → `/sign-in`. 3/3 public (`/sign-in`, `/sign-up`, `/vendor/invalid`) → 200. `/api/health` → 200 JSON.
+- Tests · 45/45 still pass.
 
 ### 2026-05-05 · Neon wired + RLS validated
 

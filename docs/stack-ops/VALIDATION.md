@@ -103,8 +103,11 @@ Brad pastes credentials in chat → I write to `web/.env.local` (gitignored). Fo
    - `pnpm db:migrate` applied 0000 + RLS cleanly
    - 45/45 tests pass; 4 RLS integration tests confirm tenant isolation under the `app_user` role
    - Caught + fixed: `BYPASSRLS` on owner role would have defeated RLS — see ADR-006
-2. **Clerk** (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY`)
-   - `pnpm dev`, sign in to real org, walk Day-3 staff checklist
+2. **Clerk** (keyless mode) — ✅ **DONE 2026-05-05**
+   - No keys provided; Clerk runs in keyless dev mode
+   - Audit: no deprecated APIs (`<SignedIn>`/`<SignedOut>`, `authMiddleware`, `_app.tsx`, etc.)
+   - Fixed: `withStaffScope` now uses Next's `redirect()` instead of throwing — 6/6 protected routes return 307→/sign-in, 3/3 public routes 200
+   - Real-org sign-in still pending: needs `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` to validate against an actual Clerk org
 3. **R2** (`S3_ENDPOINT` + `S3_BUCKET` + `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY`)
    - Walk Day-3 photo round-trip checklist on phone + desktop
 4. **Vercel link**

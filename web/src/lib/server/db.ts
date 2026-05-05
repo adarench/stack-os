@@ -1,5 +1,6 @@
 import "server-only";
 import { sql } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { db, type DB } from "@db/client";
 import { auth } from "@clerk/nextjs/server";
 
@@ -44,14 +45,23 @@ export async function withScope<T>(
 
 /**
  * Resolve the active Clerk org and run `fn` inside a transaction with RLS
- * session vars set. Throws if no org is active.
+ * session vars set.
+ *
+ * Unauthenticated callers get redirected to /sign-in via Next's `redirect()`,
+ * which throws a `NEXT_REDIRECT` error that the framework catches and
+ * converts into a 307. Same for missing-org → /select-org. This lets every
+ * protected page just call `withStaffScope(...)` without each one repeating
+ * the auth-check + redirect dance.
+ *
+ * For API routes that should return a JSON 401 instead of redirecting,
+ * call `auth()` directly and branch.
  */
 export async function withStaffScope<T>(
   fn: (tx: ScopedDB, ctx: { orgId: string; userId: string }) => Promise<T>,
 ): Promise<T> {
   const { userId, orgId } = await auth();
-  if (!userId) throw new Error("not_authenticated");
-  if (!orgId) throw new Error("no_active_org");
+  if (!userId) redirect("/sign-in");
+  if (!orgId) redirect("/select-org");
   return withScope({ orgId, actorType: "user" }, (tx) => fn(tx, { orgId, userId }));
 }
 
