@@ -90,11 +90,28 @@ Signoff: <orchestrator name>
 
 ### What's still gated on creds (cannot run locally yet)
 - End-to-end staff sign-in via real Clerk org (works in keyless dev mode but not against a real org)
-- `pnpm db:migrate` / RLS smoke tests (need Neon `DATABASE_URL`)
+- `pnpm db:migrate` / RLS smoke tests (need Neon `DATABASE_URL` + `DATABASE_URL_UNPOOLED`)
 - Photo upload end-to-end (needs R2 bucket + access keys)
 - Vendor magic-link email delivery (needs Resend domain; URL is logged to console as a fallback)
 - Twilio SMS (A2P 10DLC blocker — 2-4 wk regulatory)
 - Vercel preview deploy (needs `vercel link`)
+
+### Credential-wiring sequence (in progress)
+Brad pastes credentials in chat → I write to `web/.env.local` (gitignored). For each set:
+
+1. **Neon** (`DATABASE_URL` + `DATABASE_URL_UNPOOLED`)
+   - `pnpm db:migrate` applies schema + RLS
+   - `pnpm test` now exercises 4 real RLS integration tests
+   - Update VALIDATION with PASS/FAIL
+2. **Clerk** (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY`)
+   - `pnpm dev`, sign in to real org, walk Day-3 staff checklist
+3. **R2** (`S3_ENDPOINT` + `S3_BUCKET` + `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY`)
+   - Walk Day-3 photo round-trip checklist on phone + desktop
+4. **Vercel link**
+   - `vercel link` + push secrets, preview deploy
+5. **Resend** (`RESEND_API_KEY` + verified `RESEND_FROM_EMAIL`)
+   - Send a real magic-link to a vendor inbox; verify
+6. **Twilio** (deferred — A2P 10DLC takes 2-4 weeks)
 
 ### Day-3 demo readiness
 The codebase is demo-ready in the sense that:

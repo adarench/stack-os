@@ -14,6 +14,13 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-05 · orchestrator · Cred-wiring prep: initial Drizzle migration
+  generated (`/db/migrations/0000_slimy_mac_gargan.sql` — 12 tables,
+  13 enums, all indexes). Replaced the 6 RLS integration test todos
+  with 4 real tests (cross-org isolation + vendor scope + system-actor
+  token lookup) that auto-skip without `DATABASE_URL_UNPOOLED`. Vitest
+  now loads `web/.env.local` via `test/setup-env.ts`. Ready to receive
+  credentials in this order: Neon → Clerk → R2 → Vercel → Resend → Twilio.
 - 2026-05-05 · orchestrator · P1/P2 hardening landed: route groups (`(app)`
   with Clerk, `(vendor)` without — fixes prerender), `pnpm build` green
   without external creds, work-order search across title/description/WO-#
@@ -21,8 +28,6 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
   at `/dispatcher` with priority-then-FIFO sort + inline triage/assign,
   mobile photo upload hardened (multi-file, per-file progress, 25MB cap,
   single retry on 403, error states). 41 unit tests green (up from 18).
-  Next: wire real Neon/Clerk/R2 creds for Day-3 phone walkthrough; P3
-  intentionally deferred per Brad.
 - 2026-05-05 · orchestrator · P2 first push landed: kanban board with
   dnd-kit drag-drop between columns, optimistic updates with rollback on
   invalid transition, mobile fallback "Move…" menu inside each card,
@@ -34,6 +39,13 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
   6 RLS integration tests `todo` (skipped without `DATABASE_URL`).
 
 ## History
+
+### 2026-05-05 · Cred-wiring prep
+
+- Prep · DB · `pnpm --filter web db:generate` → `/db/migrations/0000_slimy_mac_gargan.sql`. 12 tables, 13 enums (work_order_status, polymorphic_target, etc.), all indexes from schema. The migration is committed; running `pnpm db:migrate` once `DATABASE_URL` lands will apply it + the hand-written RLS policies in one shot.
+- Prep · Tests · `/test/integration/rls.test.ts` rewritten from 6 todos into 4 real tests that exercise: cross-org work_orders isolation, missing-`app.org_id` rejection, vendor_user can SELECT only assigned WOs, and the `vendor_users_system_lookup` policy used by the magic-link verify flow. Each test uses `describe.skipIf(!DATABASE_URL_UNPOOLED ?? !DATABASE_URL)` so they auto-skip without DB and auto-run when the URL appears.
+- Prep · Tests · `vitest.config.ts` `setupFiles: ["../test/setup-env.ts"]` loads `/web/.env.local` into `process.env` for every test run, so integration tests pick up credentials without shell wrappers.
+- Prep · Docs · `.env.example` annotates Neon's pooled vs unpooled URLs and which to use where.
 
 ### 2026-05-05 · P1/P2 hardening
 
