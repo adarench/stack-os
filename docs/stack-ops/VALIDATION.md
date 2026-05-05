@@ -114,11 +114,19 @@ Brad pastes credentials in chat → I write to `web/.env.local` (gitignored). Fo
    - Photo upload via `/api/uploads/sign` is functionally ready; remaining validation is the in-browser flow (camera capture → signed PUT → attachment row → grid render), gated on a real Clerk org session
 4. **Vercel** — ✅ **DONE 2026-05-05**
    - Repo at `adarench/stack-os` (private)
-   - Project at `adam-renchers-projects/stack-os` (Next.js, Node 24.x, rootDirectory=`web`)
-   - All 12 env vars synced to production + preview + development
-   - Production live: https://stack-os-six.vercel.app + https://stack-os-adam-renchers-projects.vercel.app
-   - GitHub integration connected; `git push` to `main` auto-deploys
-   - Preview URLs gated by Vercel Deployment Protection (SSO required for non-team-members; can be disabled or bypass-tokened later)
+   - Project at `adam-renchers-projects/stack-os` (Next.js, Node 24.x)
+   - All 16 env vars synced to production + preview + development (incl. real Clerk keys)
+   - **Production live: https://stack-os-omega.vercel.app**
+     - `/` → 307 → `/sign-in`
+     - `/sign-in` → 200 (Clerk renders)
+     - `/api/health` → 200 JSON
+   - Deployment Protection: **disabled** (production accessible without SSO)
+   - **Known issue:** GitHub auto-deploys are currently failing with no error logs (platform-side glitch after rootDirectory toggling). Workaround: deploy via `vercel link --yes --project stack-os && vercel deploy --prod` from `/web/`. Likely fixed by re-configuring rootDirectory via Vercel dashboard.
+
+5. **Clerk** — ✅ **REAL KEYS 2026-05-05**
+   - Claimed the keyless dev app and got `pk_test_...` + `sk_test_...`
+   - Synced to Vercel; production middleware now serves correctly
+   - Replaced the earlier "keyless dev mode only" status
 5. **Resend** — ✅ **DONE 2026-05-05**
    - `RESEND_API_KEY` wired
    - `RESEND_FROM_EMAIL="onboarding@resend.dev"` for testing

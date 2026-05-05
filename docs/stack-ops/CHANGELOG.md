@@ -14,17 +14,20 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
-- 2026-05-05 · orchestrator · Vercel wired and live. Repo pushed to
-  `adarench/stack-os` (private). Project linked at
-  `adam-renchers-projects/stack-os` with `rootDirectory=web` (set via REST
-  API). All 12 env vars from `web/.env.local` synced to all three Vercel
-  environments (production, preview, development). First production
-  deploy succeeded after refactoring `/contracts` `/db` `/inngest` into
-  `/web/src/` — Vercel only uploads files under the linked rootDirectory,
-  and the original repo-root layout broke the build. GitHub auto-deploys
-  on push are now wired; future merges to `main` will redeploy
-  automatically. Production URLs: stack-os-six.vercel.app,
-  stack-os-adam-renchers-projects.vercel.app.
+- 2026-05-05 · orchestrator · Clerk keys wired; production middleware
+  500 (`MIDDLEWARE_INVOCATION_FAILED: Missing publishableKey`) resolved.
+  Took several rebuilds: Clerk keyless mode is dev-only and broke in
+  production. Pasted real `pk_test_` / `sk_test_`, pushed all 16 envs to
+  Vercel. After repeated platform-side deploy failures (CLI from /web/
+  hit a stale rootDirectory state, GitHub-triggered builds errored at
+  0ms with no logs), I deleted and re-created the Vercel project
+  cleanly with no rootDirectory and deployed CLI from /web/. Site is
+  live at https://stack-os-omega.vercel.app. Deployment Protection
+  disabled. GitHub auto-deploy is currently broken (Vercel platform
+  glitch — likely needs follow-up via dashboard); CLI deploy from
+  /web/ works.
+- 2026-05-05 · orchestrator · Vercel wired (initial). Some envs synced;
+  initial Clerk-less deploy 500'd. Re-wired below with real Clerk keys.
 - 2026-05-05 · orchestrator · R2 fully wired and validated. Brad's first
   paste was a `cfat_` Cloudflare user API token; the R2-specific page
   gave the proper S3 keys. Round-trip probe confirmed end-to-end.
