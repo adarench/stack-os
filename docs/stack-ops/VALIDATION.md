@@ -132,6 +132,233 @@ Brad pastes credentials in chat → I write to `web/.env.local` (gitignored). Fo
    - `RESEND_FROM_EMAIL="onboarding@resend.dev"` for testing
    - Production: verify a domain in Resend dashboard, then update FROM_EMAIL
 6. **Twilio** — ⏳ deferred (A2P 10DLC, 2-4 wk regulatory)
+
+---
+
+## P2 Day-3 validation checklist
+
+**Goal:** confirm a real user can complete a full work-order lifecycle —
+creation → triage → assignment → in-progress updates → completion — across
+list, board, and dispatcher views, on both desktop and mobile.
+
+**Site:** https://stack-os-omega.vercel.app
+**Pre-req:** at least one property, one unit, one vendor, one vendor_user in
+the org. If empty, do the **Pre-flight setup** section first.
+
+Mark each item ✅ pass / ❌ fail / ⏭ skip with notes. Record results in a
+new dated section under "P2 (validated)" below.
+
+### Pre-flight setup (≈5 min, desktop)
+- [ ] Sign in via Clerk on desktop. After sign-up, the Clerk widget should
+  prompt to create your first organization. Name it (e.g. `Stack Real
+  Estate`). Expected: redirect to `/work-orders`, empty list.
+- [ ] Click **Dispatch** in the header → land on `/dispatcher`. Tabs (All /
+  New / Triaged / Blocked) all show count `0`.
+- [ ] Click **Board** in the header → land on `/board`. Each column shows
+  "Empty" placeholder. Total `0 cards`.
+- [ ] Open `/admin/properties`. Create a property: name=`Cedar Ridge Apt`,
+  city=`Boise`, state=`ID`. Expand it, add a unit `3B`, BR=`2`, BA=`1`.
+- [ ] Open `/admin/vendors`. Create a vendor: name=`Acme Plumbing`, trade=
+  `plumbing`. Expand it, invite a vendor user with your own email (or any
+  inbox you can read). Expected: form clears; the new vendor user appears
+  with status `invited`.
+- [ ] Check the dev console / Vercel logs for `[invite] vendor_user_id=…
+  url=…`. Copy that URL — it's the magic link. (Resend may also email it
+  if `onboarding@resend.dev` reaches your inbox.)
+
+### A. Creation (desktop)
+- [ ] `/work-orders` → click **+ New**. Fill: title=`Leaky kitchen faucet`,
+  description=`tenant reports drip overnight`, priority=`high`,
+  property=`Cedar Ridge Apt`, unit=`3B`. Submit.
+  - **Expected:** redirect to `/work-orders/[id]`. Header shows `WO-1`,
+    status pill `NEW`, "Move forward" buttons (`→ triaged`, `→ cancelled`).
+- [ ] Back to `/work-orders` list.
+  - **Expected:** card shows priority dot (amber for `high`), `WO-1`,
+    title, `Cedar Ridge Apt · 3B`, status pill `new`. Result count `1`.
+- [ ] `/board` desktop view.
+  - **Expected:** card visible in **new** column with same priority dot
+    and unit context.
+- [ ] `/dispatcher` All tab.
+  - **Expected:** WO-1 appears at top (highest priority `high` + only
+    item). "Assign vendor" select shows `Acme Plumbing — <name/email>`.
+
+### B. Triage (mixed surfaces)
+- [ ] On `/board`, **drag** WO-1 from `new` to `triaged`. Watch for: column
+  glows green during hover; card snaps into the new column on drop.
+  - **Expected:** instant optimistic move; no error toast; refresh
+    confirms persistence.
+- [ ] On the WO detail page, the audit-implied state shows `TRIAGED`. Move
+  buttons now show `→ assigned`, `→ cancelled`.
+- [ ] On `/board`, try to drag WO-1 from `triaged` directly to
+  `in_progress`. **Failure case to watch:**
+  - **Expected:** column glows **rose** during hover; on drop the card
+    snaps back; rose error banner reads *"Cannot move triaged → in
+    progress"*. WO-1 stays in `triaged`.
+- [ ] On `/board`, drag WO-1 to `cancelled` then refresh. Use browser
+  back-button. On `/board`, drag back to `triaged`. **Failure case:**
+  - **Expected:** snap-back + error (cancelled is terminal). WO-1 stays
+    in `cancelled`. Use the WO detail page directly via URL to verify
+    "Terminal state." copy displays. (You can re-create a WO if needed.)
+
+### C. Assignment (dispatcher view)
+Re-create or move a WO back to `triaged` for this section if needed.
+
+- [ ] `/dispatcher` → All tab. WO-1 should be visible. The vendor
+  dropdown shows `Acme Plumbing — <vendor user>`.
+- [ ] Select the vendor user → click **Assign**.
+  - **Expected:** the row's status pill flips to `ASSIGNED` immediately
+    (server-side `assignVendor` advances the state). The dispatcher list
+    no longer shows it on `New` / `Triaged` / `Blocked` tabs (since it's
+    no longer in the dispatch set). The "All" tab also drops it.
+- [ ] Visit `/work-orders/[id]` for that WO. The "Assign vendor" section
+  is still there; the new vendor row should show in the dropdown but
+  the existing assignment isn't visible in this MVP UI — that's OK,
+  audit_log captures it. The status pill is `ASSIGNED`.
+- [ ] Use the magic-link URL from setup. Open in incognito → vendor lands
+  on `/vendor`. The assigned WO should appear under "Assigned to you"
+  with WO-#, title, and status pill.
+  - **Failure case:** if the magic link expired or RLS misfires, vendor
+    lands on `/vendor/invalid` or sees `Nothing assigned right now.`
+    despite being assigned — check the console for the invite URL again
+    and re-issue.
+
+### D. In-progress updates (mobile)
+Switch to your phone for this section. Use the same incognito context for
+the vendor side; staff side stays signed in via Clerk.
+
+- [ ] On phone, open `https://stack-os-omega.vercel.app/work-orders/[id]`
+  signed in as staff. Layout should be max-w-md, single column.
+  - **Expected:** title, priority dot, status pill, "Move forward"
+    buttons all present and tappable (≥44px height).
+- [ ] Tap `→ scheduled`.
+  - **Expected:** state advances; no full-page reload (server action via
+    transition). Status pill updates.
+- [ ] Tap `→ in_progress`.
+  - **Expected:** advances cleanly. `started_at` recorded server-side
+    (visible if you query DB; UI doesn't show it yet).
+- [ ] **Photo capture, before:** tap **Before** card. Phone camera/gallery
+  opens. Take or pick a photo.
+  - **Expected:** row appears under file list with progress bar
+    `0% → 100%`, then "done" badge. Photo appears in 3-column grid.
+- [ ] Pick **3 photos at once** via Before. (On iOS, tap Photo Library →
+  multi-select.)
+  - **Expected:** 3 rows queue, run sequentially, each shows progress,
+    all land in grid.
+- [ ] **Failure case — large file:** if you have a 25 MB+ image, picking
+  it should immediately error with `File too large (max 25MB)` on that
+  row, no upload attempted.
+- [ ] **Comments:** type a comment in the bottom field, tap **Post**.
+  - **Expected:** input clears; comment appears in thread above with
+    timestamp + visibility=`internal`.
+- [ ] Refresh the page on phone. All photos and comments persist; status
+  pill is still `in_progress`.
+
+### E. Vendor side (mobile)
+- [ ] On phone, in incognito, open the vendor magic-link URL again.
+  - **Expected:** if cookie still valid, lands on `/vendor` with the
+    assigned WO. If expired (>30 day cookie), redirected to
+    `/vendor/invalid`.
+- [ ] Tap the WO card on `/vendor`.
+  - **Expected:** in P2 the vendor portal is read-only — tapping doesn't
+    navigate (this is intentional for MVP; vendor write surfaces are P3+).
+    The portal lists the WO with status `IN_PROGRESS`.
+
+### F. Completion (back to staff, desktop or mobile)
+- [ ] On the WO detail page (staff session), tap `→ resolved`.
+  - **Expected:** status flips to `RESOLVED`. `completed_at` recorded.
+    Move-forward shows `→ verified`, `→ in_progress` (rework path).
+- [ ] Tap `→ verified`.
+  - **Expected:** status `VERIFIED`. Move-forward shows `→ closed`,
+    `→ in_progress`.
+- [ ] Tap `→ closed`.
+  - **Expected:** status `CLOSED`. Section reads "Terminal state." with
+    no buttons.
+- [ ] On `/board`, the WO is no longer visible in default columns.
+- [ ] Toggle **Show closed** on `/board`.
+  - **Expected:** `closed` and `cancelled` columns appear; the WO sits
+    in `closed`.
+
+### G. Filters and search composition (desktop)
+Create 2-3 more WOs across different properties/priorities to exercise this.
+
+- [ ] `/work-orders` → type `leak` in the search bar.
+  - **Expected:** filters to WOs whose title/description contains "leak"
+    (case-insensitive). Result count updates.
+- [ ] Combine: search `leak` + status filter `in progress` + property
+  dropdown.
+  - **Expected:** all three filters AND together. Clear button appears.
+- [ ] Click **Clear**.
+  - **Expected:** all filters reset; full list returns.
+- [ ] Type `WO-1` in search.
+  - **Expected:** matches the WO with that exact number.
+- [ ] `/board` → switch to **Dispatcher** view chip.
+  - **Expected:** columns narrow to `new` / `triaged` / `blocked` only.
+- [ ] `/board` → set **property** filter to one specific property.
+  - **Expected:** board re-renders with only that property's WOs.
+- [ ] Copy the URL with filters applied, open in a new tab.
+  - **Expected:** same filtered view loads (URL-driven state works).
+
+### H. Mobile-specific gotchas
+- [ ] **Touch drag:** on phone Safari/Chrome, long-press a card on
+  `/board`. After ~200ms it should lift visually and follow your finger.
+  Drop on adjacent column.
+  - **Expected:** the same valid/invalid drop logic as desktop. Mobile
+    drag may feel sluggish — that's why the **Move…** menu exists.
+- [ ] **Move… menu:** on a card, tap **Move…**. Chip list of allowed
+  next states appears.
+  - **Expected:** only canTransition-allowed targets show. Tapping one
+    moves the card; same optimistic update + rollback rules.
+- [ ] **Tap-vs-drag conflict:** tap (don't drag) the WO title on a card.
+  - **Expected:** navigates to detail page (not a misfired drag).
+- [ ] **Horizontal scroll:** on `/board`, scroll columns horizontally with
+  swipe. Snap-to-column behavior should hold.
+- [ ] **Status pill readability:** all status pills readable at default
+  zoom. Priority dots large enough to distinguish (urgent rose vs high
+  amber vs normal sky vs low neutral).
+
+### I. Cross-cutting failure cases
+- [ ] Refresh the page mid-drag (during the brief moment the card is
+  lifted). **Expected:** state consistent on reload (no torn UI).
+- [ ] Sign out and visit `/work-orders` directly.
+  - **Expected:** 307 → `/sign-in`. No 500.
+- [ ] As staff, hit `/vendor`.
+  - **Expected:** redirects to `/vendor/invalid` (no vendor session
+    cookie). No 500. No data leak.
+- [ ] Open `/api/health` in browser.
+  - **Expected:** `{"ok":true,"env":"development"}` (200).
+- [ ] Open the WO detail URL of a WO from a different org (if you have
+  one to test).
+  - **Expected:** "Not found" 404 (RLS blocks the SELECT).
+
+### Definition of P2 complete
+**P2 is complete when ALL of the following are true:**
+
+1. Pre-flight setup, A, B, C, F, G, I sections all ✅ on desktop.
+2. D, E, H sections all ✅ on a real phone (iOS Safari **and** Android
+   Chrome if both available; iOS Safari minimum).
+3. The full lifecycle (creation → closed) ran end-to-end with no 500
+   errors and no torn UI.
+4. State-machine enforcement holds: every invalid drag/menu-pick was
+   rejected with a visible error and the optimistic move rolled back.
+5. URL-driven filters survive paste/refresh (deep-linkable state works).
+6. Vendor portal sees only WOs assigned to that specific vendor_user, not
+   any other org's data.
+7. Photo round-trip works: select → progress → "done" → grid → refresh
+   persists.
+
+If any item fails, file it in `OPEN_QUESTIONS.md` with `Phase: P2 -
+validation` and treat P2 as not yet closed.
+
+### P2 — Validated runs
+
+> Append a dated entry per validation pass. Format:
+> ```
+> ### YYYY-MM-DD · validated by <name>
+> - Desktop sections (A,B,C,F,G,I): <pass / fail items>
+> - Mobile sections (D,E,H): <device — pass / fail items>
+> - Lifecycle: <created → closed completion?>
+> - Notes: <surprises, follow-ups>
+> ```
 3. **R2** (`S3_ENDPOINT` + `S3_BUCKET` + `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY`)
    - Walk Day-3 photo round-trip checklist on phone + desktop
 4. **Vercel link**
