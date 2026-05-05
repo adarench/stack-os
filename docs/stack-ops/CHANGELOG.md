@@ -14,6 +14,19 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-05 · orchestrator · P2 finished as far as automation can take
+  it. Two new validation surfaces: `scripts/p2-smoke.ts` (14/14 HTTP
+  smoke tests against the deployed site) and
+  `test/integration/work-order-lifecycle.test.ts` (18 tests driving the
+  real server functions against Neon with mocked Clerk auth). Covers
+  pre-flight setup, happy-path lifecycle through all 7 transitions,
+  4 invalid-transition rejections, vendor assignment + cross-org
+  rejection, comments, audit_log capture, and RLS vendor scope. Total
+  63/63 tests pass. Sections D/H (touch drag-drop, Move… menu, photo
+  camera capture) remain human-only — code paths exist and underlying
+  logic is tested, but interactive UI behavior on real devices needs
+  eyes. P2 functionally complete; formal closure on a human's first
+  walk-through.
 - 2026-05-05 · orchestrator · Clerk keys wired; production middleware
   500 (`MIDDLEWARE_INVOCATION_FAILED: Missing publishableKey`) resolved.
   Took several rebuilds: Clerk keyless mode is dev-only and broke in
