@@ -28,17 +28,21 @@ export async function withScope<T>(
 ): Promise<T> {
   const actorType: ActorType = opts.actorType ?? "user";
   return db.transaction(async (tx) => {
-    // Drop privileges to the RLS-enforced role for the duration of this tx.
-    // The owner role has BYPASSRLS; without SET LOCAL ROLE the policies are
-    // silently ignored and tenant isolation breaks.
-    await tx.execute(sql.raw(`set local role app_user`));
-    await tx.execute(sql.raw(`set local app.org_id = '${escapeLiteral(opts.orgId)}'`));
-    await tx.execute(sql.raw(`set local app.actor_type = '${escapeLiteral(actorType)}'`));
+    // Drop privileges to the RLS-enforced role and set scope vars in ONE
+    // round-trip. Multi-statement query: `SET LOCAL ROLE` cannot be combined
+    // with `set_config()` calls, so we send them as a single semicolon-
+    // separated statement. Reduces 4 WS round-trips to Neon down to 1 —
+    // critical for sub-1s authed page renders on Vercel cold starts.
+    const orgId = escapeLiteral(opts.orgId);
+    const actor = escapeLiteral(actorType);
+    let preamble =
+      `set local role app_user; ` +
+      `set local app.org_id = '${orgId}'; ` +
+      `set local app.actor_type = '${actor}';`;
     if (opts.vendorUserId) {
-      await tx.execute(
-        sql.raw(`set local app.vendor_user_id = '${escapeLiteral(opts.vendorUserId)}'`),
-      );
+      preamble += ` set local app.vendor_user_id = '${escapeLiteral(opts.vendorUserId)}';`;
     }
+    await tx.execute(sql.raw(preamble));
     return fn(tx);
   });
 }
