@@ -1,0 +1,59 @@
+import "server-only";
+import { z } from "zod";
+import { and, asc, eq } from "drizzle-orm";
+import { vendors } from "@db/schema/vendors";
+import { vendorUsers } from "@db/schema/vendor-users";
+import { withStaffScope } from "./db";
+import { writeAudit } from "./audit";
+import { ensureUserRow } from "./sync-user";
+
+export const createVendorInput = z.object({
+  name: z.string().min(1).max(200),
+  trade: z.string().max(60).optional(),
+  primaryContactName: z.string().max(120).optional(),
+  primaryEmail: z.string().email().optional(),
+  primaryPhone: z.string().max(40).optional(),
+});
+
+export async function createVendor(input: z.infer<typeof createVendorInput>) {
+  const parsed = createVendorInput.parse(input);
+  return withStaffScope(async (tx, ctx) => {
+    const userId = await ensureUserRow(tx, ctx.orgId, ctx.userId);
+    const inserted = await tx
+      .insert(vendors)
+      .values({
+        orgId: ctx.orgId,
+        name: parsed.name,
+        trade: parsed.trade ?? null,
+        primaryContactName: parsed.primaryContactName ?? null,
+        primaryEmail: parsed.primaryEmail ?? null,
+        primaryPhone: parsed.primaryPhone ?? null,
+      })
+      .returning();
+    const row = inserted[0]!;
+    await writeAudit(tx, {
+      orgId: ctx.orgId,
+      targetType: "vendor",
+      targetId: row.id,
+      action: "created",
+      actorUserId: userId,
+      diff: { to: { name: parsed.name, trade: parsed.trade } },
+    });
+    return row;
+  });
+}
+
+export async function listVendors() {
+  return withStaffScope(async (tx, ctx) =>
+    tx.select().from(vendors).where(eq(vendors.orgId, ctx.orgId)).orderBy(asc(vendors.name)),
+  );
+}
+
+export async function listVendorUsersForVendor(vendorId: string) {
+  return withStaffScope(async (tx, ctx) =>
+    tx
+      .select()
+      .from(vendorUsers)
+      .where(and(eq(vendorUsers.orgId, ctx.orgId), eq(vendorUsers.vendorId, vendorId))),
+  );
+}

@@ -1,17 +1,22 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { Pool, neonConfig } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import ws from "ws";
 import * as schema from "./schema";
+
+// In Node runtime (server actions, Inngest, scripts) we need a WebSocket impl.
+// Vercel/edge already provides one.
+if (typeof WebSocket === "undefined") {
+  neonConfig.webSocketConstructor = ws as unknown as typeof WebSocket;
+}
 
 const url = process.env.DATABASE_URL;
 if (!url) {
-  // Allow tooling/typecheck to load without a live connection.
-  // Runtime callers MUST set DATABASE_URL.
   // eslint-disable-next-line no-console
   console.warn("[db] DATABASE_URL not set — db client created in placeholder mode");
 }
 
-const sql = neon(url ?? "postgresql://placeholder");
-export const db = drizzle(sql, { schema });
+export const pool = new Pool({ connectionString: url ?? "postgresql://placeholder" });
+export const db = drizzle(pool, { schema });
 
 export type DB = typeof db;
 export { schema };

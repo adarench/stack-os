@@ -91,6 +91,51 @@ is added in P5 alongside the vendor portal.
 
 ---
 
+## ADR-004 — `org_id` is text (Clerk org id), not uuid
+
+**Date:** 2026-05-05 · **Status:** Accepted
+
+**Context.** Clerk organization IDs are strings like `org_2abc...`, not UUIDs.
+The original P0 schema had `org_id uuid` on every entity table.
+
+**Decision.** Change `org_id` columns to `text`. The RLS helper
+`current_org_id()` returns text. `app.org_id` session var holds the Clerk
+org id directly, no mapping table.
+
+**Alternatives considered.** Maintain a separate `orgs` table mapping Clerk
+ids → internal UUIDs. Adds a join on every query; no benefit since Clerk's
+ids are already globally unique and stable.
+
+**Why.** Simpler. No mapping layer. Correct from day one. Done before any
+migration ran, so no data migration was needed.
+
+---
+
+## ADR-005 — `system` actor type can read `vendor_users` cross-org
+
+**Date:** 2026-05-05 · **Status:** Accepted
+
+**Context.** The vendor magic-link verify flow needs to look up a token hash
+without yet knowing which org owns it. The standard staff org-scope policy
+requires `org_id = current_org_id()`, blocking cross-org reads.
+
+**Decision.** Add a narrow `vendor_users_system_lookup` SELECT policy that
+allows any row when `current_actor_type() = 'system'`. App code sets
+`actor_type='system'` only in trusted server paths
+(`/lib/server/vendor-invite.ts`).
+
+**Alternatives considered.**
+- *BYPASSRLS database role* for trusted code — proper hardening, but adds
+  ops complexity (separate role, separate connection string). Defer to a
+  later phase.
+- *Public token-lookup table* keyed only on token hash — duplicates state
+  and adds a second source of truth.
+
+**Why.** Single policy, narrow scope, trusted-server boundary documented
+in code. Move to BYPASSRLS in a later phase if this becomes load-bearing.
+
+---
+
 ## How to add an ADR
 
 1. Append a new section using the template above.

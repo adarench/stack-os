@@ -47,9 +47,10 @@ ALTER TABLE task_scopes             FORCE ROW LEVEL SECURITY;
 
 -- -----------------------------------------------------------------------------
 -- Helper: current_org_id() — reads app.org_id session var, returns NULL if unset.
+-- Clerk org IDs are text (e.g. "org_2abc...").
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION current_org_id() RETURNS uuid AS $$
-  SELECT NULLIF(current_setting('app.org_id', true), '')::uuid;
+CREATE OR REPLACE FUNCTION current_org_id() RETURNS text AS $$
+  SELECT NULLIF(current_setting('app.org_id', true), '');
 $$ LANGUAGE sql STABLE;
 
 CREATE OR REPLACE FUNCTION current_actor_type() RETURNS text AS $$
@@ -109,6 +110,13 @@ USING (
   AND org_id = current_org_id()
   AND id = current_vendor_user_id()
 );
+
+-- system-actor cross-org SELECT — used ONLY by the magic-link verify flow
+-- to resolve a token hash to its owning org. App code is trusted; user-driven
+-- paths must NEVER set actor_type='system'.
+DROP POLICY IF EXISTS vendor_users_system_lookup ON vendor_users;
+CREATE POLICY vendor_users_system_lookup ON vendor_users FOR SELECT TO PUBLIC
+USING (current_actor_type() = 'system');
 
 -- work_orders assigned to the vendor user
 DROP POLICY IF EXISTS work_orders_vendor_assigned ON work_orders;

@@ -1,4 +1,4 @@
-import { pgEnum, timestamp, uuid } from "drizzle-orm/pg-core";
+import { pgEnum, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import {
   POLYMORPHIC_TARGETS,
   ATTACHMENT_KINDS,
@@ -40,4 +40,5 @@ export const timestamps = {
 };
 
 export const id = () => uuid("id").primaryKey().defaultRandom();
-export const orgId = () => uuid("org_id").notNull(); // Clerk org id (mirrored from auth)
+// Clerk org IDs are strings like "org_2abc...". Stored as text to match.
+export const orgId = () => text("org_id").notNull();

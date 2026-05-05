@@ -1,0 +1,84 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import {
+  createWorkOrder,
+  type CreateWorkOrderInput,
+  updateWorkOrderStatus,
+  assignVendor,
+} from "@/lib/server/work-orders";
+import { createComment } from "@/lib/server/comments";
+import { createAttachment } from "@/lib/server/attachments";
+import { signUploadUrl, storageConfigured } from "@/lib/server/storage";
+import { auth } from "@clerk/nextjs/server";
+
+export async function createWorkOrderAction(input: CreateWorkOrderInput) {
+  const row = await createWorkOrder(input);
+  revalidatePath("/work-orders");
+  redirect(`/work-orders/${row.id}`);
+}
+
+export async function transitionStatusAction(formData: FormData) {
+  const id = String(formData.get("id"));
+  const to = String(formData.get("to"));
+  await updateWorkOrderStatus({ id, to: to as never });
+  revalidatePath(`/work-orders/${id}`);
+  revalidatePath("/work-orders");
+}
+
+export async function addCommentAction(formData: FormData) {
+  const targetId = String(formData.get("targetId"));
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return;
+  await createComment({ targetType: "work_order", targetId, body, visibility: "internal" });
+  revalidatePath(`/work-orders/${targetId}`);
+}
+
+export async function assignVendorAction(formData: FormData) {
+  const workOrderId = String(formData.get("workOrderId"));
+  const vendorUserId = String(formData.get("vendorUserId"));
+  if (!vendorUserId) return;
+  await assignVendor({ workOrderId, vendorUserId });
+  revalidatePath(`/work-orders/${workOrderId}`);
+  revalidatePath("/work-orders");
+}
+
+export interface SignedUploadResult {
+  url: string;
+  key: string;
+  expiresInSeconds: number;
+}
+
+export async function requestUploadUrl(args: {
+  targetType: "work_order";
+  targetId: string;
+  filename: string;
+  contentType: string;
+}): Promise<SignedUploadResult | { error: string }> {
+  const { userId, orgId } = await auth();
+  if (!userId || !orgId) return { error: "unauthorized" };
+  if (!storageConfigured()) return { error: "storage_not_configured" };
+  return signUploadUrl({ orgId, ...args });
+}
+
+export async function attachUploadedFileAction(input: {
+  targetType: "work_order";
+  targetId: string;
+  storageKey: string;
+  contentType: string;
+  filename?: string;
+  sizeBytes?: number;
+  kind?: "before_photo" | "after_photo" | "receipt" | "general";
+}) {
+  await createAttachment({
+    targetType: input.targetType,
+    targetId: input.targetId,
+    storageKey: input.storageKey,
+    contentType: input.contentType,
+    filename: input.filename,
+    sizeBytes: input.sizeBytes,
+    kind: input.kind ?? "general",
+  });
+  revalidatePath(`/work-orders/${input.targetId}`);
+}

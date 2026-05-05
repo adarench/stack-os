@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/inngest(.*)",
   "/api/health",
   "/api/vendor/(.*)", // vendor magic-link landing handles its own auth
+  "/vendor(.*)", // vendor portal — checks its own session cookie
   "/manifest.webmanifest",
 ]);
 

@@ -1,0 +1,52 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createProperty, createUnit } from "@/lib/server/properties";
+import { createVendor } from "@/lib/server/vendors";
+import { inviteVendorUser } from "@/lib/server/vendor-invite";
+
+export async function createPropertyAction(formData: FormData) {
+  await createProperty({
+    name: String(formData.get("name")),
+    addressLine1: String(formData.get("addressLine1") ?? "") || undefined,
+    city: String(formData.get("city") ?? "") || undefined,
+    state: String(formData.get("state") ?? "") || undefined,
+    postalCode: String(formData.get("postalCode") ?? "") || undefined,
+  });
+  revalidatePath("/admin/properties");
+}
+
+export async function createUnitAction(formData: FormData) {
+  await createUnit({
+    propertyId: String(formData.get("propertyId")),
+    label: String(formData.get("label")),
+    bedrooms: String(formData.get("bedrooms") ?? "") || undefined,
+    bathrooms: String(formData.get("bathrooms") ?? "") || undefined,
+  });
+  revalidatePath("/admin/properties");
+}
+
+export async function createVendorAction(formData: FormData) {
+  await createVendor({
+    name: String(formData.get("name")),
+    trade: String(formData.get("trade") ?? "") || undefined,
+    primaryEmail: String(formData.get("primaryEmail") ?? "") || undefined,
+    primaryPhone: String(formData.get("primaryPhone") ?? "") || undefined,
+    primaryContactName: String(formData.get("primaryContactName") ?? "") || undefined,
+  });
+  revalidatePath("/admin/vendors");
+}
+
+export async function inviteVendorUserAction(formData: FormData): Promise<void> {
+  const result = await inviteVendorUser({
+    vendorId: String(formData.get("vendorId")),
+    email: String(formData.get("email")),
+    name: String(formData.get("name") ?? "") || undefined,
+    phone: String(formData.get("phone") ?? "") || undefined,
+  });
+  // Surface invite URL in dev logs — staff still see the user appear in the list.
+  // Until Resend is wired in production, ops may need this URL to ferry to the vendor.
+  // eslint-disable-next-line no-console
+  console.log("[invite] vendor_user_id=%s url=%s", result.vendorUserId, result.inviteUrl);
+  revalidatePath("/admin/vendors");
+}

@@ -4,7 +4,11 @@
 
 ## Current phase
 
-**P0 — Source-of-truth docs + scaffold + auth + db + RLS + deploy pipeline**
+**P1 — work_orders CRUD + mobile shell + vendor magic-link** (in progress)
+
+P0 closed. P1 first push landed: all server lib + actions + mobile UI +
+admin UI + tests. Pending validation: real Neon/Clerk/R2/Resend creds and
+Day-3 end-to-end on a phone.
 
 ## Status legend
 
@@ -14,8 +18,8 @@
 
 | Phase | Days | Status | What | Definition of done |
 |---|---|---|---|---|
-| P0 | 0–2 | ▣ | Docs + scaffold + Clerk + Drizzle + RLS + Inngest wiring + Twilio A2P filed + AppFolio probe | Preview deploy live; Clerk login works; RLS smoke test passes; A2P submitted; AppFolio probe done or filed in OPEN_QUESTIONS |
-| P1 | 3–7 | ▢ | work_orders CRUD, properties/units, vendors, comments/attachments, mobile shell, photo capture, vendor magic-link invite | Real WO created on phone, photo uploaded, comment added, vendor assigned via magic link, SMS or email delivered |
+| P0 | 0–2 | ■ | Docs + scaffold + Clerk + Drizzle + RLS + Inngest wiring + Twilio A2P filed + AppFolio probe | Preview deploy live; Clerk login works; RLS smoke test passes; A2P submitted; AppFolio probe done or filed in OPEN_QUESTIONS |
+| P1 | 3–7 | ▣ | work_orders CRUD, properties/units, vendors, comments/attachments, mobile shell, photo capture, vendor magic-link invite | Real WO created on phone, photo uploaded, comment added, vendor assigned via magic link, SMS or email delivered |
 | P2 | 8–12 | ▢ | Trello kanban + list views, drag-drop, dispatcher view | Dispatcher drags card from "new"→"assigned" on desktop; same view usable on phone |
 | P3 | 13–18 | ▢ | Recurring tasks (`task_templates` → spawned `work_orders`), scheduling, calendar, notifications dispatch | Template spawns daily WO via Inngest cron; notifications respect prefs |
 | P4 | 19–28 | ▢ | Inspections + findings → spawn WO, unit turns (project + child WOs), projects | Inspector logs finding on phone → auto-WO created; unit-turn dashboard groups WOs by stage |
