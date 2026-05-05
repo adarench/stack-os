@@ -1,0 +1,23 @@
+{
+  "name": "stack-os",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@9.6.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "start": "pnpm --filter web start",
+    "lint": "pnpm --filter web lint",
+    "typecheck": "pnpm --filter web typecheck",
+    "test": "pnpm --filter web test",
+    "test:e2e": "pnpm --filter web test:e2e",
+    "db:generate": "pnpm --filter web db:generate",
+    "db:migrate": "pnpm --filter web db:migrate",
+    "db:rls:apply": "pnpm --filter web db:rls:apply",
+    "db:rls:test": "pnpm --filter web db:rls:test",
+    "db:seed": "pnpm --filter web db:seed"
+  }
+}
