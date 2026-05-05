@@ -108,10 +108,10 @@ Brad pastes credentials in chat → I write to `web/.env.local` (gitignored). Fo
    - Audit: no deprecated APIs (`<SignedIn>`/`<SignedOut>`, `authMiddleware`, `_app.tsx`, etc.)
    - Fixed: `withStaffScope` now uses Next's `redirect()` instead of throwing — 6/6 protected routes return 307→/sign-in, 3/3 public routes 200
    - Real-org sign-in still pending: needs `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` to validate against an actual Clerk org
-3. **R2** — ⚠️ **PARTIAL 2026-05-05**
-   - Endpoint, region, bucket wired
-   - Missing: `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY` (cfat_ token isn't usable with S3 SDK)
-   - Photo round-trip blocked until access keys land
+3. **R2** — ✅ **DONE 2026-05-05**
+   - All S3 vars wired (endpoint, region, bucket, access key id, secret access key)
+   - Round-trip probe validated: HeadBucket / PutObject / signed PUT URL / signed GET URL / HTTP fetch via URL (body matches) / DeleteObject — all green
+   - Photo upload via `/api/uploads/sign` is functionally ready; remaining validation is the in-browser flow (camera capture → signed PUT → attachment row → grid render), gated on a real Clerk org session
 4. **Vercel** — ⏳ pending
    - Repo is ready to push (7 clean commits on main, no remote yet)
    - Brad either authenticates `gh` locally or creates a GitHub repo + pastes URL
