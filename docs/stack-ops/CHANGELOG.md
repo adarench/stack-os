@@ -14,14 +14,18 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-05 · orchestrator · R2 endpoint + bucket wired; Resend API key
+  wired. R2 Access Key ID + Secret Access Key still needed (the cfat_
+  token Brad pasted is a Cloudflare REST API token, not the S3 access
+  keys). Updated `.env.example` to make this distinction obvious for
+  future onboarding. Resend uses `onboarding@resend.dev` as the FROM
+  address until a domain is verified. All keys persisted in
+  `web/.env.local` (gitignored, confirmed not in any commit). Repo is
+  ready to push to GitHub once Brad creates the remote.
 - 2026-05-05 · orchestrator · Clerk validated in keyless mode. Audited
   for deprecated APIs (none). Switched `withStaffScope` to use Next's
-  `redirect()` so unauthenticated requests bounce cleanly to `/sign-in`
-  instead of throwing 500s. Simplified middleware to `clerkMiddleware()`
-  with no callback — page/lib code handles the auth-check + redirect at
-  the right time. All routes verified end-to-end: 6 protected routes
-  return 307→/sign-in, 3 public routes return 200, `/api/health` returns
-  JSON. 45/45 tests still pass; build clean. Ready for R2 next.
+  `redirect()` so unauthenticated requests bounce cleanly. 45/45 tests
+  pass; build clean.
 - 2026-05-05 · orchestrator · Neon wired and validated end-to-end. Schema
   + RLS applied on real Neon dev branch. All 45 tests pass; ADR-006 + 7
   filed.
@@ -46,6 +50,13 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
   6 RLS integration tests `todo` (skipped without `DATABASE_URL`).
 
 ## History
+
+### 2026-05-05 · R2 + Resend wired; GitHub push prep
+
+- Wired · R2 · `S3_ENDPOINT`, `S3_REGION="auto"`, `S3_BUCKET="stack-os"` populated. `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` still empty — the cfat_ token Brad pasted is a Cloudflare Account API token (REST API), not the S3 access keys. Documented in `.env.example` so future onboarding doesn't confuse the two.
+- Wired · Resend · `RESEND_API_KEY` populated. `RESEND_FROM_EMAIL="onboarding@resend.dev"` (Resend's universal-test sender). For production, verify a domain.
+- Env state · `web/.env.local` now has 12 populated keys + 2 empty placeholders (S3 access). Gitignored at `.gitignore:10` (root) and `web/.gitignore:3` (Clerk keyless `.clerk/` dir). Confirmed via `git check-ignore` and `git log --diff-filter=A` — nothing secret has ever been committed.
+- Push prep · 7 commits on `main`, working tree clean. `gh` CLI installed locally but not authenticated. Brad either runs `gh auth login` (and I create + push), or creates the repo at github.com manually and pastes the remote URL.
 
 ### 2026-05-05 · Clerk validated in keyless mode
 

@@ -108,6 +108,18 @@ Brad pastes credentials in chat → I write to `web/.env.local` (gitignored). Fo
    - Audit: no deprecated APIs (`<SignedIn>`/`<SignedOut>`, `authMiddleware`, `_app.tsx`, etc.)
    - Fixed: `withStaffScope` now uses Next's `redirect()` instead of throwing — 6/6 protected routes return 307→/sign-in, 3/3 public routes 200
    - Real-org sign-in still pending: needs `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` to validate against an actual Clerk org
+3. **R2** — ⚠️ **PARTIAL 2026-05-05**
+   - Endpoint, region, bucket wired
+   - Missing: `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY` (cfat_ token isn't usable with S3 SDK)
+   - Photo round-trip blocked until access keys land
+4. **Vercel** — ⏳ pending
+   - Repo is ready to push (7 clean commits on main, no remote yet)
+   - Brad either authenticates `gh` locally or creates a GitHub repo + pastes URL
+5. **Resend** — ✅ **DONE 2026-05-05**
+   - `RESEND_API_KEY` wired
+   - `RESEND_FROM_EMAIL="onboarding@resend.dev"` for testing
+   - Production: verify a domain in Resend dashboard, then update FROM_EMAIL
+6. **Twilio** — ⏳ deferred (A2P 10DLC, 2-4 wk regulatory)
 3. **R2** (`S3_ENDPOINT` + `S3_BUCKET` + `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY`)
    - Walk Day-3 photo round-trip checklist on phone + desktop
 4. **Vercel link**
