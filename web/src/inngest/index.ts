@@ -1,6 +1,13 @@
 export { inngest } from "./client";
-export { healthPing } from "./functions/health";
 
 import { healthPing } from "./functions/health";
+import { spawnFromTemplates } from "./functions/spawn-from-templates";
+import { dispatchNotification } from "./functions/dispatch-notification";
 
-export const functions = [healthPing] as const;
+export { healthPing, spawnFromTemplates, dispatchNotification };
+
+export const functions = [
+  healthPing,
+  spawnFromTemplates,
+  dispatchNotification,
+] as const;

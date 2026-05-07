@@ -56,32 +56,40 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT EXECUTE ON FUNCTIONS TO app_user;
 
 -- Enable RLS on every entity table.
-ALTER TABLE properties              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE units                   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE users                   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE vendors                 ENABLE ROW LEVEL SECURITY;
-ALTER TABLE vendor_users            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE work_orders             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE comments                ENABLE ROW LEVEL SECURITY;
-ALTER TABLE attachments             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_log               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE approvals               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE assignments             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE task_scopes             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE properties               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE units                    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users                    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendors                  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendor_users             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE work_orders              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comments                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attachments              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_log                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE approvals                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assignments              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_scopes              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_templates           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_template_fires      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 
 -- Force RLS even for table owners — no escape hatch except BYPASSRLS role.
-ALTER TABLE properties              FORCE ROW LEVEL SECURITY;
-ALTER TABLE units                   FORCE ROW LEVEL SECURITY;
-ALTER TABLE users                   FORCE ROW LEVEL SECURITY;
-ALTER TABLE vendors                 FORCE ROW LEVEL SECURITY;
-ALTER TABLE vendor_users            FORCE ROW LEVEL SECURITY;
-ALTER TABLE work_orders             FORCE ROW LEVEL SECURITY;
-ALTER TABLE comments                FORCE ROW LEVEL SECURITY;
-ALTER TABLE attachments             FORCE ROW LEVEL SECURITY;
-ALTER TABLE audit_log               FORCE ROW LEVEL SECURITY;
-ALTER TABLE approvals               FORCE ROW LEVEL SECURITY;
-ALTER TABLE assignments             FORCE ROW LEVEL SECURITY;
-ALTER TABLE task_scopes             FORCE ROW LEVEL SECURITY;
+ALTER TABLE properties               FORCE ROW LEVEL SECURITY;
+ALTER TABLE units                    FORCE ROW LEVEL SECURITY;
+ALTER TABLE users                    FORCE ROW LEVEL SECURITY;
+ALTER TABLE vendors                  FORCE ROW LEVEL SECURITY;
+ALTER TABLE vendor_users             FORCE ROW LEVEL SECURITY;
+ALTER TABLE work_orders              FORCE ROW LEVEL SECURITY;
+ALTER TABLE comments                 FORCE ROW LEVEL SECURITY;
+ALTER TABLE attachments              FORCE ROW LEVEL SECURITY;
+ALTER TABLE audit_log                FORCE ROW LEVEL SECURITY;
+ALTER TABLE approvals                FORCE ROW LEVEL SECURITY;
+ALTER TABLE assignments              FORCE ROW LEVEL SECURITY;
+ALTER TABLE task_scopes              FORCE ROW LEVEL SECURITY;
+ALTER TABLE task_templates           FORCE ROW LEVEL SECURITY;
+ALTER TABLE task_template_fires      FORCE ROW LEVEL SECURITY;
+ALTER TABLE notifications            FORCE ROW LEVEL SECURITY;
+ALTER TABLE notification_preferences FORCE ROW LEVEL SECURITY;
 
 -- -----------------------------------------------------------------------------
 -- Helper: current_org_id() — reads app.org_id session var, returns NULL if unset.
@@ -111,7 +119,9 @@ DECLARE
   tables text[] := ARRAY[
     'properties', 'units', 'users', 'vendors', 'vendor_users',
     'work_orders', 'comments', 'attachments', 'audit_log',
-    'approvals', 'assignments', 'task_scopes'
+    'approvals', 'assignments', 'task_scopes',
+    'task_templates', 'task_template_fires',
+    'notifications', 'notification_preferences'
   ];
 BEGIN
   FOREACH t IN ARRAY tables LOOP
@@ -154,6 +164,13 @@ USING (
 -- paths must NEVER set actor_type='system'.
 DROP POLICY IF EXISTS vendor_users_system_lookup ON vendor_users;
 CREATE POLICY vendor_users_system_lookup ON vendor_users FOR SELECT TO PUBLIC
+USING (current_actor_type() = 'system');
+
+-- system-actor cross-org SELECT on task_templates — used by the Inngest
+-- cron to scan all orgs for due templates. Same trust boundary: only
+-- trusted server code (jobs, scripts) sets actor_type='system'.
+DROP POLICY IF EXISTS task_templates_system_scan ON task_templates;
+CREATE POLICY task_templates_system_scan ON task_templates FOR SELECT TO PUBLIC
 USING (current_actor_type() = 'system');
 
 -- assignments visible to the vendor user (so the EXISTS subquery in

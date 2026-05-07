@@ -16,6 +16,7 @@ import { withStaffScope, type ScopedDB } from "./db";
 import { writeAudit } from "./audit";
 import { nextWorkOrderNumber } from "./sequence";
 import { ensureUserRow } from "./sync-user";
+import { emitNotification } from "./notifications";
 
 /**
  * Build a `WHERE`-friendly LIKE pattern from a free-text query. Returns null
@@ -154,11 +155,11 @@ export async function updateWorkOrderStatus(
   input: z.infer<typeof updateStatusInput>,
 ) {
   const parsed = updateStatusInput.parse(input);
-  return withStaffScope(async (tx, ctx) => {
+  const result = await withStaffScope(async (tx, ctx) => {
     const userId = await ensureUserRow(tx, ctx.orgId, ctx.userId);
     const current = await getRow(tx, ctx.orgId, parsed.id);
     if (!current) throw new Error("work_order_not_found");
-    if (current.status === parsed.to) return current;
+    if (current.status === parsed.to) return { wo: current, prev: current.status, fired: false, orgId: ctx.orgId };
     if (!canTransition(current.status as WorkOrderStatus, parsed.to)) {
       throw new Error(`invalid_transition:${current.status}->${parsed.to}`);
     }
@@ -183,8 +184,36 @@ export async function updateWorkOrderStatus(
       actorUserId: userId,
       diff: { from: { status: current.status }, to: { status: parsed.to } },
     });
-    return updated[0]!;
+    return { wo: updated[0]!, prev: current.status as WorkOrderStatus, fired: true, orgId: ctx.orgId };
   });
+
+  // Notify on key transitions only. Recipient is the WO creator (staff)
+  // for now; vendor is already notified via assignVendor.
+  if (result.fired) {
+    const interesting: WorkOrderStatus[] = ["blocked", "resolved", "verified"];
+    if (interesting.includes(result.wo.status as WorkOrderStatus) && result.wo.createdByUserId) {
+      const kindMap = {
+        blocked: "wo_blocked",
+        resolved: "wo_resolved",
+        verified: "wo_verified",
+      } as const;
+      const kind = kindMap[result.wo.status as keyof typeof kindMap];
+      await emitNotification({
+        orgId: result.orgId,
+        recipientUserId: result.wo.createdByUserId,
+        kind,
+        subject: `WO-${result.wo.number} → ${result.wo.status}`,
+        body: `Status changed: ${result.prev} → ${result.wo.status}. Title: ${result.wo.title}`,
+        targetType: "work_order",
+        targetId: result.wo.id,
+        // recipientEmail intentionally null here — we don't have it in scope
+        // and resolving it would require another query. For now this records
+        // an in_app notification only. P5 will add user-email lookup.
+      });
+    }
+  }
+
+  return result.wo;
 }
 
 export const assignVendorInput = z.object({
@@ -194,16 +223,17 @@ export const assignVendorInput = z.object({
 
 export async function assignVendor(input: z.infer<typeof assignVendorInput>) {
   const parsed = assignVendorInput.parse(input);
-  return withStaffScope(async (tx, ctx) => {
+  const result = await withStaffScope(async (tx, ctx) => {
     const userId = await ensureUserRow(tx, ctx.orgId, ctx.userId);
 
-    // Confirm the vendor_user belongs to this org.
+    // Confirm the vendor_user belongs to this org and capture their contact.
     const vu = await tx
-      .select({ id: vendorUsers.id })
+      .select({ id: vendorUsers.id, email: vendorUsers.email, phone: vendorUsers.phone, name: vendorUsers.name })
       .from(vendorUsers)
       .where(and(eq(vendorUsers.orgId, ctx.orgId), eq(vendorUsers.id, parsed.vendorUserId)))
       .limit(1);
     if (vu.length === 0) throw new Error("vendor_user_not_in_org");
+    const vendor = vu[0]!;
 
     await tx.insert(assignments).values({
       orgId: ctx.orgId,
@@ -239,7 +269,32 @@ export async function assignVendor(input: z.infer<typeof assignVendorInput>) {
       actorUserId: userId,
       diff: { vendorUserId: parsed.vendorUserId },
     });
+
+    return {
+      orgId: ctx.orgId,
+      vendorUserId: parsed.vendorUserId,
+      vendorEmail: vendor.email,
+      vendorPhone: vendor.phone,
+      workOrder: current,
+    };
   });
+
+  // Emit notification AFTER the transaction commits so the recipient
+  // sees a row that actually exists.
+  if (result.workOrder) {
+    const wo = result.workOrder;
+    await emitNotification({
+      orgId: result.orgId,
+      recipientVendorUserId: result.vendorUserId,
+      recipientEmail: result.vendorEmail,
+      recipientPhone: result.vendorPhone,
+      kind: "wo_assigned",
+      subject: `WO-${wo.number}: ${wo.title}`,
+      body: `You've been assigned WO-${wo.number} "${wo.title}". Open the vendor portal to view details.`,
+      targetType: "work_order",
+      targetId: wo.id,
+    });
+  }
 }
 
 async function getRow(tx: ScopedDB, orgId: string, id: string) {

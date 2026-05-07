@@ -14,6 +14,16 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-07 · orchestrator · P3 first push live. Recurring work-order
+  templates with hourly Inngest cron + manual "Spawn now". Notifications
+  schema (notifications + notification_preferences), event-driven
+  dispatch via Inngest with inline fallback when no INNGEST_EVENT_KEY,
+  Resend for email, SMS stub for now. Wired emit calls into
+  assignVendor (notifies vendor) + updateWorkOrderStatus
+  (notifies WO creator on blocked/resolved/verified). New
+  `/admin/templates` UI with create + pause/resume + spawn-now. 73/73
+  tests pass (10 new: cron parsing + template spawn idempotency).
+  Production deploy at https://stack-os-six.vercel.app.
 - 2026-05-05 · orchestrator · P2 finished as far as automation can take
   it. Two new validation surfaces: `scripts/p2-smoke.ts` (14/14 HTTP
   smoke tests against the deployed site) and
@@ -72,6 +82,18 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
   6 RLS integration tests `todo` (skipped without `DATABASE_URL`).
 
 ## History
+
+### 2026-05-07 · P3 (first push)
+
+- P3 · Schema · `task_templates` (cron spec + defaults + spawn state) and `task_template_fires` (idempotency audit). `notifications` (recipient_user_id OR recipient_vendor_user_id; channel: email/sms/push/in_app; status). `notification_preferences` (per-recipient per-channel toggle). RLS policies: standard staff_org for all four; new `task_templates_system_scan` SELECT policy lets the Inngest cron read across orgs (mirrors the vendor_users_system_lookup pattern from P1).
+- P3 · Lib · `/lib/server/templates.ts`: `createTemplate` (cron-parser validation + computed `nextFireAt`), `listTemplates`, `setTemplateActive`, `spawnTemplateNow` (manual), `runDueTemplates` (used by Inngest), `listTemplateFires`. Idempotent spawn via dedupe on `(template_id, fire_at)`.
+- P3 · Lib · `/lib/server/notifications.ts`: `emitNotification` (sends an Inngest event when `INNGEST_EVENT_KEY` is set, falls back to inline `dispatchInline` otherwise), `enabledChannels` (reads prefs with sensible defaults: email + in_app on, sms + push off), `recordNotification` + `markNotificationStatus`. Notification failure never blocks the user-driven action.
+- P3 · Inngest · Replaced `healthPing` no-op with two real functions: `spawn-from-templates` (cron `0 * * * *`, calls `runDueTemplates`) and `dispatch-notification` (event-triggered on `stack-os/notification.emit`, calls `dispatchInline`).
+- P3 · Wired emits · `assignVendor` now emits `wo_assigned` to the vendor user (with their email + phone). `updateWorkOrderStatus` emits `wo_blocked`/`wo_resolved`/`wo_verified` to the WO creator (in_app channel — staff email lookup deferred to P5).
+- P3 · UI · `/admin/templates` page with create form (cron, timezone, default title/description/priority/property/unit, lead-time hours), pause/resume, spawn-now, fire history. `Templates` link added to `/work-orders` header.
+- P3 · Tests · 10 new tests: 4 cron-parsing (`isValidCron` + `nextFireTime`), 6 template-spawn integration (creates with valid cron + computed nextFireAt; rejects invalid cron; spawnTemplateNow advances state + creates WO + records fire row; paused template skips; same `fire_at` is idempotent). Total 73/73 pass.
+- P3 · Perf · `withScope` already collapsed SET LOCAL preamble to a single round-trip in P2 hardening; that carries over so each template-spawn transaction stays cheap.
+- P3 · Open follow-up · Real cron firing requires `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` env vars. Without them, manual "Spawn now" works (it calls `spawnTemplateNow` directly, no Inngest). The `/api/inngest` endpoint returns 401 to unsigned requests, which is correct.
 
 ### 2026-05-05 · GitHub + Vercel wired
 
