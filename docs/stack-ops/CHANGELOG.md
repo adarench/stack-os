@@ -14,6 +14,13 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-08 · orchestrator · P4 first push live. Inspections (mobile-
+  first walkthrough flow with finding rows + photos), atomic WO spawn
+  on completion (one transaction; only failed actionable/critical
+  findings spawn; idempotent re-complete; severity=critical maps to
+  priority=urgent), projects (CRUD + state machine + child-WO grouping
+  by status). 86/86 tests pass (8 new for P4). Cross-links from
+  `/work-orders` header to `/inspections` and `/projects`.
 - 2026-05-07 · orchestrator · P3 first push live. Recurring work-order
   templates with hourly Inngest cron + manual "Spawn now". Notifications
   schema (notifications + notification_preferences), event-driven
@@ -82,6 +89,17 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
   6 RLS integration tests `todo` (skipped without `DATABASE_URL`).
 
 ## History
+
+### 2026-05-08 · P4 (first push)
+
+- P4 · Schema · `inspections` (kind/status/property/unit/inspector/notes plus scheduled_for/started_at/completed_at/reviewed_at), `inspection_findings` (area/description/severity/pass/spawned_work_order_id), `projects` (kind/status/property/unit/budget/target/gc/parent_project_id/closed_at). New `finding_severity` enum (info/observation/actionable/critical). `work_orders` extended with `project_id`, `spawned_from_inspection_id`, `spawned_from_finding_id`. RLS staff_org policies cover all three new tables.
+- P4 · Lib · `/lib/server/inspections.ts`: createInspection / addFinding (auto-transitions scheduled→in_progress on first finding) / updateFinding / removeFinding / list / get / **completeInspection (the load-bearing piece: one withScope transaction that transitions inspection to completed AND inserts one work_orders row per failed actionable/critical finding, links each finding back via spawned_work_order_id, writes audit_log entries for each, all atomic; idempotent on re-call returning the same set)** / reviewInspection.
+- P4 · Lib · `/lib/server/projects.ts`: createProject / list / get / listProjectWorkOrders / updateProjectStatus (state machine) / attachWorkOrderToProject. Closed transition stamps `closed_at`.
+- P4 · Contracts · `/contracts/finding-severity.ts` with pure helper `shouldSpawnWorkOrder({ severity, pass })`. Pass=true never spawns; only actionable/critical with pass=false spawn. Severity=critical maps WO priority=urgent on spawn.
+- P4 · UI · `/inspections` list with status filter chips, `/inspections/new` with kind/property/unit picker + notes, `/inspections/[id]` mobile-first with finding cards (severity badge, area, description, pass/fail toggle), inline add-finding form, complete button (shows count of WOs that will spawn), review button after completion. Finding rows link to spawned WOs.
+- P4 · UI · `/projects` list, `/projects/new` form, `/projects/[id]` detail with state-machine transition buttons and child-WO grouping by status. Cross-links from `/work-orders` header to both `/inspections` and `/projects`.
+- P4 · Tests · 8 new (3 unit on `shouldSpawnWorkOrder`, 5 integration: scheduled→in_progress on first finding, atomic spawn count 5→3 with 2 urgents, idempotent re-complete, locked-after-complete, completed→reviewed; 4 project tests for lifecycle + invalid transitions + WO attachment). Total **86/86 pass**.
+- P4 · Build fix · Removed re-exports of contract constants from `/inspections/_actions.ts` — `"use server"` files can only export async functions.
 
 ### 2026-05-07 · P3 (first push)
 
