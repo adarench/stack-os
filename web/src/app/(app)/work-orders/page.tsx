@@ -77,6 +77,18 @@ export default async function WorkOrdersPage({
             Templates
           </Link>
           <Link
+            href="/inspections"
+            className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs uppercase tracking-wide text-neutral-600"
+          >
+            Inspections
+          </Link>
+          <Link
+            href="/projects"
+            className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs uppercase tracking-wide text-neutral-600"
+          >
+            Projects
+          </Link>
+          <Link
             href="/work-orders/new"
             className="rounded-full bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
           >

@@ -35,8 +35,11 @@ export const workOrders = pgTable(
     propertyId: uuid("property_id").references(() => properties.id, { onDelete: "restrict" }),
     unitId: uuid("unit_id").references(() => units.id, { onDelete: "restrict" }),
 
-    // Optional grouping containers. project_id added via migration in P4.
+    // Optional grouping containers.
     parentWorkOrderId: uuid("parent_work_order_id"),
+    projectId: uuid("project_id"),
+    spawnedFromInspectionId: uuid("spawned_from_inspection_id"),
+    spawnedFromFindingId: uuid("spawned_from_finding_id"),
 
     // Scheduling
     dueAt: timestamp("due_at", { withTimezone: true }),
@@ -61,6 +64,8 @@ export const workOrders = pgTable(
     propIdx: index("work_orders_property_idx").on(t.orgId, t.propertyId),
     unitIdx: index("work_orders_unit_idx").on(t.orgId, t.unitId),
     parentIdx: index("work_orders_parent_idx").on(t.parentWorkOrderId),
+    projectIdx: index("work_orders_project_idx").on(t.projectId),
+    inspectionIdx: index("work_orders_inspection_idx").on(t.spawnedFromInspectionId),
     numberIdx: index("work_orders_number_idx").on(t.orgId, t.number),
   }),
 );

@@ -72,6 +72,9 @@ ALTER TABLE task_templates           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE task_template_fires      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inspections              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inspection_findings      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects                 ENABLE ROW LEVEL SECURITY;
 
 -- Force RLS even for table owners — no escape hatch except BYPASSRLS role.
 ALTER TABLE properties               FORCE ROW LEVEL SECURITY;
@@ -90,6 +93,9 @@ ALTER TABLE task_templates           FORCE ROW LEVEL SECURITY;
 ALTER TABLE task_template_fires      FORCE ROW LEVEL SECURITY;
 ALTER TABLE notifications            FORCE ROW LEVEL SECURITY;
 ALTER TABLE notification_preferences FORCE ROW LEVEL SECURITY;
+ALTER TABLE inspections              FORCE ROW LEVEL SECURITY;
+ALTER TABLE inspection_findings      FORCE ROW LEVEL SECURITY;
+ALTER TABLE projects                 FORCE ROW LEVEL SECURITY;
 
 -- -----------------------------------------------------------------------------
 -- Helper: current_org_id() — reads app.org_id session var, returns NULL if unset.
@@ -121,7 +127,8 @@ DECLARE
     'work_orders', 'comments', 'attachments', 'audit_log',
     'approvals', 'assignments', 'task_scopes',
     'task_templates', 'task_template_fires',
-    'notifications', 'notification_preferences'
+    'notifications', 'notification_preferences',
+    'inspections', 'inspection_findings', 'projects'
   ];
 BEGIN
   FOREACH t IN ARRAY tables LOOP

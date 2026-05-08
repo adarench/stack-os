@@ -15,6 +15,13 @@
       "when": 1778183037484,
       "tag": "0001_exotic_doomsday",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778262941491,
+      "tag": "0002_mysterious_magdalene",
+      "breakpoints": true
     }
   ]
 }

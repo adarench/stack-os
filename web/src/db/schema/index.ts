@@ -13,3 +13,5 @@ export * from "./assignments";
 export * from "./task-scopes";
 export * from "./task-templates";
 export * from "./notifications";
+export * from "./inspections";
+export * from "./projects";
