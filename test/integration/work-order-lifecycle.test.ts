@@ -301,7 +301,7 @@ describe.skipIf(skip)("P2 lifecycle — pre-flight setup", () => {
         propertyId,
       });
       expect(wo.status).toBe("new");
-      await assignVendor({ workOrderId: wo.id, vendorUserId });
+      await assignVendor({ workOrderId: wo.id, vendorUserId, overrideCoi: true });
       const updated = await getWorkOrder(wo.id);
       expect(updated?.status).toBe("assigned");
 
@@ -382,7 +382,7 @@ describe.skipIf(skip)("P2 lifecycle — pre-flight setup", () => {
         priority: "normal",
         propertyId,
       });
-      await assignVendor({ workOrderId: assigned.id, vendorUserId });
+      await assignVendor({ workOrderId: assigned.id, vendorUserId, overrideCoi: true });
 
       // Now query under vendor scope
       const visible = await admin.begin(async (tx) => {

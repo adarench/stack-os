@@ -219,6 +219,7 @@ export async function updateWorkOrderStatus(
 export const assignVendorInput = z.object({
   workOrderId: z.string().uuid(),
   vendorUserId: z.string().uuid(),
+  overrideCoi: z.boolean().optional(),
 });
 
 export async function assignVendor(input: z.infer<typeof assignVendorInput>) {
@@ -228,12 +229,48 @@ export async function assignVendor(input: z.infer<typeof assignVendorInput>) {
 
     // Confirm the vendor_user belongs to this org and capture their contact.
     const vu = await tx
-      .select({ id: vendorUsers.id, email: vendorUsers.email, phone: vendorUsers.phone, name: vendorUsers.name })
+      .select({
+        id: vendorUsers.id,
+        email: vendorUsers.email,
+        phone: vendorUsers.phone,
+        name: vendorUsers.name,
+        vendorId: vendorUsers.vendorId,
+      })
       .from(vendorUsers)
       .where(and(eq(vendorUsers.orgId, ctx.orgId), eq(vendorUsers.id, parsed.vendorUserId)))
       .limit(1);
     if (vu.length === 0) throw new Error("vendor_user_not_in_org");
     const vendor = vu[0]!;
+
+    // P5 gate: vendor must have an active or expiring COI unless override.
+    if (!parsed.overrideCoi) {
+      const { vendorCois } = await import("@db/schema/compliance");
+      const cois = await tx
+        .select({ status: vendorCois.status })
+        .from(vendorCois)
+        .where(
+          and(
+            eq(vendorCois.orgId, ctx.orgId),
+            eq(vendorCois.vendorId, vendor.vendorId),
+          ),
+        );
+      const hasUsable = cois.some(
+        (c) => c.status === "active" || c.status === "expiring",
+      );
+      if (!hasUsable) {
+        throw new Error("vendor_coi_missing_or_expired");
+      }
+    } else {
+      // Audit-log the override so it's never quiet.
+      await writeAudit(tx, {
+        orgId: ctx.orgId,
+        targetType: "work_order",
+        targetId: parsed.workOrderId,
+        action: "coi_gate_overridden",
+        actorUserId: userId,
+        diff: { vendorUserId: parsed.vendorUserId, vendorId: vendor.vendorId },
+      });
+    }
 
     await tx.insert(assignments).values({
       orgId: ctx.orgId,

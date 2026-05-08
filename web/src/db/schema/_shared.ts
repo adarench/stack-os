@@ -11,6 +11,7 @@ import { INSPECTION_STATUSES, INSPECTION_KINDS } from "../../contracts/state-mac
 import { PROJECT_STATUSES, PROJECT_KINDS } from "../../contracts/state-machines/project";
 import { APPROVAL_STATUSES } from "../../contracts/state-machines/approval";
 import { FINDING_SEVERITIES } from "../../contracts/finding-severity";
+import { COMPLIANCE_STATUSES } from "../../contracts/compliance";
 
 // Postgres enums sourced from /contracts so the contract is the single source of truth.
 // Adding a value: edit /contracts → generate migration → ALTER TYPE ... ADD VALUE in migration.
@@ -33,6 +34,7 @@ export const projectStatusEnum = pgEnum("project_status", tup(PROJECT_STATUSES))
 export const projectKindEnum = pgEnum("project_kind", tup(PROJECT_KINDS));
 export const approvalStatusEnum = pgEnum("approval_status", tup(APPROVAL_STATUSES));
 export const findingSeverityEnum = pgEnum("finding_severity", tup(FINDING_SEVERITIES));
+export const complianceStatusEnum = pgEnum("compliance_status", tup(COMPLIANCE_STATUSES));
 
 // Common column shorthands. Every entity table embeds these.
 export const timestamps = {

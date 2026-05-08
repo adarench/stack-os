@@ -75,6 +75,9 @@ ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspections              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspection_findings      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vendor_cois              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_users             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_insurance_policies ENABLE ROW LEVEL SECURITY;
 
 -- Force RLS even for table owners — no escape hatch except BYPASSRLS role.
 ALTER TABLE properties               FORCE ROW LEVEL SECURITY;
@@ -96,6 +99,9 @@ ALTER TABLE notification_preferences FORCE ROW LEVEL SECURITY;
 ALTER TABLE inspections              FORCE ROW LEVEL SECURITY;
 ALTER TABLE inspection_findings      FORCE ROW LEVEL SECURITY;
 ALTER TABLE projects                 FORCE ROW LEVEL SECURITY;
+ALTER TABLE vendor_cois              FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_users             FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_insurance_policies FORCE ROW LEVEL SECURITY;
 
 -- -----------------------------------------------------------------------------
 -- Helper: current_org_id() — reads app.org_id session var, returns NULL if unset.
@@ -113,6 +119,10 @@ CREATE OR REPLACE FUNCTION current_vendor_user_id() RETURNS uuid AS $$
   SELECT NULLIF(current_setting('app.vendor_user_id', true), '')::uuid;
 $$ LANGUAGE sql STABLE;
 
+CREATE OR REPLACE FUNCTION current_tenant_user_id() RETURNS uuid AS $$
+  SELECT NULLIF(current_setting('app.tenant_user_id', true), '')::uuid;
+$$ LANGUAGE sql STABLE;
+
 -- -----------------------------------------------------------------------------
 -- Generic org-scope policy template (staff users).
 -- A row is visible iff its org_id matches the session's org_id AND the
@@ -128,7 +138,8 @@ DECLARE
     'approvals', 'assignments', 'task_scopes',
     'task_templates', 'task_template_fires',
     'notifications', 'notification_preferences',
-    'inspections', 'inspection_findings', 'projects'
+    'inspections', 'inspection_findings', 'projects',
+    'vendor_cois', 'tenant_users', 'tenant_insurance_policies'
   ];
 BEGIN
   FOREACH t IN ARRAY tables LOOP
@@ -179,6 +190,45 @@ USING (current_actor_type() = 'system');
 DROP POLICY IF EXISTS task_templates_system_scan ON task_templates;
 CREATE POLICY task_templates_system_scan ON task_templates FOR SELECT TO PUBLIC
 USING (current_actor_type() = 'system');
+
+-- Cross-org system scan policies for the compliance sweeps.
+DROP POLICY IF EXISTS vendor_cois_system_scan ON vendor_cois;
+CREATE POLICY vendor_cois_system_scan ON vendor_cois FOR SELECT TO PUBLIC
+USING (current_actor_type() = 'system');
+
+DROP POLICY IF EXISTS tenant_insurance_system_scan ON tenant_insurance_policies;
+CREATE POLICY tenant_insurance_system_scan ON tenant_insurance_policies FOR SELECT TO PUBLIC
+USING (current_actor_type() = 'system');
+
+-- tenant_users self-scope (mirror of vendor_users_self).
+DROP POLICY IF EXISTS tenant_users_self ON tenant_users;
+CREATE POLICY tenant_users_self ON tenant_users FOR SELECT TO PUBLIC
+USING (
+  current_actor_type() = 'tenant'
+  AND org_id = current_org_id()
+  AND id = current_tenant_user_id()
+);
+
+-- system cross-org lookup for magic-link verify.
+DROP POLICY IF EXISTS tenant_users_system_lookup ON tenant_users;
+CREATE POLICY tenant_users_system_lookup ON tenant_users FOR SELECT TO PUBLIC
+USING (current_actor_type() = 'system');
+
+-- Tenant scope on their own insurance policies.
+DROP POLICY IF EXISTS tenant_insurance_self ON tenant_insurance_policies;
+CREATE POLICY tenant_insurance_self ON tenant_insurance_policies FOR SELECT TO PUBLIC
+USING (
+  current_actor_type() = 'tenant'
+  AND org_id = current_org_id()
+  AND tenant_user_id = current_tenant_user_id()
+);
+DROP POLICY IF EXISTS tenant_insurance_self_insert ON tenant_insurance_policies;
+CREATE POLICY tenant_insurance_self_insert ON tenant_insurance_policies FOR INSERT TO PUBLIC
+WITH CHECK (
+  current_actor_type() = 'tenant'
+  AND org_id = current_org_id()
+  AND tenant_user_id = current_tenant_user_id()
+);
 
 -- assignments visible to the vendor user (so the EXISTS subquery in
 -- work_orders_vendor_assigned can resolve under the vendor scope).

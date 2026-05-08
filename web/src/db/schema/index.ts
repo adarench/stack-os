@@ -15,3 +15,4 @@ export * from "./task-templates";
 export * from "./notifications";
 export * from "./inspections";
 export * from "./projects";
+export * from "./compliance";

@@ -6,12 +6,13 @@ import { auth } from "@clerk/nextjs/server";
 
 export type ScopedDB = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
-type ActorType = "user" | "vendor" | "system" | "inngest";
+type ActorType = "user" | "vendor" | "tenant" | "system" | "inngest";
 
 interface ScopeOpts {
   orgId: string;
   actorType?: ActorType;
   vendorUserId?: string;
+  tenantUserId?: string;
 }
 
 /**
@@ -41,6 +42,9 @@ export async function withScope<T>(
       `set local app.actor_type = '${actor}';`;
     if (opts.vendorUserId) {
       preamble += ` set local app.vendor_user_id = '${escapeLiteral(opts.vendorUserId)}';`;
+    }
+    if (opts.tenantUserId) {
+      preamble += ` set local app.tenant_user_id = '${escapeLiteral(opts.tenantUserId)}';`;
     }
     await tx.execute(sql.raw(preamble));
     return fn(tx);
@@ -78,6 +82,19 @@ export async function withVendorScope<T>(
 ): Promise<T> {
   return withScope(
     { orgId: ctx.orgId, actorType: "vendor", vendorUserId: ctx.vendorUserId },
+    fn,
+  );
+}
+
+/**
+ * Tenant-scoped variant. Caller resolves tenant session via cookie.
+ */
+export async function withTenantScope<T>(
+  ctx: { orgId: string; tenantUserId: string },
+  fn: (tx: ScopedDB) => Promise<T>,
+): Promise<T> {
+  return withScope(
+    { orgId: ctx.orgId, actorType: "tenant", tenantUserId: ctx.tenantUserId },
     fn,
   );
 }
