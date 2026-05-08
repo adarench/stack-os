@@ -78,6 +78,9 @@ ALTER TABLE projects                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vendor_cois              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_users             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_insurance_policies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_costs               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_time_entries        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices                 ENABLE ROW LEVEL SECURITY;
 
 -- Force RLS even for table owners — no escape hatch except BYPASSRLS role.
 ALTER TABLE properties               FORCE ROW LEVEL SECURITY;
@@ -102,6 +105,9 @@ ALTER TABLE projects                 FORCE ROW LEVEL SECURITY;
 ALTER TABLE vendor_cois              FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_users             FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_insurance_policies FORCE ROW LEVEL SECURITY;
+ALTER TABLE task_costs               FORCE ROW LEVEL SECURITY;
+ALTER TABLE task_time_entries        FORCE ROW LEVEL SECURITY;
+ALTER TABLE invoices                 FORCE ROW LEVEL SECURITY;
 
 -- -----------------------------------------------------------------------------
 -- Helper: current_org_id() — reads app.org_id session var, returns NULL if unset.
@@ -139,7 +145,8 @@ DECLARE
     'task_templates', 'task_template_fires',
     'notifications', 'notification_preferences',
     'inspections', 'inspection_findings', 'projects',
-    'vendor_cois', 'tenant_users', 'tenant_insurance_policies'
+    'vendor_cois', 'tenant_users', 'tenant_insurance_policies',
+    'task_costs', 'task_time_entries', 'invoices'
   ];
 BEGIN
   FOREACH t IN ARRAY tables LOOP

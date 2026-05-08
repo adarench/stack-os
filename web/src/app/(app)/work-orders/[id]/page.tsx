@@ -9,6 +9,7 @@ import { StatusPill } from "@/components/status-pill";
 import { StatusActions } from "@/components/status-actions";
 import { CommentForm } from "@/components/comment-form";
 import { PhotoCapture } from "@/components/photo-capture";
+import { WoCosts } from "@/components/wo-costs";
 import { assignVendorAction } from "../_actions";
 import type { WorkOrderStatus } from "@contracts/state-machines/work-order";
 
@@ -120,6 +121,10 @@ export default async function WorkOrderPage({
           <PhotoCapture workOrderId={wo.id} kind="before_photo" label="Before" />
           <PhotoCapture workOrderId={wo.id} kind="after_photo" label="After" />
         </div>
+      </section>
+
+      <section className="mt-5">
+        <WoCosts workOrderId={wo.id} />
       </section>
 
       <section className="mt-5">

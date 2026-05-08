@@ -12,7 +12,9 @@ import type { WorkOrderStatus } from "@contracts/state-machines/work-order";
 import { createComment } from "@/lib/server/comments";
 import { createAttachment } from "@/lib/server/attachments";
 import { signUploadUrl, storageConfigured } from "@/lib/server/storage";
+import { addCost } from "@/lib/server/costs";
 import { auth } from "@clerk/nextjs/server";
+import { COST_KINDS, type CostKind } from "@contracts/financials";
 
 export async function createWorkOrderAction(input: CreateWorkOrderInput) {
   const row = await createWorkOrder(input);
@@ -81,6 +83,18 @@ export async function requestUploadUrl(args: {
   if (!userId || !orgId) return { error: "unauthorized" };
   if (!storageConfigured()) return { error: "storage_not_configured" };
   return signUploadUrl({ orgId, ...args });
+}
+
+export async function addCostAction(formData: FormData): Promise<void> {
+  const workOrderId = String(formData.get("workOrderId"));
+  const kind = String(formData.get("kind") ?? "other") as CostKind;
+  await addCost({
+    workOrderId,
+    kind: COST_KINDS.includes(kind) ? kind : "other",
+    description: String(formData.get("description") ?? "") || undefined,
+    amountCents: Number(formData.get("amountCents") ?? 0),
+  });
+  revalidatePath(`/work-orders/${workOrderId}`);
 }
 
 export async function attachUploadedFileAction(input: {

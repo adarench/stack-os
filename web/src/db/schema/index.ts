@@ -16,3 +16,4 @@ export * from "./notifications";
 export * from "./inspections";
 export * from "./projects";
 export * from "./compliance";
+export * from "./financials";
