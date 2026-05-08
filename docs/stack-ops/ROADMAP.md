@@ -26,9 +26,9 @@ end-to-end on a phone. P3 not started — explicitly deferred per Brad.
 | P2 | 8–12 | ▣→■ | Trello kanban + list views, drag-drop, dispatcher view | Dispatcher drags card from "new"→"assigned" on desktop; same view usable on phone |
 | P3 | 13–18 | ▣ | Recurring tasks (`task_templates` → spawned `work_orders`), scheduling, calendar, notifications dispatch | Template spawns daily WO via Inngest cron; notifications respect prefs |
 | P4 | 19–28 | ▣ | Inspections + findings → spawn WO, unit turns (project + child WOs), projects | Inspector logs finding on phone → auto-WO created; unit-turn dashboard groups WOs by stage |
-| P5 | 29–35 | ▢ | Vendor COI tracking + tenant insurance + expiry alerts + vendor self-serve portal | Vendor uploads COI; expired-COI vendors blocked from new WO; tenant insurance expiry triggers email |
-| P6 | 36–42 | ▢ | Light financial states (estimate → approved → invoiced → paid), approvals, costs, time entries | WO has cost estimate → approval flow → invoice attached → marked paid; threshold rules work |
-| P7 | 43+ | ▢ | Operating dashboard, exec view, AppFolio import, reporting | Exec dashboard shows open WOs, COI gaps, MTD cost; AppFolio nightly read-only sync |
+| P5 | 29–35 | ▣ | Vendor COI tracking + tenant insurance + expiry alerts + vendor self-serve portal | Vendor uploads COI; expired-COI vendors blocked from new WO; tenant insurance expiry triggers email |
+| P6 | 36–42 | ▣ | Light financial states (estimate → approved → invoiced → paid), approvals, costs, time entries | WO has cost estimate → approval flow → invoice attached → marked paid; threshold rules work |
+| P7 | 43+ | ▣ | Operating dashboard, exec view, reporting (AppFolio import deferred per Brad) | Exec dashboard shows open WOs, COI gaps, MTD cost; CSV export works |
 
 Days are agent-speed elapsed, with 1–2 humans driving 3–4 agents. Calendar weeks
 are usually longer due to non-code blockers (Twilio A2P, AppFolio creds, vendor

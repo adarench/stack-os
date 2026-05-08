@@ -14,6 +14,16 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-08 · orchestrator · P5 + P6 + P7 first pushes all live in one
+  session. P5: vendor COIs + tenant insurance + tenant magic-link portal,
+  daily Inngest expiry sweep, assignVendor gate with audit-logged override.
+  P6: task_costs + task_time_entries + invoices with threshold-driven
+  approval routing (≤$500 auto, ≤$5K manager, >$5K owner), cost
+  rollup on WO detail, /admin/approvals queue, /admin/financials. P7:
+  /dashboard with WO/compliance/financials/vendor tiles, MTD cost rollup,
+  CSV export endpoint. AppFolio import deferred per Brad. **All 7 phases
+  now ▣ first-push complete.** 125/125 tests pass (47 new across the
+  three phases). Production at https://stack-os-six.vercel.app.
 - 2026-05-08 · orchestrator · P4 first push live. Inspections (mobile-
   first walkthrough flow with finding rows + photos), atomic WO spawn
   on completion (one transaction; only failed actionable/critical
@@ -89,6 +99,35 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
   6 RLS integration tests `todo` (skipped without `DATABASE_URL`).
 
 ## History
+
+### 2026-05-08 · P7 (first push)
+
+- P7 · Lib · `/lib/server/dashboard.ts` `loadDashboard()` aggregates work-order counts by status (with derived `open` excluding closed/cancelled), overdue (`due_at < now() AND status NOT IN terminal`), 7-day windows for new + closed, vendor counts (total + active), compliance gaps (COI + tenant insurance counts by status), and financials (MTD cost via `task_costs` since month-start, invoices pending approval / approved-not-paid / paid MTD). Single round-trip per metric; everything scoped via `withStaffScope`.
+- P7 · UI · `/dashboard` exec view with tile grid (open / overdue / new(7d) / closed(7d), per-status counts, compliance gaps, financials, vendor counts). Tiles colored amber/rose when counts indicate problems; click-through links to the relevant admin surface.
+- P7 · UI · "Dashboard" link added to `/work-orders` header.
+- P7 · CSV export · `/api/export/work-orders.csv` route streams a CSV with proper escaping (commas, quotes, newlines), `Content-Disposition` attachment, dated filename. Linked from the dashboard.
+- P7 · AppFolio import · **Deferred** per Brad's earlier guidance. P0 stress-test estimated 2 weeks for the import alone; revisit when AppFolio API access is sorted.
+- P7 · Tests · 2 integration tests on real Neon: `loadDashboard` returns expected counts and totals from a seeded org (3 WOs, 1 walked to closed; 2 cost rows; 1 auto-approved + 1 pending invoice); `exportWorkOrdersCsv` returns rows ordered by `number`. Total 125/125.
+
+### 2026-05-08 · P6 (first push)
+
+- P6 · Schema · `task_costs` (kind enum: labor/materials/fee/other; amount_cents; entered_by actor cols), `task_time_entries` (started/ended + hours_decimal + hourly_rate_cents), `invoices` (vendor_id + work_order_id nullable for batch invoices; status enum: draft/submitted/approved/paid/disputed/void; submitted/approved/paid timestamps + actor cols). RLS staff_org for all three.
+- P6 · Contracts · `/contracts/financials.ts` with `COST_KINDS`, `INVOICE_STATUSES`, `canInvoiceTransition` (state machine), `approvalLevelFor(amountCents)` (≤$500 auto, ≤$5K manager, >$5K owner — defaults; per-org override deferred).
+- P6 · Lib · `/lib/server/costs.ts` (addCost / addCostFromVendor / listCosts / totalForWorkOrder / costBreakdown). `/lib/server/invoices.ts` (submitInvoiceFromVendor / submitInvoiceAsStaff — both atomically insert the invoice AND a pending `approvals` row when over the auto-approve threshold; transitionInvoice with state-machine enforcement and approvedAt/paidAt actor stamping). `/lib/server/approvals.ts` (listPendingApprovals + decideApproval, audit-logged).
+- P6 · UI · `/admin/approvals` queue (one-click approve/reject), `/admin/financials` (status totals row + staff invoice entry form + per-row transition buttons), `<WoCosts>` component on `/work-orders/[id]` (line items, total, inline add-cost form).
+- P6 · Reuses existing `approvals` polymorphic table (target_type='vendor'); no new approval schema needed.
+- P6 · Tests · 9 unit (approval thresholds; invoice state-machine adjacency; canonical sets), 7 integration (cost roundtrip + total + breakdown by kind; auto-approve at $100; manager-band $750 creates pending approval; owner-band $8K; decideApproval; submitted→approved→paid; invalid transitions rejected). Total 123 at end of P6.
+
+### 2026-05-08 · P5 (first push)
+
+- P5 · Schema · `vendor_cois` (policy + carrier + coverage + effective/expires + attachment_id + status), `tenant_users` (org_id + unit_id + magic-link fields; mirrors vendor_users), `tenant_insurance_policies` (per-tenant; status; uploaded_by_actor_type to distinguish staff vs tenant-portal entries). New `compliance_status` enum (active / expiring / expiring window 30d / expired / superseded).
+- P5 · Contracts · `/contracts/compliance.ts` with `computeComplianceStatus` pure helper.
+- P5 · Lib · `/lib/server/coi.ts` (recordCoi auto-supersedes prior active; vendorHasActiveCoi gate; runCoiExpirySweep). `/lib/server/tenant-insurance.ts` same shape, plus `recordTenantInsuranceFromPortal` for tenant-scope writes. `/lib/server/tenant-auth.ts` + `tenant-invite.ts` mirror vendor pattern (HMAC cookie session + magic-link issue/verify).
+- P5 · `assignVendor` extended with COI gate. Throws `vendor_coi_missing_or_expired` unless `overrideCoi=true` (audit-logged emergency override). Existing P2 lifecycle tests updated to pass `overrideCoi: true` since their seeds don't include a COI.
+- P5 · `withTenantScope` helper added; `app.tenant_user_id` session var; new `current_tenant_user_id()` SQL helper. RLS: `tenant_users_self`, `tenant_users_system_lookup`, `tenant_insurance_self`, `tenant_insurance_self_insert`, plus system_scan policies for both COI and tenant insurance to support cross-org Inngest sweeps.
+- P5 · Inngest · `compliance-sweep` daily 7am UTC cron runs both COI + tenant insurance sweeps in sequence; idempotent.
+- P5 · UI · `/admin/compliance/cois` (record + list with status pills), `/admin/compliance/tenants` (invite + record + list), `/tenant` portal page (mobile-friendly insurance status + add-policy form), `/tenant/invalid`, `/api/tenant/auth/[token]`. (vendor) route group already bypasses Clerk; tenant pages slot in there.
+- P5 · Tests · 7 unit (computeComplianceStatus across all branches + 30d window boundary), 11 integration (COI lifecycle + supersede; vendorHasActiveCoi; assignVendor blocks expired; override succeeds + audit; sweep transitions; tenant invite + magic-link consume + supersede + sweep + tenant-portal record). Total 105 at end of P5.
 
 ### 2026-05-08 · P4 (first push)
 

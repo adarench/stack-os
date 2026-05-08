@@ -59,6 +59,12 @@ export default async function WorkOrdersPage({
         <h1 className="text-xl font-semibold">Work orders</h1>
         <div className="flex items-center gap-2">
           <Link
+            href="/dashboard"
+            className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs uppercase tracking-wide text-neutral-600"
+          >
+            Dashboard
+          </Link>
+          <Link
             href="/dispatcher"
             className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs uppercase tracking-wide text-neutral-600"
           >
