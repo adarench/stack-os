@@ -4,14 +4,27 @@
 
 ## Current phase
 
-**P1/P2 hardening** (in progress) — making the work-order board and list
-genuinely usable as a Trello/AppFolio replacement before expanding scope.
+**P8 — Operator-shell redesign + workflow refinement** (in progress on
+`redesign/operator-shell` branch). Feature expansion is frozen. The structural
+redesign (Linear-style chrome, ⌘K, six lanes, drawer, urgency tokens) has
+shipped behind `NEXT_PUBLIC_NEW_SHELL=1`. The current cycle is **product
+refinement against real operational walkthroughs**.
 
-P0 closed. P1 + P2 code landed. Hardening pass added: search, dispatcher
-list view, mobile photo upload (multi-file + progress + retry + 25 MB cap),
-route groups so `pnpm build` is green without creds, 41 unit tests
-(was 18). Pending validation: real Neon/Clerk/R2/Resend creds and Day-3
-end-to-end on a phone. P3 not started — explicitly deferred per Brad.
+Definition of done (working list):
+- Overdue lane communicates "fix this first" without noise — ■ done
+  (excludes resolved/verified, sorts by priority).
+- Overdue inspections surface on /now — ■ done.
+- Urgent / High priorities visually dominate normal / low — ■ done (URG /
+  HIGH chip on EntityRow).
+- Drawer actions: Assign · Status → · Comment — ▢ pending.
+- ⌘K entity typeahead (open WO-1043 from anywhere) — ▢ pending.
+- Owner avatars on rows via `assignments` join — ▢ pending.
+- Mobile drawer slides up from bottom + tab-bar "More" menu wired — ▢ pending.
+- Human walk on a real phone with seeded org — ▢ pending (the only validation
+  that actually matters).
+
+P0–P7 all ■ first-push complete. **The roadmap is no longer about features —
+it's about whether the operator can trust /now at 8am.**
 
 ## Status legend
 

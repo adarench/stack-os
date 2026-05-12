@@ -14,6 +14,56 @@ Format: `YYYY-MM-DD · Phase · Lane · Feature · State change · Validation`.
 > Top of file. Each agent appends one short line at end of their working
 > session. Older entries roll into the history below.
 
+- 2026-05-12 · orchestrator · **Desktop demo-readiness polish** on
+  `redesign/operator-shell`. Audited every surface for demo immersion;
+  shipped: (1) `CutoverBanner` removed from AppShell — banner referenced
+  "cutover" state with no context for a viewer; (2) `/subscriptions` and
+  `/help` removed from the left rail (routes still exist for direct-URL
+  but no longer surface placeholder copy); (3) Settings sub-nav trimmed
+  to the three sections with real legacy bridges (Properties · Vendors ·
+  Templates) — Members / Notifications / Integrations dropped along with
+  their "Coming in a follow-on pass" content; (4) `EntityDrawer` footer
+  no longer surfaces "Open full page" — a click during demo dropped the
+  viewer into the legacy admin chrome; replaced with the WO's due-time
+  chip; (5) new `<LiveIndicator />` chip (pulsing green dot · "LIVE")
+  on `/now` near the Pulse strip so the polling reads as real-time;
+  (6) stale dev-facing copy swept: `/inbox` footer note, `/work` empty
+  state ⌘K hint. **125 / 125 tests green** post-polish. Zero schema
+  changes, zero backend changes.
+- 2026-05-12 · orchestrator · **P8 refinement pass · audit + highest-leverage
+  fixes** on `redesign/operator-shell`. Operated the system as dispatcher /
+  PM / field op / executive / stress against a seeded `org_audit_walkthrough`
+  (8 properties · 30 units · 10 vendors · 39 WOs · 6 inspections · 3 projects
+  · 5 pending approvals · 8 COIs · 20 notifications). Single biggest finding:
+  the Overdue lane was **lying** — 4 of 11 rows were `resolved`/`verified` WOs
+  awaiting closeout (not actually blocking field work), and the urgent leak
+  ranked 5th because the lane sorted by `due_at ASC`. Shipped: (1) Overdue
+  lane excludes `resolved`/`verified`/`closed`/`cancelled`; (2) sort by
+  `priority DESC` then `due_at ASC` so urgent rises to top; (3) overdue
+  inspections now surface in /now Overdue (previously invisible — 4 of 6
+  seeded inspections were past `scheduled_for` and the operator never saw
+  them); (4) `URG` / `HIGH` priority chip on `EntityRow` so urgent leaks
+  visually dominate low-priority cabinet hinges; (5) summary count matches
+  the new filter so the Pulse strip stops over-reporting. Reverted an
+  attempt to filter "create-only" rows from Just Changed — it hid newly-
+  filed WOs the dispatcher needs to see. **125/125 tests green** post-fix.
+  Branch still uncommitted; needs human walk to validate operator feel.
+- 2026-05-11 · orchestrator · **A + D bundle on `redesign/operator-shell`**:
+  realistic seed (`scripts/db-seed.ts`) + sonner Toaster mounted in AppShell
+  + toast-friendly approval action. 125/125 tests green.
+- 2026-05-11 · orchestrator · **redesign/operator-shell big-bang** — 13-step
+  Linear-style operator UI shipped behind `NEXT_PUBLIC_NEW_SHELL=1` flag.
+  Top bar + left rail + bottom tab bar; ⌘K command palette (Navigate +
+  Create); `/now` command center with 6 lanes (Needs you · Overdue ·
+  Blocked · Today · In-flight · Just changed) + Pulse strip; `/work`
+  unified surface with filter chips + view-mode toggle (list / board);
+  `/work` drawer with Overview · Activity · Costs · Files tabs via
+  `/api/me/entity`; `/compliance` (COIs + tenant insurance + assign-gate
+  violations); `/money` (approvals + invoices + export); `/settings`
+  sub-nav with legacy bridges; `/inbox` + bell badge via
+  `/api/me/notifications`; AutoRefresh + InstallPrompt + OfflineIndicator;
+  CutoverBanner + flag-gated redirects for 13 legacy paths. shadcn/ui
+  primitives + urgency tokens. **Zero schema changes, 125/125 tests green.**
 - 2026-05-08 · orchestrator · P5 + P6 + P7 first pushes all live in one
   session. P5: vendor COIs + tenant insurance + tenant magic-link portal,
   daily Inngest expiry sweep, assignVendor gate with audit-logged override.

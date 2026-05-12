@@ -2,6 +2,74 @@
 
 **Owners:** QA / Test Validator + active agents · **Update freq:** every merge
 
+---
+
+## P8 — Operator-shell redesign · audit walkthrough (2026-05-12)
+
+**Method:** seeded a synthetic org (`org_audit_walkthrough`) at real Stack
+scale (8 properties · 30 units · 10 vendors · 39 WOs across all 10 statuses
+· 6 inspections · 3 projects · 5 pending approvals · 8 COIs). Ran the exact
+queries each surface runs and inspected the rendered data shape. Identified
+friction from real output, not imagined operator behaviour.
+
+### What was validated
+
+- **Overdue lane composition** — before: 11 rows, 4 of which were
+  `resolved` / `verified` (false positives, awaiting closeout, not actually
+  blocking field work); after: 7 real WOs + 4 overdue inspections, urgent
+  leak at row 1.
+- **Overdue sort** — before: oldest-due first (a low-priority drain clog
+  topped a lane that should have led with an active leak); after:
+  priority DESC → due_at ASC, so urgency rises.
+- **Overdue inspection visibility** — before: 4 of 6 seeded inspections
+  were past `scheduled_for` with `status='scheduled'` and never appeared
+  in /now; after: surfaced in the Overdue lane with their own urgency dot.
+- **Priority hierarchy** — before: URGENT WO-1001 (leak) looked identical
+  to LOW WO-1037 (cabinet hinge); after: `URG` red chip + `HIGH` amber
+  chip on EntityRow.
+- **Pulse strip count** — before: 11 overdue (lying); after: 7 (matches
+  the lane).
+- **125 / 125 backend tests still green** — every audit fix is
+  rendering-layer; zero schema changes, zero state-machine changes.
+
+### What still needs human validation
+
+- [ ] **Phone walkthrough.** Sign in to a real org, seed it, open /now on
+      a phone. Does the urgent leak *read* as urgent? Are the lanes
+      scannable? Does the drawer feel like a place to work?
+- [ ] **⌘K reach.** Power-user instinct: do you actually press ⌘K, or
+      reach for the rail? Should `+ New` open the palette or a Dialog?
+- [ ] **Compliance assign-gate violations.** Surface looks right in seed;
+      real vendor adoption may shift what "blocked" means.
+- [ ] **Approval flow with toasts.** Approve a $1,450 estimate from /money
+      and watch /now's Pulse strip decrement. Does the feedback land?
+- [ ] **Inbox after first sign-in.** Re-run seed after a real user signs
+      in so notifications get attached. Bell badge should show non-zero.
+
+### Carried into the next pass
+
+- **Drawer is still read-only.** "Open full page" is the only working
+  action. Real drawer footer (Assign · Status → · Comment) is the highest-
+  leverage remaining UX gap.
+- **⌘K entity search is unwired.** Typing `1001` returns no entity. The
+  Search group is reserved but never populated.
+- **No vendor / owner visible on rows.** Needs an `assignments` join
+  across queue + work-list. Two-query touch, zero schema change.
+- **Settings sub-nav bridges to legacy chrome.** Visually jarring; tracked
+  for an editor-port pass.
+- **Mobile "More" tab is a no-op.** Half the destinations unreachable on
+  phone via the tab bar.
+
+### Seed reproduction
+
+```
+pnpm --filter web db:seed org_audit_walkthrough
+# Or seed against your own Clerk org_id to walk it interactively:
+pnpm --filter web db:seed org_2YOUR_ORG_ID
+```
+
+---
+
 Each entry records what was validated, by whom, with what evidence. This is
 the audit trail that lets us mark phases done.
 

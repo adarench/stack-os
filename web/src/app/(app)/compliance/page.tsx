@@ -1,0 +1,260 @@
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { loadComplianceView } from "@/lib/server/compliance-view";
+import { TimeSince, TimeSinceTicker } from "@/components/operator/time-since";
+import { UrgencyDot } from "@/components/operator/urgency-dot";
+import { LaneHeader } from "@/components/operator/lane-header";
+import { cn } from "@/lib/utils";
+import type { ComplianceStatus } from "@contracts/compliance";
+
+export const dynamic = "force-dynamic";
+
+type Tab = "cois" | "tenants";
+
+const TAB_LABELS: Record<Tab, string> = {
+  cois: "Vendor COIs",
+  tenants: "Tenant insurance",
+};
+
+export default async function CompliancePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { userId, orgId } = await auth();
+  if (!userId) redirect("/sign-in");
+  if (!orgId) redirect("/select-org");
+
+  const sp = await searchParams;
+  const tab: Tab = strOrNull(sp.tab) === "tenants" ? "tenants" : "cois";
+
+  const view = await loadComplianceView();
+
+  return (
+    <TimeSinceTicker>
+      <div className="mx-auto max-w-[1080px] px-3 py-3 md:px-4">
+        {/* Assign-gate violations lane */}
+        {view.violations.length > 0 && (
+          <section className="mb-4 rounded-md border border-urgency-overdue/30 bg-urgency-overdue/5 p-3">
+            <LaneHeader
+              title="Assign-gate violations"
+              count={view.violations.length}
+              tone="red"
+              aside={
+                <span className="flex items-center gap-1 text-[11px] text-urgency-overdue">
+                  <AlertTriangle className="size-3" />
+                  Blocked from new WOs
+                </span>
+              }
+            />
+            <ul className="space-y-1">
+              {view.violations.map((v) => (
+                <li
+                  key={v.vendorId}
+                  className="flex items-center gap-2 px-2 py-1 text-sm"
+                >
+                  <UrgencyDot urgency="overdue" />
+                  <span>{v.vendorName}</span>
+                  <span className="ml-auto text-[11px] text-muted-foreground">
+                    no active COI
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Tab strip */}
+        <nav
+          className="flex items-center gap-1 border-b border-border"
+          aria-label="Compliance tabs"
+        >
+          {(Object.keys(TAB_LABELS) as Tab[]).map((t) => {
+            const active = t === tab;
+            const counts =
+              t === "cois"
+                ? { active: view.summary.coiActive, expiring: view.summary.coiExpiring, expired: view.summary.coiExpired }
+                : { active: view.summary.tenantActive, expiring: view.summary.tenantExpiring, expired: view.summary.tenantExpired };
+            return (
+              <Link
+                key={t}
+                href={`/compliance?tab=${t}`}
+                scroll={false}
+                className={cn(
+                  "relative inline-flex h-9 items-center gap-2 px-3 text-[12px] font-medium uppercase tracking-wider transition-colors",
+                  active
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                  "after:absolute after:inset-x-2 after:bottom-[-1px] after:h-0.5 after:rounded-t",
+                  active ? "after:bg-foreground" : "after:bg-transparent",
+                )}
+              >
+                <ShieldCheck className="size-3.5" />
+                {TAB_LABELS[t]}
+                <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                  {counts.active + counts.expiring + counts.expired}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Mini summary strip */}
+        <div className="mt-3 mb-2 grid grid-cols-3 gap-2 text-xs">
+          {tab === "cois" ? (
+            <>
+              <Stat label="Active" value={view.summary.coiActive} />
+              <Stat
+                label="Expiring soon"
+                value={view.summary.coiExpiring}
+                tone={view.summary.coiExpiring > 0 ? "amber" : "muted"}
+              />
+              <Stat
+                label="Expired"
+                value={view.summary.coiExpired}
+                tone={view.summary.coiExpired > 0 ? "red" : "muted"}
+              />
+            </>
+          ) : (
+            <>
+              <Stat label="Active" value={view.summary.tenantActive} />
+              <Stat
+                label="Expiring soon"
+                value={view.summary.tenantExpiring}
+                tone={view.summary.tenantExpiring > 0 ? "amber" : "muted"}
+              />
+              <Stat
+                label="Expired"
+                value={view.summary.tenantExpired}
+                tone={view.summary.tenantExpired > 0 ? "red" : "muted"}
+              />
+            </>
+          )}
+        </div>
+
+        {/* List */}
+        {tab === "cois" ? <CoiList rows={view.cois} /> : <TenantList rows={view.tenantIns} />}
+      </div>
+    </TimeSinceTicker>
+  );
+}
+
+function CoiList({
+  rows,
+}: {
+  rows: Awaited<ReturnType<typeof loadComplianceView>>["cois"];
+}) {
+  if (rows.length === 0) {
+    return <p className="mt-6 text-sm text-muted-foreground">No COIs recorded.</p>;
+  }
+  return (
+    <ul className="space-y-0">
+      {rows.map((r) => (
+        <li
+          key={r.id}
+          className="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] hover:bg-muted/40"
+        >
+          <UrgencyDot urgency={statusUrgency(r.status)} />
+          <span className="flex-1 truncate">
+            {r.vendorName}
+            {r.carrier && (
+              <span className="ml-2 text-muted-foreground">· {r.carrier}</span>
+            )}
+            {r.policyNumber && (
+              <span className="ml-2 font-mono text-[11px] text-muted-foreground">
+                #{r.policyNumber}
+              </span>
+            )}
+          </span>
+          <StatusPill status={r.status} />
+          {r.expiresAt && <TimeSince at={r.expiresAt} direction="future" />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function TenantList({
+  rows,
+}: {
+  rows: Awaited<ReturnType<typeof loadComplianceView>>["tenantIns"];
+}) {
+  if (rows.length === 0) {
+    return (
+      <p className="mt-6 text-sm text-muted-foreground">
+        No tenant insurance recorded.
+      </p>
+    );
+  }
+  return (
+    <ul className="space-y-0">
+      {rows.map((r) => (
+        <li
+          key={r.id}
+          className="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] hover:bg-muted/40"
+        >
+          <UrgencyDot urgency={statusUrgency(r.status)} />
+          <span className="flex-1 truncate">
+            {r.tenantName ?? r.tenantEmail}
+            {r.unitLabel && (
+              <span className="ml-2 text-muted-foreground">· {r.unitLabel}</span>
+            )}
+            {r.carrier && (
+              <span className="ml-2 text-muted-foreground">· {r.carrier}</span>
+            )}
+          </span>
+          <StatusPill status={r.status} />
+          {r.expiresAt && <TimeSince at={r.expiresAt} direction="future" />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function statusUrgency(status: ComplianceStatus): Parameters<typeof UrgencyDot>[0]["urgency"] {
+  if (status === "expired") return "overdue";
+  if (status === "expiring") return "blocked";
+  if (status === "active") return "done";
+  return "muted";
+}
+
+function StatusPill({ status }: { status: ComplianceStatus }) {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+      {status}
+    </span>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  tone = "muted",
+}: {
+  label: string;
+  value: number;
+  tone?: "red" | "amber" | "muted";
+}) {
+  const toneClass = {
+    red: "text-urgency-overdue",
+    amber: "text-urgency-blocked",
+    muted: "text-foreground",
+  }[tone];
+  return (
+    <div className="rounded-md border border-border bg-card p-2">
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      <div className={cn("font-mono text-xl tabular-nums", toneClass)}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function strOrNull(v: string | string[] | undefined): string | null {
+  if (v === undefined) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
+}

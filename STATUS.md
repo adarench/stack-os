@@ -1,12 +1,95 @@
 # Stack OS — current state
 
-**Updated:** 2026-05-08 · **Live:** https://stack-os-six.vercel.app · **Repo:** https://github.com/adarench/stack-os
+**Updated:** 2026-05-12 (demo-ready pass) · **Live:** https://stack-os-six.vercel.app · **Repo:** https://github.com/adarench/stack-os · **Active branch:** `redesign/operator-shell`
+
+---
+
+## Founder walkthrough — recommended desktop flow
+
+Run with `NEXT_PUBLIC_NEW_SHELL=1` and a seeded org. Use the audit org or
+your own:
+```
+pnpm --filter web db:seed org_audit_walkthrough     # or org_2YOUR_ORG_ID
+```
+
+| # | Surface | What to do | What lands |
+|---|---|---|---|
+| 1 | `/now` | Land here after sign-in. | Pulse strip across the top (35 open · 7 overdue · 3 COIs expiring · 5 approvals pending). "LIVE" chip top-right. Six lanes underneath; Overdue is at the top with WO-1001 (urgent bathroom leak) as row 1 + a red `URG` chip. |
+| 2 | `/now` | Click WO-1001 row. | Drawer slides in from the right. Overview tab shows description, property, status, due. Activity tab shows audit timeline. |
+| 3 | `/now` | Press `Esc`. | Drawer closes, scroll position preserved. |
+| 4 | anywhere | Press `⌘K`. | Palette opens. Type `g c` → highlight "Go to Compliance · COIs expiring". Hit `⏎`. |
+| 5 | `/compliance` | Look at the top. | "Assign-gate violations" lane shows the 3 vendors blocked from new WOs (no active COI). Below: COI list with Greenleaf expired at the bottom in red. |
+| 6 | rail → Money | Approve the $5,400 hallway repaint. | Toast: `Approved · $5,400.00`. |
+| 7 | rail → Now | Watch the Pulse strip. | "Approvals pending" decrements (4 instead of 5) next time `/now` re-renders. |
+| 8 | rail → Work | Click the `Overdue` chip. | List filters to overdue-only. Toggle the `Board` view-mode toggle — kanban appears with drag-drop. |
+| 9 | rail → Now | Close the loop. | Operator console. |
+
+Notes:
+- The drawer is read-only in this build — Assign / Status → / Comment are
+  next-pass work. Don't promise drawer-native actions during the demo.
+- The first time a user signs in, the inbox is empty (notifications need
+  a recipient user id). Re-run the seed after first sign-in to attach
+  notifications.
+
+
 
 Internal Maintenance + Compliance Operating System for Stack Real Estate. Replaces day-to-day Trello + AppFolio maintenance workflow. Mobile-first PWA. Not a rebuild of AppFolio. Not an accounting system.
 
 ---
 
-## Where we are
+## Where we are — P8 refinement (not P9 features)
+
+P0–P7 all shipped first-push. The redesign branch `redesign/operator-shell` then
+delivered the full operator-shell rebuild behind `NEXT_PUBLIC_NEW_SHELL=1`:
+top bar + rail + bottom tab bar, ⌘K, six-lane /now, unified /work, /compliance,
+/money, /settings, /inbox, drawer with tabs, polling, toasts. Seed script at
+real Stack scale.
+
+**The current focus is workflow validation + refinement, not features.** A
+ruthless audit pass (2026-05-12) walked the system as dispatcher / PM / field op
+/ executive against a seeded org and identified that the Overdue lane was
+misleading (4 of 11 rows were false positives, urgent leak sat 5 rows down).
+Shipped:
+
+- Overdue lane excludes `resolved`/`verified`/`closed`/`cancelled`
+- Sort by priority DESC → due_at ASC
+- Overdue inspections now visible in /now
+- `URG` / `HIGH` priority chips on `EntityRow`
+- Pulse strip count matches the new lane
+
+Backend untouched. 125/125 tests green.
+
+| Phase | What | State |
+|---|---|---|
+| **P0–P7** | Foundational ops platform (WO + inspections + compliance + costs + approvals + dashboard) | ■ done |
+| **Redesign** | Operator-shell rebuild on `redesign/operator-shell` behind flag | ■ shipped, awaits human walk |
+| **P8** | Refinement pass · audit + highest-leverage fixes | ▣ in progress |
+
+---
+
+## What's left for the current cycle
+
+Carried from the 2026-05-12 audit (in leverage order):
+
+1. **Real drawer footer actions** — Assign · Status → · Comment. Right now
+   the drawer is a read-only preview; you have to bounce to legacy to act.
+2. **⌘K entity typeahead** — typing `WO-1001` should open the drawer. Search
+   group is reserved but unwired.
+3. **Owner / vendor name on rows** — `assignments` join. Two-query touch.
+   "Who's on it?" is currently unanswered everywhere.
+4. **Mobile bottom-sheet drawer + working "More" tab.**
+5. **Settings sub-page port** — kill the bridge to legacy chrome.
+
+Plus the original infra carry-forward:
+
+- Inngest prod keys (when convenient — 5 min).
+- Resend domain verification (when going to real users).
+- Twilio A2P 10DLC (regulatory; 2-4 wk clock).
+- AppFolio import (deferred per Brad).
+
+---
+
+## Where we *were* — for context
 
 All seven phases shipped first-push and deployed:
 
