@@ -108,9 +108,9 @@ export default async function WorkPage({
 
         {rows.length === 0 ? (
           <div className="mx-auto mt-12 max-w-sm text-center">
-            <p className="text-sm font-medium">Nothing matches.</p>
+            <p className="text-sm font-medium">No matches in this view.</p>
             <p className="text-xs text-muted-foreground">
-              Try clearing the filters above, or press{" "}
+              Loosen a filter above, or press{" "}
               <kbd className="rounded border border-border bg-muted px-1 font-mono">
                 ⌘K
               </kbd>{" "}

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import {
@@ -106,12 +107,14 @@ export default async function NowPage() {
             {LANES.map((lane) => {
               const rows = items[lane.key];
               if (rows.length === 0) return null;
+              const aside = laneAside(lane.key, rows);
               return (
                 <section key={lane.key} aria-label={lane.title}>
                   <LaneHeader
                     title={lane.title}
                     count={rows.length}
                     tone={laneTone(lane.key, rows.length)}
+                    aside={aside}
                   />
                   <div className="space-y-0">
                     {rows.map((row) => (
@@ -132,4 +135,75 @@ export default async function NowPage() {
       <EntityDrawer />
     </TimeSinceTicker>
   );
+}
+
+/**
+ * One-line operational context for each lane — the "why does this lane
+ * matter right now" caption. Calculated from the lane's items so the
+ * dispatcher reads the operational truth without scanning every row.
+ *
+ * Reads quietly: `oldest 14d` next to `Overdue 5` says "there's a
+ * fortnight-old miss buried in this list" without screaming.
+ */
+function laneAside(
+  lane: QueueLane,
+  items: QueueItem[],
+): ReactNode | null {
+  if (items.length === 0) return null;
+  switch (lane) {
+    case "overdue":
+    case "blocked":
+    case "needs": {
+      const oldest = oldestAgeMs(items);
+      if (oldest === null) return null;
+      return <Caption>oldest {humanizeMs(oldest)}</Caption>;
+    }
+    case "today": {
+      const next = items
+        .map((it) => it.dueAt)
+        .filter((d): d is string => !!d)
+        .sort()[0];
+      if (!next) return null;
+      const t = new Date(next);
+      const label = t
+        .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+        .toLowerCase()
+        .replace(/\s/g, "");
+      return <Caption>next {label}</Caption>;
+    }
+    case "inflight": {
+      const unassigned = items.filter((i) => !i.ownerName).length;
+      if (unassigned === 0) return null;
+      return <Caption>{unassigned} unassigned</Caption>;
+    }
+    case "changed":
+      return null;
+  }
+}
+
+function Caption({ children }: { children: ReactNode }) {
+  return (
+    <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+function oldestAgeMs(items: QueueItem[]): number | null {
+  let oldest = 0;
+  const now = Date.now();
+  for (const it of items) {
+    const ms = now - new Date(it.lastActionAt).getTime();
+    if (ms > oldest) oldest = ms;
+  }
+  return oldest > 0 ? oldest : null;
+}
+
+function humanizeMs(ms: number): string {
+  const m = Math.round(ms / 60_000);
+  if (m < 60) return `${m}m`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.round(h / 24);
+  return `${d}d`;
 }

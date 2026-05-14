@@ -20,6 +20,8 @@ export interface EntityRowData {
   lastActionAt: string;
   lastActionText: string | null;
   urgency: Urgency;
+  /** Open + untouched for 7d+. Drives the quiet "stale" chip. */
+  aged?: boolean;
 }
 
 /**
@@ -83,6 +85,7 @@ export function EntityRow({
         )}
       </span>
       <span className="ml-auto flex items-center gap-2">
+        {row.aged && <StaleChip />}
         <OwnerChip name={row.ownerName} />
         <TimeSince at={timeAt} />
         {row.lastActionText && (
@@ -92,6 +95,23 @@ export function EntityRow({
         )}
       </span>
     </div>
+  );
+}
+
+/**
+ * Quiet "stale" mark — a row that's been open and untouched for 7d+. Lives
+ * on the right edge near the time chip. Intentionally muted so it reads as
+ * a temporal note, not an alert: the urgency dot owns "stop and look."
+ */
+function StaleChip() {
+  return (
+    <span
+      aria-label="No activity in 7+ days"
+      title="No activity in 7+ days"
+      className="hidden md:inline shrink-0 font-mono text-[10px] uppercase tracking-wider text-urgency-blocked/80"
+    >
+      stale
+    </span>
   );
 }
 

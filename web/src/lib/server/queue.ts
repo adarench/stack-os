@@ -7,6 +7,7 @@ import { properties } from "@db/schema/properties";
 import { units } from "@db/schema/units";
 import { vendorCois } from "@db/schema/compliance";
 import { withStaffScope, type ScopedDB } from "./db";
+import { loadActiveOwners } from "./owners";
 import type { Urgency } from "../../components/operator/urgency-dot";
 
 /**
@@ -45,6 +46,9 @@ export interface QueueItem {
   lastActionAt: string;
   lastActionText: string | null;
   urgency: Urgency;
+  /** Open + untouched for 7d+. Drives the row's "stale" chip. Skipped on
+   *  overdue / today / done where other signals already speak. */
+  aged: boolean;
   /** Legacy detail URL during the migration window. */
   legacyHref: string;
 }
@@ -216,9 +220,14 @@ async function overdueLane(
     .orderBy(inspections.scheduledFor)
     .limit(LANE_LIMIT);
 
+  const [woOwners, insOwners] = await Promise.all([
+    loadActiveOwners(tx, orgId, "work_order", woRows.map((r) => r.id)),
+    loadActiveOwners(tx, orgId, "inspection", insRows.map((r) => r.id)),
+  ]);
+
   return [
-    ...woRows.map((r) => mapWO(r, "overdue")),
-    ...insRows.map((r) => mapIns(r, "overdue")),
+    ...woRows.map((r) => mapWO(r, "overdue", woOwners.get(r.id) ?? null)),
+    ...insRows.map((r) => mapIns(r, "overdue", insOwners.get(r.id) ?? null)),
   ];
 }
 
@@ -230,7 +239,13 @@ async function blockedLane(
     .where(and(eq(workOrders.orgId, orgId), eq(workOrders.status, "blocked")))
     .orderBy(desc(workOrders.updatedAt))
     .limit(LANE_LIMIT);
-  return rows.map((r) => mapWO(r, "blocked"));
+  const owners = await loadActiveOwners(
+    tx,
+    orgId,
+    "work_order",
+    rows.map((r) => r.id),
+  );
+  return rows.map((r) => mapWO(r, "blocked", owners.get(r.id) ?? null));
 }
 
 async function todayLane(
@@ -261,9 +276,13 @@ async function todayLane(
     )
     .orderBy(inspections.scheduledFor)
     .limit(LANE_LIMIT);
+  const [woOwners, insOwners] = await Promise.all([
+    loadActiveOwners(tx, orgId, "work_order", woRows.map((r) => r.id)),
+    loadActiveOwners(tx, orgId, "inspection", insRows.map((r) => r.id)),
+  ]);
   return [
-    ...woRows.map((r) => mapWO(r, "today")),
-    ...insRows.map((r) => mapIns(r, "today")),
+    ...woRows.map((r) => mapWO(r, "today", woOwners.get(r.id) ?? null)),
+    ...insRows.map((r) => mapIns(r, "today", insOwners.get(r.id) ?? null)),
   ].sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""));
 }
 
@@ -286,9 +305,13 @@ async function inflightLane(
     )
     .orderBy(desc(inspections.updatedAt))
     .limit(LANE_LIMIT);
+  const [woOwners, insOwners] = await Promise.all([
+    loadActiveOwners(tx, orgId, "work_order", woRows.map((r) => r.id)),
+    loadActiveOwners(tx, orgId, "inspection", insRows.map((r) => r.id)),
+  ]);
   return [
-    ...woRows.map((r) => mapWO(r, "inflow")),
-    ...insRows.map((r) => mapIns(r, "inflow")),
+    ...woRows.map((r) => mapWO(r, "inflow", woOwners.get(r.id) ?? null)),
+    ...insRows.map((r) => mapIns(r, "inflow", insOwners.get(r.id) ?? null)),
   ].sort(byUpdatedDesc);
 }
 
@@ -319,9 +342,13 @@ async function changedLane(
     )
     .orderBy(desc(inspections.updatedAt))
     .limit(LANE_LIMIT);
+  const [woOwners, insOwners] = await Promise.all([
+    loadActiveOwners(tx, orgId, "work_order", woRows.map((r) => r.id)),
+    loadActiveOwners(tx, orgId, "inspection", insRows.map((r) => r.id)),
+  ]);
   return [
-    ...woRows.map((r) => mapWO(r, "muted")),
-    ...insRows.map((r) => mapIns(r, "muted")),
+    ...woRows.map((r) => mapWO(r, "muted", woOwners.get(r.id) ?? null)),
+    ...insRows.map((r) => mapIns(r, "muted", insOwners.get(r.id) ?? null)),
   ].sort(byUpdatedDesc);
 }
 
@@ -337,6 +364,7 @@ async function needsLane(
       amount: approvals.amountCents,
       updatedAt: approvals.updatedAt,
       targetId: approvals.targetId,
+      woId: workOrders.id,
       woNumber: workOrders.number,
       woTitle: workOrders.title,
       propertyName: properties.name,
@@ -350,6 +378,12 @@ async function needsLane(
     .orderBy(desc(approvals.updatedAt))
     .limit(LANE_LIMIT);
 
+  // An approval's "owner" is the owner of the underlying WO — the person
+  // already holding the work, not the approver. Surfaces accountability
+  // for who's blocked waiting on this decision.
+  const woIds = rows.map((r) => r.woId).filter((id): id is string => !!id);
+  const owners = await loadActiveOwners(tx, orgId, "work_order", woIds);
+
   return rows.map((r): QueueItem => {
     const woRef = r.woNumber ? `WO-${r.woNumber}` : `AP-${shortId(r.targetId)}`;
     const ref = `AP-${shortId(r.id)}`;
@@ -360,13 +394,14 @@ async function needsLane(
       title: `Approval (${r.reason})${amount} — ${woRef}`,
       status: "pending",
       priority: null,
-      ownerName: null,
+      ownerName: r.woId ? owners.get(r.woId) ?? null : null,
       property: r.propertyName,
       unit: r.unitLabel,
       dueAt: null,
       lastActionAt: r.updatedAt.toISOString(),
       lastActionText: "needs decision",
       urgency: "blocked",
+      aged: isAged("blocked", r.updatedAt),
       legacyHref: "/admin/approvals",
     };
   });
@@ -430,25 +465,26 @@ function insQuery(tx: ScopedDB) {
     .leftJoin(units, eq(units.id, inspections.unitId));
 }
 
-function mapWO(r: WoRow, urgency: Urgency): QueueItem {
+function mapWO(r: WoRow, urgency: Urgency, ownerName: string | null): QueueItem {
   return {
     ref: `WO-${r.number}`,
     type: "wo",
     title: r.title,
     status: r.status,
     priority: r.priority,
-    ownerName: null,
+    ownerName,
     property: r.propertyName,
     unit: r.unitLabel,
     dueAt: r.dueAt ? r.dueAt.toISOString() : null,
     lastActionAt: r.updatedAt.toISOString(),
     lastActionText: lastActionForStatus(r.status),
     urgency,
+    aged: isAged(urgency, r.updatedAt),
     legacyHref: `/work-orders/${r.id}`,
   };
 }
 
-function mapIns(r: InsRow, urgency: Urgency): QueueItem {
+function mapIns(r: InsRow, urgency: Urgency, ownerName: string | null): QueueItem {
   const kindLabel = r.kind.replace(/_/g, " ");
   return {
     ref: `INS-${shortId(r.id)}`,
@@ -456,15 +492,29 @@ function mapIns(r: InsRow, urgency: Urgency): QueueItem {
     title: `${capitalize(kindLabel)} inspection`,
     status: r.status,
     priority: null,
-    ownerName: null,
+    ownerName,
     property: r.propertyName,
     unit: r.unitLabel,
     dueAt: r.scheduledFor ? r.scheduledFor.toISOString() : null,
     lastActionAt: r.updatedAt.toISOString(),
     lastActionText: r.status,
     urgency,
+    aged: isAged(urgency, r.updatedAt),
     legacyHref: `/inspections/${r.id}`,
   };
+}
+
+const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isAged(urgency: Urgency, updatedAt: Date): boolean {
+  // Skipped on overdue/today/done — those urgencies already carry their
+  // own signal. Aged is the *quiet* warning for rows the dispatcher might
+  // otherwise scroll past: a WO that's been blocked or in-progress for
+  // more than a week with nobody moving it.
+  if (urgency === "overdue" || urgency === "today" || urgency === "done") {
+    return false;
+  }
+  return Date.now() - updatedAt.getTime() > STALE_THRESHOLD_MS;
 }
 
 function lastActionForStatus(status: string): string | null {

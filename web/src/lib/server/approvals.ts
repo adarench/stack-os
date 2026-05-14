@@ -2,19 +2,69 @@ import "server-only";
 import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { approvals } from "@db/schema/approvals";
+import { workOrders } from "@db/schema/work-orders";
 import { withStaffScope } from "./db";
 import { writeAudit } from "./audit";
 import { ensureUserRow } from "./sync-user";
+import { loadActiveOwners } from "./owners";
 
-export async function listPendingApprovals() {
-  return withStaffScope(async (tx, ctx) =>
-    tx
-      .select()
+export interface PendingApprovalRow {
+  id: string;
+  reason: string;
+  amountCents: string | null;
+  notes: string | null;
+  createdAt: Date;
+  targetType: string;
+  targetId: string;
+  /** Originating WO ref, if the approval targets a work order. */
+  woRef: string | null;
+  /** WO title for the dispatcher's context. */
+  woTitle: string | null;
+  /** Who's holding the work that this decision blocks. */
+  woOwnerName: string | null;
+}
+
+export async function listPendingApprovals(): Promise<PendingApprovalRow[]> {
+  return withStaffScope(async (tx, ctx) => {
+    const rows = await tx
+      .select({
+        id: approvals.id,
+        reason: approvals.reason,
+        amountCents: approvals.amountCents,
+        notes: approvals.notes,
+        createdAt: approvals.createdAt,
+        targetType: approvals.targetType,
+        targetId: approvals.targetId,
+        woId: workOrders.id,
+        woNumber: workOrders.number,
+        woTitle: workOrders.title,
+      })
       .from(approvals)
-      .where(and(eq(approvals.orgId, ctx.orgId), eq(approvals.status, "pending")))
+      .leftJoin(workOrders, eq(workOrders.id, approvals.targetId))
+      .where(
+        and(eq(approvals.orgId, ctx.orgId), eq(approvals.status, "pending")),
+      )
       .orderBy(desc(approvals.createdAt))
-      .limit(500),
-  );
+      .limit(500);
+
+    const woIds = rows.map((r) => r.woId).filter((id): id is string => !!id);
+    const owners = await loadActiveOwners(tx, ctx.orgId, "work_order", woIds);
+
+    return rows.map(
+      (r): PendingApprovalRow => ({
+        id: r.id,
+        reason: r.reason,
+        amountCents: r.amountCents,
+        notes: r.notes,
+        createdAt: r.createdAt,
+        targetType: r.targetType,
+        targetId: r.targetId,
+        woRef: r.woNumber ? `WO-${r.woNumber}` : null,
+        woTitle: r.woTitle,
+        woOwnerName: r.woId ? owners.get(r.woId) ?? null : null,
+      }),
+    );
+  });
 }
 
 export const decideApprovalInput = z.object({

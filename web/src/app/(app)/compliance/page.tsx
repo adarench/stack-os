@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { loadComplianceView } from "@/lib/server/compliance-view";
-import { TimeSince, TimeSinceTicker } from "@/components/operator/time-since";
+import { TimeSinceTicker } from "@/components/operator/time-since";
 import { UrgencyDot } from "@/components/operator/urgency-dot";
 import { LaneHeader } from "@/components/operator/lane-header";
 import { cn } from "@/lib/utils";
@@ -147,7 +147,11 @@ function CoiList({
   rows: Awaited<ReturnType<typeof loadComplianceView>>["cois"];
 }) {
   if (rows.length === 0) {
-    return <p className="mt-6 text-sm text-muted-foreground">No COIs recorded.</p>;
+    return (
+      <p className="mt-6 text-sm text-muted-foreground">
+        No COIs on file. The next insurance upload from a vendor lands here.
+      </p>
+    );
   }
   return (
     <ul className="space-y-0">
@@ -168,8 +172,7 @@ function CoiList({
               </span>
             )}
           </span>
-          <StatusPill status={r.status} />
-          {r.expiresAt && <TimeSince at={r.expiresAt} direction="future" />}
+          <ExpiryChip expiresAt={r.expiresAt} status={r.status} />
         </li>
       ))}
     </ul>
@@ -184,7 +187,8 @@ function TenantList({
   if (rows.length === 0) {
     return (
       <p className="mt-6 text-sm text-muted-foreground">
-        No tenant insurance recorded.
+        No tenant policies on file. Move-ins surface here once a renter
+        uploads their declaration page.
       </p>
     );
   }
@@ -205,8 +209,7 @@ function TenantList({
               <span className="ml-2 text-muted-foreground">· {r.carrier}</span>
             )}
           </span>
-          <StatusPill status={r.status} />
-          {r.expiresAt && <TimeSince at={r.expiresAt} direction="future" />}
+          <ExpiryChip expiresAt={r.expiresAt} status={r.status} />
         </li>
       ))}
     </ul>
@@ -220,12 +223,70 @@ function statusUrgency(status: ComplianceStatus): Parameters<typeof UrgencyDot>[
   return "muted";
 }
 
-function StatusPill({ status }: { status: ComplianceStatus }) {
+/**
+ * Compliance row's temporal chip. Reads "in 12d" / "5d ago" / "expires today"
+ * — same width as a TimeSince chip but the wording carries the operational
+ * truth. Tone tracks delta-to-expiry, not status, so expired-but-not-yet-
+ * flagged rows still read red.
+ */
+function ExpiryChip({
+  expiresAt,
+  status,
+}: {
+  expiresAt: string | null;
+  status: ComplianceStatus;
+}) {
+  if (!expiresAt) {
+    return (
+      <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground/70">
+        no expiry
+      </span>
+    );
+  }
+  const target = new Date(expiresAt).getTime();
+  const deltaMs = target - Date.now();
+  const past = deltaMs <= 0;
+  const abs = Math.abs(deltaMs);
+  const human = humanizeMs(abs);
+
+  let label: string;
+  if (Math.abs(deltaMs) < 12 * 60 * 60 * 1000) {
+    label = past ? "expired today" : "expires today";
+  } else {
+    label = past ? `${human} ago` : `in ${human}`;
+  }
+
+  const tone =
+    past || status === "expired"
+      ? "text-urgency-overdue"
+      : status === "expiring" || deltaMs < 30 * 24 * 60 * 60 * 1000
+        ? "text-urgency-blocked"
+        : "text-muted-foreground";
+
   return (
-    <span className="inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-      {status}
+    <span
+      title={new Date(target).toLocaleDateString()}
+      className={cn(
+        "shrink-0 font-mono text-[11px] tabular-nums",
+        tone,
+      )}
+    >
+      {label}
     </span>
   );
+}
+
+function humanizeMs(absMs: number): string {
+  const m = Math.round(absMs / 60_000);
+  if (m < 60) return `${m}m`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.round(h / 24);
+  if (d < 14) return `${d}d`;
+  const w = Math.round(d / 7);
+  if (w < 8) return `${w}w`;
+  const mo = Math.round(d / 30);
+  return `${mo}mo`;
 }
 
 function Stat({

@@ -6,6 +6,7 @@ import { listPendingApprovals } from "@/lib/server/approvals";
 import { listInvoices } from "@/lib/server/invoices";
 import { TimeSince, TimeSinceTicker } from "@/components/operator/time-since";
 import { UrgencyDot } from "@/components/operator/urgency-dot";
+import { OwnerChip } from "@/components/operator/owner-chip";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ApprovalButtons } from "./approval-buttons";
@@ -85,20 +86,30 @@ function ApprovalsTab({ rows }: { rows: Approval[] }) {
   if (rows.length === 0) {
     return (
       <p className="mt-6 text-sm text-muted-foreground">
-        Nothing waiting on approval.
+        No decisions outstanding. Invoices or estimates above threshold land
+        here when they need a sign-off.
       </p>
     );
   }
   const total = rows.reduce((s, r) => s + Number(r.amountCents ?? 0), 0);
+  const oldestMs = rows.reduce((max, r) => {
+    const ms = Date.now() - r.createdAt.getTime();
+    return ms > max ? ms : max;
+  }, 0);
   return (
     <div className="mt-3 space-y-3">
-      <div className="flex items-baseline justify-between rounded-md border border-border bg-card px-3 py-2">
+      <div className="flex items-baseline gap-3 rounded-md border border-border bg-card px-3 py-2">
         <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Total pending
         </span>
         <span className="font-mono text-lg tabular-nums">
           ${(total / 100).toFixed(2)}
         </span>
+        {oldestMs > 0 && (
+          <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">
+            oldest {humanizeMs(oldestMs)}
+          </span>
+        )}
       </div>
       <ul className="space-y-2">
         {rows.map((a) => (
@@ -107,7 +118,7 @@ function ApprovalsTab({ rows }: { rows: Approval[] }) {
             className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2.5 text-sm"
           >
             <UrgencyDot
-              urgency={amountUrgency(Number(a.amountCents ?? 0))}
+              urgency={approvalUrgency(a.createdAt, Number(a.amountCents ?? 0))}
               className="mt-1.5"
             />
             <div className="flex-1 min-w-0">
@@ -115,19 +126,39 @@ function ApprovalsTab({ rows }: { rows: Approval[] }) {
                 <span className="font-medium capitalize">
                   {a.reason.replace(/_/g, " ")}
                 </span>
-                <TimeSince at={a.createdAt.toISOString()} />
+                {a.woRef && (
+                  <Link
+                    href={`?d=${a.woRef}`}
+                    scroll={false}
+                    className="font-mono text-[11px] tabular-nums text-muted-foreground hover:text-foreground"
+                  >
+                    {a.woRef}
+                  </Link>
+                )}
+                <PendingChip createdAt={a.createdAt} />
                 <span className="ml-auto font-mono text-base tabular-nums">
                   ${(Number(a.amountCents ?? 0) / 100).toFixed(2)}
                 </span>
               </div>
+              {a.woTitle && (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {a.woTitle}
+                </p>
+              )}
               {a.notes && (
                 <p className="mt-1 text-xs text-muted-foreground">{a.notes}</p>
               )}
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex items-center gap-2">
                 <ApprovalButtons
                   approvalId={a.id}
                   amountCents={Number(a.amountCents ?? 0)}
                 />
+                {a.woOwnerName && (
+                  <span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    holding
+                    <OwnerChip name={a.woOwnerName} />
+                  </span>
+                )}
               </div>
             </div>
           </li>
@@ -137,10 +168,53 @@ function ApprovalsTab({ rows }: { rows: Approval[] }) {
   );
 }
 
-function amountUrgency(cents: number): "overdue" | "blocked" | "muted" {
+/**
+ * Approval row's primary urgency cue. Amount alone misses the operational
+ * truth: a $300 decision pending for 3 days is a problem too. SLA aging
+ * always wins over amount.
+ */
+function approvalUrgency(
+  createdAt: Date,
+  cents: number,
+): "overdue" | "blocked" | "muted" {
+  const ageMs = Date.now() - createdAt.getTime();
+  if (ageMs > 24 * 60 * 60 * 1000) return "overdue";
+  if (ageMs > 8 * 60 * 60 * 1000) return "blocked";
   if (cents >= 500_000) return "overdue";
   if (cents >= 100_000) return "blocked";
   return "muted";
+}
+
+/**
+ * "pending Xh" chip — the SLA aging signal. Color climbs as the decision
+ * sits unmade. Approvers learn to recognize "pending 14h" as a soft prompt
+ * and "pending 2d" as a hard one.
+ */
+function PendingChip({ createdAt }: { createdAt: Date }) {
+  const ageMs = Date.now() - createdAt.getTime();
+  const tone =
+    ageMs > 24 * 60 * 60 * 1000
+      ? "text-urgency-overdue"
+      : ageMs > 8 * 60 * 60 * 1000
+        ? "text-urgency-blocked"
+        : "text-muted-foreground";
+  return (
+    <span
+      title={createdAt.toLocaleString()}
+      className={cn("font-mono text-[11px] tabular-nums", tone)}
+    >
+      pending {humanizeMs(ageMs)}
+    </span>
+  );
+}
+
+function humanizeMs(absMs: number): string {
+  const m = Math.round(absMs / 60_000);
+  if (m < 60) return `${m}m`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.round(h / 24);
+  return `${d}d`;
 }
 
 type Invoice = Awaited<ReturnType<typeof listInvoices>>[number];
@@ -148,7 +222,9 @@ type Invoice = Awaited<ReturnType<typeof listInvoices>>[number];
 function InvoicesTab({ rows }: { rows: Invoice[] }) {
   if (rows.length === 0) {
     return (
-      <p className="mt-6 text-sm text-muted-foreground">No invoices recorded.</p>
+      <p className="mt-6 text-sm text-muted-foreground">
+        No invoices booked. Vendor submissions land here for review and payment.
+      </p>
     );
   }
   return (

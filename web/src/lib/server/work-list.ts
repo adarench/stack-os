@@ -6,6 +6,7 @@ import { projects } from "@db/schema/projects";
 import { properties } from "@db/schema/properties";
 import { units } from "@db/schema/units";
 import { withStaffScope, type ScopedDB } from "./db";
+import { loadActiveOwners } from "./owners";
 import type { Urgency } from "../../components/operator/urgency-dot";
 
 /**
@@ -41,6 +42,8 @@ export interface WorkRow {
   lastActionAt: string;
   lastActionText: string | null;
   urgency: Urgency;
+  /** Open + untouched for 7d+. See queue.ts for definition. */
+  aged: boolean;
   legacyHref: string;
 }
 
@@ -162,6 +165,13 @@ async function queryWorkOrders(
     .orderBy(desc(workOrders.updatedAt))
     .limit(limit);
 
+  const owners = await loadActiveOwners(
+    tx,
+    orgId,
+    "work_order",
+    rows.map((r) => r.id),
+  );
+
   return rows.map((r): WorkRow => {
     const urgency = woUrgency(r.status, r.dueAt, now);
     return {
@@ -170,13 +180,14 @@ async function queryWorkOrders(
       title: r.title,
       status: r.status,
       priority: r.priority,
-      ownerName: null,
+      ownerName: owners.get(r.id) ?? null,
       property: r.propertyName,
       unit: r.unitLabel,
       dueAt: r.dueAt ? r.dueAt.toISOString() : null,
       lastActionAt: r.updatedAt.toISOString(),
       lastActionText: lastActionForWO(r.status),
       urgency,
+      aged: isAged(urgency, r.updatedAt, now),
       legacyHref: `/work-orders/${r.id}`,
     };
   });
@@ -233,21 +244,32 @@ async function queryInspections(
     .orderBy(desc(inspections.updatedAt))
     .limit(limit);
 
-  return rows.map((r): WorkRow => ({
-    ref: `INS-${r.id.slice(0, 6).toUpperCase()}`,
-    type: "ins",
-    title: `${capitalize(r.kind.replace(/_/g, " "))} inspection`,
-    status: r.status,
-    priority: null,
-    ownerName: null,
-    property: r.propertyName,
-    unit: r.unitLabel,
-    dueAt: r.scheduledFor ? r.scheduledFor.toISOString() : null,
-    lastActionAt: r.updatedAt.toISOString(),
-    lastActionText: r.status,
-    urgency: insUrgency(r.status, r.scheduledFor, now),
-    legacyHref: `/inspections/${r.id}`,
-  }));
+  const owners = await loadActiveOwners(
+    tx,
+    orgId,
+    "inspection",
+    rows.map((r) => r.id),
+  );
+
+  return rows.map((r): WorkRow => {
+    const urgency = insUrgency(r.status, r.scheduledFor, now);
+    return {
+      ref: `INS-${r.id.slice(0, 6).toUpperCase()}`,
+      type: "ins",
+      title: `${capitalize(r.kind.replace(/_/g, " "))} inspection`,
+      status: r.status,
+      priority: null,
+      ownerName: owners.get(r.id) ?? null,
+      property: r.propertyName,
+      unit: r.unitLabel,
+      dueAt: r.scheduledFor ? r.scheduledFor.toISOString() : null,
+      lastActionAt: r.updatedAt.toISOString(),
+      lastActionText: r.status,
+      urgency,
+      aged: isAged(urgency, r.updatedAt, now),
+      legacyHref: `/inspections/${r.id}`,
+    };
+  });
 }
 
 async function queryProjects(
@@ -289,21 +311,41 @@ async function queryProjects(
     .orderBy(desc(projects.updatedAt))
     .limit(limit);
 
-  return rows.map((r): WorkRow => ({
-    ref: `PRJ-${r.id.slice(0, 6).toUpperCase()}`,
-    type: "prj",
-    title: r.name,
-    status: r.status,
-    priority: null,
-    ownerName: null,
-    property: r.propertyName,
-    unit: r.unitLabel,
-    dueAt: r.targetCompletion ? r.targetCompletion.toISOString() : null,
-    lastActionAt: r.updatedAt.toISOString(),
-    lastActionText: r.status,
-    urgency: r.status === "closed" ? "done" : "muted",
-    legacyHref: `/projects/${r.id}`,
-  }));
+  const owners = await loadActiveOwners(
+    tx,
+    orgId,
+    "project",
+    rows.map((r) => r.id),
+  );
+
+  return rows.map((r): WorkRow => {
+    const urgency: Urgency = r.status === "closed" ? "done" : "muted";
+    return {
+      ref: `PRJ-${r.id.slice(0, 6).toUpperCase()}`,
+      type: "prj",
+      title: r.name,
+      status: r.status,
+      priority: null,
+      ownerName: owners.get(r.id) ?? null,
+      property: r.propertyName,
+      unit: r.unitLabel,
+      dueAt: r.targetCompletion ? r.targetCompletion.toISOString() : null,
+      lastActionAt: r.updatedAt.toISOString(),
+      lastActionText: r.status,
+      urgency,
+      aged: isAged(urgency, r.updatedAt, now),
+      legacyHref: `/projects/${r.id}`,
+    };
+  });
+}
+
+const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isAged(urgency: Urgency, updatedAt: Date, now: Date): boolean {
+  if (urgency === "overdue" || urgency === "today" || urgency === "done") {
+    return false;
+  }
+  return now.getTime() - updatedAt.getTime() > STALE_THRESHOLD_MS;
 }
 
 function woUrgency(
