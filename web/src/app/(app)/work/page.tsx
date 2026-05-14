@@ -95,16 +95,17 @@ export default async function WorkPage({
     <TimeSinceTicker>
       <AutoRefresh intervalMs={30_000} />
       <div className="mx-auto max-w-[1280px] px-3 md:px-4">
-        <div className="flex items-center gap-3 py-2">
-          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        <div className="flex items-center gap-3 py-1.5">
+          <span className="font-mono text-[11px] tabular-nums uppercase tracking-wider text-muted-foreground">
             {rows.length} {rows.length === 1 ? "item" : "items"}
           </span>
-          <span className="ml-auto">
+          <div className="min-w-0 flex-1 overflow-x-auto">
+            <FilterChipBar />
+          </div>
+          <span className="shrink-0">
             <ViewModeToggle />
           </span>
         </div>
-
-        <FilterChipBar />
 
         {rows.length === 0 ? (
           <div className="mx-auto mt-12 max-w-sm text-center">

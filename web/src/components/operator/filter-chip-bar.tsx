@@ -77,18 +77,25 @@ export function FilterChipBar() {
   );
 
   return (
-    <div className="-mx-3 flex gap-3 overflow-x-auto border-b border-border bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      {GROUPS.map((group) => {
+    <div
+      className="flex flex-wrap gap-x-2 gap-y-1 pb-1 pt-0.5 text-[11px]"
+      aria-label="Filters"
+    >
+      {GROUPS.map((group, gi) => {
         const current = searchParams.get(group.param) ?? group.defaultValue;
         return (
           <div
             key={group.param}
-            className="flex shrink-0 items-center gap-1"
+            className={cn(
+              "flex shrink-0 items-center gap-0.5",
+              gi > 0 && "border-l border-border/60 pl-2",
+            )}
             role="radiogroup"
             aria-label={group.param}
           >
             {group.chips.map((chip) => {
               const active = chip.value === current;
+              const visible = active || current === group.defaultValue;
               return (
                 <button
                   key={chip.value}
@@ -99,10 +106,12 @@ export function FilterChipBar() {
                     setParam(group.param, chip.value, group.defaultValue)
                   }
                   className={cn(
-                    "h-7 rounded-full px-2.5 text-[11px] font-medium uppercase tracking-wide transition-colors",
+                    "h-6 rounded px-1.5 text-[10px] font-medium uppercase tracking-wider transition-colors",
                     active
                       ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                      : visible
+                        ? "text-muted-foreground hover:bg-accent hover:text-foreground"
+                        : "text-muted-foreground/60 hover:bg-accent hover:text-foreground",
                   )}
                 >
                   {chip.label}

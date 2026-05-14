@@ -20,6 +20,11 @@ export interface PendingApprovalRow {
   woRef: string | null;
   /** WO title for the dispatcher's context. */
   woTitle: string | null;
+  /** WO status — so the approver sees "blocked / in_progress / new" inline. */
+  woStatus: string | null;
+  /** WO due date — surfaces "overdue 3d" pressure on the row when the
+   *  decision is itself blocking late work. */
+  woDueAt: Date | null;
   /** Who's holding the work that this decision blocks. */
   woOwnerName: string | null;
 }
@@ -38,6 +43,8 @@ export async function listPendingApprovals(): Promise<PendingApprovalRow[]> {
         woId: workOrders.id,
         woNumber: workOrders.number,
         woTitle: workOrders.title,
+        woStatus: workOrders.status,
+        woDueAt: workOrders.dueAt,
       })
       .from(approvals)
       .leftJoin(workOrders, eq(workOrders.id, approvals.targetId))
@@ -61,6 +68,8 @@ export async function listPendingApprovals(): Promise<PendingApprovalRow[]> {
         targetId: r.targetId,
         woRef: r.woNumber ? `WO-${r.woNumber}` : null,
         woTitle: r.woTitle,
+        woStatus: r.woStatus,
+        woDueAt: r.woDueAt,
         woOwnerName: r.woId ? owners.get(r.woId) ?? null : null,
       }),
     );

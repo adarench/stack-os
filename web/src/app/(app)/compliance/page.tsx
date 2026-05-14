@@ -57,6 +57,15 @@ export default async function CompliancePage({
                 >
                   <UrgencyDot urgency="overdue" />
                   <span>{v.vendorName}</span>
+                  {v.blockedOpenWoCount > 0 && (
+                    <Link
+                      href={`/work?status=open&q=${encodeURIComponent(v.vendorName)}`}
+                      className="font-mono text-[10px] tabular-nums uppercase tracking-wider text-urgency-overdue hover:underline"
+                    >
+                      blocks {v.blockedOpenWoCount} WO
+                      {v.blockedOpenWoCount === 1 ? "" : "s"}
+                    </Link>
+                  )}
                   <span className="ml-auto text-[11px] text-muted-foreground">
                     no active COI
                   </span>
@@ -172,6 +181,21 @@ function CoiList({
               </span>
             )}
           </span>
+          {r.affectedOpenWoCount > 0 &&
+            (r.status === "expired" || r.status === "expiring") && (
+              <Link
+                href={`/work?status=open&q=${encodeURIComponent(r.vendorName)}`}
+                className={cn(
+                  "shrink-0 font-mono text-[10px] tabular-nums uppercase tracking-wider hover:underline",
+                  r.status === "expired"
+                    ? "text-urgency-overdue"
+                    : "text-urgency-blocked",
+                )}
+              >
+                blocks {r.affectedOpenWoCount} WO
+                {r.affectedOpenWoCount === 1 ? "" : "s"}
+              </Link>
+            )}
           <ExpiryChip expiresAt={r.expiresAt} status={r.status} />
         </li>
       ))}

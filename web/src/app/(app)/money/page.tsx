@@ -141,8 +141,12 @@ function ApprovalsTab({ rows }: { rows: Approval[] }) {
                 </span>
               </div>
               {a.woTitle && (
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {a.woTitle}
+                <p className="mt-0.5 flex items-baseline gap-2 truncate text-xs text-muted-foreground">
+                  <span className="truncate">{a.woTitle}</span>
+                  <WoConsequenceChip
+                    status={a.woStatus}
+                    dueAt={a.woDueAt}
+                  />
                 </p>
               )}
               {a.notes && (
@@ -183,6 +187,48 @@ function approvalUrgency(
   if (cents >= 500_000) return "overdue";
   if (cents >= 100_000) return "blocked";
   return "muted";
+}
+
+/**
+ * Consequence chip — what's actually waiting on this decision. Reads like
+ * a dispatcher's footnote: "WO blocked", "WO overdue 3d". Silent when the
+ * underlying WO isn't in a state where the delay matters.
+ */
+function WoConsequenceChip({
+  status,
+  dueAt,
+}: {
+  status: string | null;
+  dueAt: Date | null;
+}) {
+  if (!status) return null;
+
+  if (dueAt && dueAt.getTime() < Date.now()) {
+    const ms = Date.now() - dueAt.getTime();
+    return (
+      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-urgency-overdue">
+        overdue {humanizeMs(ms)}
+      </span>
+    );
+  }
+
+  if (status === "blocked") {
+    return (
+      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-urgency-blocked">
+        WO blocked
+      </span>
+    );
+  }
+
+  if (status === "in_progress") {
+    return (
+      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80">
+        in progress
+      </span>
+    );
+  }
+
+  return null;
 }
 
 /**

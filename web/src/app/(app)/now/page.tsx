@@ -7,7 +7,9 @@ import {
   type QueueItem,
   type QueueLane,
 } from "@/lib/server/queue";
-import { PulseStrip } from "@/components/operator/pulse-strip";
+import { loadRecentActivity } from "@/lib/server/activity";
+import { StatusLine } from "@/components/operator/status-line";
+import { ActivityStrip } from "@/components/operator/activity-strip";
 import { LaneHeader, laneTone } from "@/components/operator/lane-header";
 import { EntityRow } from "@/components/operator/entity-row";
 import { EntityDrawer } from "@/components/operator/entity-drawer";
@@ -39,8 +41,9 @@ export default async function NowPage() {
   if (!userId) redirect("/sign-in");
   if (!orgId) redirect("/select-org");
 
-  // Fan out: summary + six lanes in parallel. Each query is RLS-scoped.
-  const [summary, needs, overdue, blocked, today, inflight, changed] =
+  // Fan out: summary + six lanes + recent activity in parallel. Each
+  // query is RLS-scoped.
+  const [summary, needs, overdue, blocked, today, inflight, changed, activity] =
     await Promise.all([
       loadQueueSummary(),
       loadQueueLane("needs"),
@@ -49,6 +52,7 @@ export default async function NowPage() {
       loadQueueLane("today"),
       loadQueueLane("inflight"),
       loadQueueLane("changed"),
+      loadRecentActivity(12),
     ]);
 
   const items: Record<QueueLane, QueueItem[]> = {
@@ -61,44 +65,60 @@ export default async function NowPage() {
   };
 
   const allEmpty = LANES.every((l) => items[l.key].length === 0);
+  const oldestOverdueDetail =
+    summary.pulse.overdue > 0 ? oldestAgeLabel(overdue) : null;
+  const oldestApprovalDetail =
+    summary.pulse.pendingApprovals > 0 ? oldestAgeLabel(needs) : null;
 
   return (
     <TimeSinceTicker>
       <AutoRefresh intervalMs={15_000} />
-      <div className="mx-auto max-w-[720px] px-3 py-4 md:px-4">
-        <header className="mb-2 flex items-baseline justify-between">
+      <div className="mx-auto max-w-[840px] px-3 py-4 md:px-4">
+        <header className="mb-1 flex items-baseline justify-between">
           <h1 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Now
           </h1>
           <LiveIndicator />
         </header>
-        <PulseStrip
-          stats={[
+        <StatusLine
+          segments={[
             {
-              label: "Open WOs",
+              label: "open",
               value: summary.pulse.openWOs,
               href: "/work?status=open",
             },
             {
-              label: "Overdue",
+              label: "overdue",
               value: summary.pulse.overdue,
               href: "/work?due=overdue",
+              detail: oldestOverdueDetail,
               alert: summary.pulse.overdue > 0,
             },
             {
-              label: "COIs expiring 30d",
+              label: "blocked",
+              value: summary.counts.blocked,
+              href: "/work?status=blocked",
+              alert: summary.counts.blocked > 0,
+            },
+            {
+              label: "awaiting",
+              value: summary.pulse.pendingApprovals,
+              href: "/money?tab=approvals",
+              detail: oldestApprovalDetail,
+              alert: summary.pulse.pendingApprovals > 0,
+            },
+            {
+              label: "COIs ≤30d",
               value: summary.pulse.coisExpiring30d,
               href: "/compliance?tab=cois&filter=expiring",
               alert: summary.pulse.coisExpiring30d > 0,
             },
-            {
-              label: "Approvals pending",
-              value: summary.pulse.pendingApprovals,
-              href: "/money?tab=approvals",
-              alert: summary.pulse.pendingApprovals > 0,
-            },
           ]}
         />
+
+        <div className="mt-2">
+          <ActivityStrip events={activity} />
+        </div>
 
         {allEmpty ? (
           <EmptyAllClear />
@@ -197,6 +217,11 @@ function oldestAgeMs(items: QueueItem[]): number | null {
     if (ms > oldest) oldest = ms;
   }
   return oldest > 0 ? oldest : null;
+}
+
+function oldestAgeLabel(items: QueueItem[]): string | null {
+  const ms = oldestAgeMs(items);
+  return ms === null ? null : `oldest ${humanizeMs(ms)}`;
 }
 
 function humanizeMs(ms: number): string {
