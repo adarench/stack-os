@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Download } from "lucide-react";
@@ -9,6 +9,7 @@ import { UrgencyDot } from "@/components/operator/urgency-dot";
 import { OwnerChip } from "@/components/operator/owner-chip";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { approvalReasonLabel } from "@/lib/labels";
 import { ApprovalButtons } from "./approval-buttons";
 
 export const dynamic = "force-dynamic";
@@ -123,8 +124,8 @@ function ApprovalsTab({ rows }: { rows: Approval[] }) {
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline gap-2">
-                <span className="font-medium capitalize">
-                  {a.reason.replace(/_/g, " ")}
+                <span className="font-medium">
+                  {approvalReasonLabel(a.reason)}
                 </span>
                 {a.woRef && (
                   <Link

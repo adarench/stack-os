@@ -8,6 +8,7 @@ import { units } from "@db/schema/units";
 import { vendorCois } from "@db/schema/compliance";
 import { withStaffScope, type ScopedDB } from "./db";
 import { loadActiveOwners } from "./owners";
+import { approvalReasonLabel } from "@/lib/labels";
 import type { Urgency } from "../../components/operator/urgency-dot";
 
 /**
@@ -391,7 +392,7 @@ async function needsLane(
     return {
       ref,
       type: "approval",
-      title: `Approval (${r.reason})${amount} — ${woRef}`,
+      title: `${approvalReasonLabel(r.reason)}${amount} — ${woRef}`,
       status: "pending",
       priority: null,
       ownerName: r.woId ? owners.get(r.woId) ?? null : null,

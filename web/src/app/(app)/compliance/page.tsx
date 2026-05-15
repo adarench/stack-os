@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
@@ -7,6 +7,7 @@ import { TimeSinceTicker } from "@/components/operator/time-since";
 import { UrgencyDot } from "@/components/operator/urgency-dot";
 import { LaneHeader } from "@/components/operator/lane-header";
 import { cn } from "@/lib/utils";
+import { COMPLIANCE_COPY } from "@/lib/labels";
 import type { ComplianceStatus } from "@contracts/compliance";
 
 export const dynamic = "force-dynamic";
@@ -39,13 +40,13 @@ export default async function CompliancePage({
         {view.violations.length > 0 && (
           <section className="mb-4 rounded-md border border-urgency-overdue/30 bg-urgency-overdue/5 p-3">
             <LaneHeader
-              title="Assign-gate violations"
+              title={COMPLIANCE_COPY.violationsTitle}
               count={view.violations.length}
               tone="red"
               aside={
                 <span className="flex items-center gap-1 text-[11px] text-urgency-overdue">
                   <AlertTriangle className="size-3" />
-                  Blocked from new WOs
+                  {COMPLIANCE_COPY.violationsAside}
                 </span>
               }
             />
@@ -67,7 +68,7 @@ export default async function CompliancePage({
                     </Link>
                   )}
                   <span className="ml-auto text-[11px] text-muted-foreground">
-                    no active COI
+                    {COMPLIANCE_COPY.noActiveCoi}
                   </span>
                 </li>
               ))}

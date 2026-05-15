@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
 import { Inbox as InboxIcon } from "lucide-react";
 import { loadInbox } from "@/lib/server/inbox";

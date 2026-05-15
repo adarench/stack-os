@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TimeSince } from "./time-since";
 import { cn } from "@/lib/utils";
+import { auditActionLabel } from "@/lib/labels";
 import type { ActivityEvent } from "@/lib/server/activity";
 
 /**
@@ -107,8 +108,9 @@ function ActorTag({
 }
 
 /**
- * Humanize the audit verb. Most actions read as-is once underscores are
- * spaces; a few are aliased so the feed reads like a dispatcher's log book.
+ * Humanize the audit verb. Centralized in lib/labels so the activity
+ * strip, the drawer activity tab, and any future timeline use the same
+ * phrasing.
  */
 function ActionLabel({
   action,
@@ -117,29 +119,10 @@ function ActionLabel({
   action: string;
   diffNote: string | null;
 }) {
-  const verb = ACTION_ALIASES[action] ?? action.replace(/_/g, " ");
   return (
     <>
-      {verb}
+      {auditActionLabel(action)}
       {diffNote && <span className="ml-1 text-foreground/80">{diffNote}</span>}
     </>
   );
 }
-
-const ACTION_ALIASES: Record<string, string> = {
-  created: "created",
-  status_changed: "status",
-  assigned: "assigned",
-  unassigned: "unassigned",
-  comment_added: "commented",
-  attachment_uploaded: "uploaded",
-  approval_requested: "approval request",
-  approval_decided: "decided",
-  finding_added: "finding",
-  invoice_submitted: "invoice",
-  invoice_approved: "invoice ok",
-  invoice_rejected: "invoice rej",
-  cost_recorded: "cost",
-  spawned: "spawned",
-  override: "override",
-};

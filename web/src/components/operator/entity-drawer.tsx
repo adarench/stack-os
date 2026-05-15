@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { toast } from "sonner";
 import { X } from "lucide-react";
 import {
   Sheet,
@@ -14,10 +16,42 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TimeSince } from "./time-since";
 import { UrgencyDot, type Urgency } from "./urgency-dot";
+import { cn } from "@/lib/utils";
+import {
+  approvalReasonLabel,
+  auditActionLabel,
+  workOrderStatusLabel,
+  workOrderTransitionLabel,
+} from "@/lib/labels";
+import {
+  addCommentAction,
+  decideApprovalAction,
+  setStatusAction,
+} from "@/app/(app)/_drawer/actions";
+
+/* -------------------- types (mirror server-side EntityDetail) -------- */
+
+interface CommentItem {
+  id: string;
+  body: string;
+  actorType: string;
+  actorName: string | null;
+  visibility: "internal" | "external";
+  at: string;
+}
+
+interface ActivityItem {
+  id: string;
+  action: string;
+  actorType: string;
+  actorName: string | null;
+  at: string;
+  diff: unknown;
+}
 
 interface EntityDetail {
   ref: string;
-  type: "wo" | "ins" | "prj";
+  type: "wo" | "ins" | "prj" | "approval";
   id: string;
   title: string;
   description: string | null;
@@ -29,7 +63,9 @@ interface EntityDetail {
   createdAt: string;
   updatedAt: string;
   legacyHref: string;
-  activity: Array<{ id: string; action: string; actorType: string; at: string }>;
+  activity: ActivityItem[];
+  comments: CommentItem[];
+  nextStatuses: string[];
   costs: Array<{
     id: string;
     kind: string;
@@ -44,6 +80,21 @@ interface EntityDetail {
     sizeBytes: number | null;
     at: string;
   }>;
+  reason?: string;
+  amountCents?: string | null;
+  linkedWo?: {
+    ref: string;
+    title: string;
+    status: string;
+    dueAt: string | null;
+  };
+  pendingApprovals?: Array<{
+    id: string;
+    ref: string;
+    reason: string;
+    amountCents: string | null;
+    createdAt: string;
+  }>;
 }
 
 type State =
@@ -53,12 +104,12 @@ type State =
   | { kind: "error"; ref: string; message: string };
 
 /**
- * Right-side detail drawer driven by `?d=<ref>` querystring.
+ * Right-side cockpit. Open via `?d=<ref>`. The drawer is where most
+ * operational work happens: read context, comment, change status, approve.
  *
- * On open, fetches `/api/me/entity?ref=<ref>` and renders Overview / Activity
- * / Costs / Files tabs. Footer holds a single "Open full page" escape hatch
- * to the legacy detail surface — full action bar (Assign / Status → /
- * Comment) lands once those actions exist as drawer-native operations.
+ * Refresh model: server actions call revalidatePath() to keep the parent
+ * surface fresh; the drawer itself bumps a `refreshKey` to re-fetch its
+ * own data after a mutation lands.
  */
 export function EntityDrawer() {
   const router = useRouter();
@@ -66,6 +117,7 @@ export function EntityDrawer() {
   const ref = searchParams.get("d");
 
   const [state, setState] = React.useState<State>({ kind: "idle" });
+  const [refreshKey, setRefreshKey] = React.useState(0);
 
   React.useEffect(() => {
     if (!ref) {
@@ -73,7 +125,9 @@ export function EntityDrawer() {
       return;
     }
     let cancelled = false;
-    setState({ kind: "loading", ref });
+    setState((s) =>
+      s.kind === "ready" && s.data.ref === ref ? s : { kind: "loading", ref },
+    );
     fetch(`/api/me/entity?ref=${encodeURIComponent(ref)}`, {
       cache: "no-store",
     })
@@ -105,7 +159,12 @@ export function EntityDrawer() {
     return () => {
       cancelled = true;
     };
-  }, [ref]);
+  }, [ref, refreshKey]);
+
+  const refetch = React.useCallback(() => {
+    setRefreshKey((k) => k + 1);
+    router.refresh();
+  }, [router]);
 
   const close = React.useCallback(() => {
     const sp = new URLSearchParams(searchParams.toString());
@@ -121,19 +180,20 @@ export function EntityDrawer() {
         if (!o) close();
       }}
     >
-      <SheetContent className="flex flex-col p-0" hideCloseButton>
-        <SheetHeader className="flex-row items-center gap-2">
+      <SheetContent
+        className="flex w-full flex-col p-0 sm:max-w-[540px]"
+        hideCloseButton
+      >
+        <SheetHeader className="flex-row items-center gap-2 border-b border-border px-4 py-3">
           <UrgencyDot urgency={statusUrgency(state)} />
-          <SheetTitle className="font-mono text-sm">
-            {ref ?? ""}
-          </SheetTitle>
+          <SheetTitle className="font-mono text-sm">{ref ?? ""}</SheetTitle>
           {state.kind === "ready" && (
             <span className="truncate text-sm text-muted-foreground">
-              · {state.data.title}
+              · {drawerTitle(state.data)}
             </span>
           )}
           <SheetDescription className="sr-only">
-            Entity detail with Overview, Activity, Costs, and Files tabs.
+            Entity detail and inline actions.
           </SheetDescription>
           <Button
             variant="ghost"
@@ -146,60 +206,19 @@ export function EntityDrawer() {
           </Button>
         </SheetHeader>
 
-        {state.kind === "loading" && (
-          <DrawerSkeleton />
-        )}
-
+        {state.kind === "loading" && <DrawerSkeleton />}
         {state.kind === "error" && (
-          <div className="flex-1 p-4 text-sm text-muted-foreground">
+          <div className="flex-1 px-4 py-3 text-sm text-muted-foreground">
             {state.message}
           </div>
         )}
 
-        {state.kind === "ready" && (
-          <Tabs
-            defaultValue="overview"
-            className="flex flex-1 flex-col overflow-hidden"
-          >
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="activity">
-                Activity{" "}
-                <span className="ml-1 font-mono text-[10px] tabular-nums">
-                  {state.data.activity.length}
-                </span>
-              </TabsTrigger>
-              {state.data.type === "wo" && (
-                <TabsTrigger value="costs">
-                  Costs{" "}
-                  <span className="ml-1 font-mono text-[10px] tabular-nums">
-                    {state.data.costs.length}
-                  </span>
-                </TabsTrigger>
-              )}
-              <TabsTrigger value="files">
-                Files{" "}
-                <span className="ml-1 font-mono text-[10px] tabular-nums">
-                  {state.data.files.length}
-                </span>
-              </TabsTrigger>
-            </TabsList>
+        {state.kind === "ready" && state.data.type === "approval" && (
+          <ApprovalCockpit data={state.data} onMutated={refetch} />
+        )}
 
-            <TabsContent value="overview">
-              <OverviewTab data={state.data} />
-            </TabsContent>
-            <TabsContent value="activity">
-              <ActivityTab data={state.data} />
-            </TabsContent>
-            {state.data.type === "wo" && (
-              <TabsContent value="costs">
-                <CostsTab data={state.data} />
-              </TabsContent>
-            )}
-            <TabsContent value="files">
-              <FilesTab data={state.data} />
-            </TabsContent>
-          </Tabs>
+        {state.kind === "ready" && state.data.type !== "approval" && (
+          <WorkCockpit data={state.data} onMutated={refetch} />
         )}
 
         <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
@@ -222,28 +241,78 @@ export function EntityDrawer() {
   );
 }
 
-function statusUrgency(state: State): Urgency {
-  if (state.kind !== "ready") return "muted";
-  const s = state.data.status;
-  if (s === "blocked") return "blocked";
-  if (s === "in_progress") return "inflow";
-  if (s === "closed" || s === "verified" || s === "reviewed") return "done";
-  return "muted";
+/* -------------------- WO / INS / PRJ cockpit -------------------- */
+
+function WorkCockpit({
+  data,
+  onMutated,
+}: {
+  data: EntityDetail;
+  onMutated: () => void;
+}) {
+  return (
+    <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden">
+      <TabsList className="border-b border-border px-3">
+        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="timeline">
+          Timeline{" "}
+          <span className="ml-1 font-mono text-[10px] tabular-nums">
+            {data.activity.length + data.comments.length}
+          </span>
+        </TabsTrigger>
+        {data.type === "wo" && (
+          <TabsTrigger value="costs">
+            Costs{" "}
+            <span className="ml-1 font-mono text-[10px] tabular-nums">
+              {data.costs.length}
+            </span>
+          </TabsTrigger>
+        )}
+        <TabsTrigger value="files">
+          Files{" "}
+          <span className="ml-1 font-mono text-[10px] tabular-nums">
+            {data.files.length}
+          </span>
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="overview" className="flex-1 overflow-y-auto px-4 py-3">
+        <WorkOverview data={data} onMutated={onMutated} />
+      </TabsContent>
+      <TabsContent value="timeline" className="flex flex-1 flex-col overflow-hidden">
+        <TimelineFeed data={data} onMutated={onMutated} />
+      </TabsContent>
+      {data.type === "wo" && (
+        <TabsContent value="costs" className="flex-1 overflow-y-auto px-4 py-3">
+          <CostsList data={data} />
+        </TabsContent>
+      )}
+      <TabsContent value="files" className="flex-1 overflow-y-auto px-4 py-3">
+        <FilesList data={data} />
+      </TabsContent>
+    </Tabs>
+  );
 }
 
-function OverviewTab({ data }: { data: EntityDetail }) {
+function WorkOverview({
+  data,
+  onMutated,
+}: {
+  data: EntityDetail;
+  onMutated: () => void;
+}) {
   const subtitle = [data.property?.name, data.unit?.label]
     .filter(Boolean)
     .join(" · ");
   return (
-    <dl className="space-y-3">
+    <div className="space-y-4">
       <Field label="Title">{data.title}</Field>
       {subtitle && <Field label="Location">{subtitle}</Field>}
       <div className="grid grid-cols-2 gap-3">
         <Field label="Status">
           <span className="inline-flex items-center gap-1.5">
-            <UrgencyDot urgency={statusUrgency({ kind: "ready", data })} />
-            <span className="capitalize">{data.status.replace(/_/g, " ")}</span>
+            <UrgencyDot urgency={statusUrgencyOf(data.status)} />
+            <span>{workOrderStatusLabel(data.status)}</span>
           </span>
         </Field>
         {data.priority && (
@@ -268,37 +337,413 @@ function OverviewTab({ data }: { data: EntityDetail }) {
           <p className="whitespace-pre-wrap text-sm">{data.description}</p>
         </Field>
       )}
-    </dl>
+
+      {data.pendingApprovals && data.pendingApprovals.length > 0 && (
+        <Field label="Waiting on sign-off">
+          <ul className="w-full space-y-1">
+            {data.pendingApprovals.map((a) => (
+              <li
+                key={a.id}
+                className="flex items-baseline gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs"
+              >
+                <Link
+                  href={`?d=${a.ref}`}
+                  scroll={false}
+                  className="font-mono tabular-nums text-foreground hover:underline"
+                >
+                  {a.ref}
+                </Link>
+                <span className="text-muted-foreground">
+                  {approvalReasonLabel(a.reason)}
+                </span>
+                {a.amountCents && (
+                  <span className="font-mono tabular-nums">
+                    ${(Number(a.amountCents) / 100).toFixed(0)}
+                  </span>
+                )}
+                <span className="ml-auto font-mono tabular-nums text-urgency-blocked">
+                  pending
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Field>
+      )}
+
+      {data.type === "wo" && data.nextStatuses.length > 0 && (
+        <Field label="Move this">
+          <StatusButtons
+            ref={data.ref}
+            current={data.status}
+            options={data.nextStatuses}
+            onMutated={onMutated}
+          />
+        </Field>
+      )}
+    </div>
   );
 }
 
-function ActivityTab({ data }: { data: EntityDetail }) {
-  if (data.activity.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">No activity yet.</p>
-    );
-  }
+function StatusButtons({
+  ref,
+  current,
+  options,
+  onMutated,
+}: {
+  ref: string;
+  current: string;
+  options: string[];
+  onMutated: () => void;
+}) {
+  const [pending, startTransition] = React.useTransition();
+  const move = (to: string) => {
+    startTransition(async () => {
+      const r = await setStatusAction({ ref, to });
+      if (r.ok) {
+        toast.success(`${ref} → ${workOrderStatusLabel(to)}`);
+        onMutated();
+      } else {
+        toast.error(`Couldn't move: ${r.error}`);
+      }
+    });
+  };
+  // Don't suggest moving back to current.
+  const visible = options.filter((s) => s !== current);
+  if (visible.length === 0) return null;
   return (
-    <ul className="space-y-2">
-      {data.activity.map((a) => (
-        <li key={a.id} className="flex items-start gap-2 text-sm">
-          <span className="mt-1 size-1.5 rounded-full bg-muted-foreground" />
-          <span className="flex-1">
-            <span className="font-medium capitalize">
-              {a.action.replace(/_/g, " ")}
-            </span>{" "}
-            <span className="text-muted-foreground">
-              by {a.actorType}
-            </span>
-          </span>
-          <TimeSince at={a.at} />
-        </li>
+    <div className="flex flex-wrap gap-1.5">
+      {visible.map((to) => (
+        <Button
+          key={to}
+          type="button"
+          size="sm"
+          variant={primaryTransition(current, to) ? "default" : "outline"}
+          disabled={pending}
+          onClick={() => move(to)}
+        >
+          {workOrderTransitionLabel(to)}
+        </Button>
       ))}
-    </ul>
+    </div>
   );
 }
 
-function CostsTab({ data }: { data: EntityDetail }) {
+/** Pick which transition is the "obvious next" one — slightly weighted UI. */
+function primaryTransition(current: string, to: string): boolean {
+  if (current === "new" && to === "triaged") return true;
+  if (current === "triaged" && to === "assigned") return true;
+  if (current === "assigned" && to === "scheduled") return true;
+  if (current === "scheduled" && to === "in_progress") return true;
+  if (current === "in_progress" && to === "resolved") return true;
+  if (current === "resolved" && to === "verified") return true;
+  if (current === "verified" && to === "closed") return true;
+  return false;
+}
+
+/* -------------------- timeline (audit + comments + composer) -------- */
+
+function TimelineFeed({
+  data,
+  onMutated,
+}: {
+  data: EntityDetail;
+  onMutated: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+        {data.activity.length === 0 && data.comments.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No timeline yet. Add a comment to start coordinating.
+          </p>
+        )}
+
+        {data.comments.length > 0 && (
+          <ul className="space-y-2">
+            {data.comments.map((c) => (
+              <li
+                key={c.id}
+                className={cn(
+                  "rounded-md border px-3 py-2 text-sm",
+                  c.visibility === "external"
+                    ? "border-urgency-blocked/40 bg-urgency-blocked/5"
+                    : "border-border bg-muted/30",
+                )}
+              >
+                <div className="mb-1 flex items-baseline gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <span className="text-foreground">
+                    {c.actorName ?? c.actorType}
+                  </span>
+                  <span>·</span>
+                  <span>{c.visibility === "external" ? "with vendor" : "internal"}</span>
+                  <TimeSince at={c.at} className="ml-auto" />
+                </div>
+                <p className="whitespace-pre-wrap text-sm">{c.body}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {data.activity.length > 0 && (
+          <div className="space-y-1">
+            <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Audit
+            </h4>
+            <ul className="space-y-1">
+              {data.activity.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-baseline gap-2 font-mono text-[11px] tabular-nums text-muted-foreground"
+                >
+                  <TimeSince at={a.at} className="w-10 shrink-0 text-right" />
+                  <span className="w-16 shrink-0 truncate text-foreground/90">
+                    {a.actorName ?? a.actorType}
+                  </span>
+                  <span className="truncate">
+                    {auditActionLabel(a.action)}
+                    {diffNote(a.diff) && (
+                      <span className="ml-1 text-foreground/80">
+                        {diffNote(a.diff)}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <CommentComposer entityRef={data.ref} onPosted={onMutated} />
+    </div>
+  );
+}
+
+function CommentComposer({
+  entityRef,
+  onPosted,
+}: {
+  entityRef: string;
+  onPosted: () => void;
+}) {
+  const [body, setBody] = React.useState("");
+  const [visibility, setVisibility] = React.useState<"internal" | "external">(
+    "internal",
+  );
+  const [pending, startTransition] = React.useTransition();
+
+  const submit = () => {
+    if (!body.trim()) return;
+    startTransition(async () => {
+      const r = await addCommentAction({ ref: entityRef, body, visibility });
+      if (r.ok) {
+        setBody("");
+        toast.success(
+          visibility === "external"
+            ? "Comment posted (visible to vendor)"
+            : "Comment posted",
+        );
+        onPosted();
+      } else {
+        toast.error(`Couldn't post: ${r.error}`);
+      }
+    });
+  };
+
+  return (
+    <div className="border-t border-border bg-muted/20 px-4 py-3">
+      <textarea
+        rows={2}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        placeholder="Add a note for the team…"
+        className="w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            submit();
+          }
+        }}
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            setVisibility((v) => (v === "internal" ? "external" : "internal"))
+          }
+          className={cn(
+            "rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors",
+            visibility === "external"
+              ? "bg-urgency-blocked/15 text-urgency-blocked"
+              : "bg-muted text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {visibility === "external" ? "visible to vendor" : "internal"}
+        </button>
+        <span className="text-[10px] text-muted-foreground">
+          ⌘↵ to post
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          className="ml-auto"
+          disabled={pending || !body.trim()}
+          onClick={submit}
+        >
+          Post
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------- approval cockpit -------------------- */
+
+function ApprovalCockpit({
+  data,
+  onMutated,
+}: {
+  data: EntityDetail;
+  onMutated: () => void;
+}) {
+  const [pending, startTransition] = React.useTransition();
+  const decide = (to: "approved" | "rejected") => {
+    startTransition(async () => {
+      const r = await decideApprovalAction({ ref: data.ref, to });
+      if (r.ok) {
+        toast.success(to === "approved" ? "Signed off" : "Rejected");
+        onMutated();
+      } else {
+        toast.error(`Couldn't decide: ${r.error}`);
+      }
+    });
+  };
+
+  return (
+    <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden">
+      <TabsList className="border-b border-border px-3">
+        <TabsTrigger value="overview">Decision</TabsTrigger>
+        <TabsTrigger value="timeline">
+          Timeline{" "}
+          <span className="ml-1 font-mono text-[10px] tabular-nums">
+            {data.comments.length}
+          </span>
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="overview" className="flex-1 overflow-y-auto px-4 py-3">
+        <div className="space-y-4">
+          <Field label="Reason">
+            <span className="font-medium">
+              {data.reason ? approvalReasonLabel(data.reason) : "—"}
+            </span>
+          </Field>
+          {data.amountCents && (
+            <Field label="Amount">
+              <span className="font-mono text-xl tabular-nums">
+                ${(Number(data.amountCents) / 100).toFixed(2)}
+              </span>
+            </Field>
+          )}
+          <Field label="Pending since">
+            <TimeSince at={data.createdAt} />
+          </Field>
+          {data.description && (
+            <Field label="Notes">
+              <p className="whitespace-pre-wrap text-sm">{data.description}</p>
+            </Field>
+          )}
+          {data.linkedWo && (
+            <Field label="Will unblock">
+              <Link
+                href={`?d=${data.linkedWo.ref}`}
+                scroll={false}
+                className="block w-full rounded-md border border-border bg-card px-3 py-2 hover:bg-accent"
+              >
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-xs tabular-nums">
+                    {data.linkedWo.ref}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {workOrderStatusLabel(data.linkedWo.status)}
+                  </span>
+                  {data.linkedWo.dueAt &&
+                    new Date(data.linkedWo.dueAt).getTime() < Date.now() && (
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-urgency-overdue">
+                        overdue
+                      </span>
+                    )}
+                </div>
+                <p className="mt-1 truncate text-sm">{data.linkedWo.title}</p>
+              </Link>
+            </Field>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={() => decide("approved")}
+              className="bg-urgency-done text-white hover:bg-urgency-done/90"
+            >
+              Sign off
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => decide("rejected")}
+            >
+              Reject
+            </Button>
+          </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="timeline" className="flex flex-1 flex-col overflow-hidden">
+        {/* Approval timeline = WO comments (where operators actually discuss). */}
+        <TimelineFeed data={data} onMutated={onMutated} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+/* -------------------- shared bits -------------------- */
+
+function statusUrgency(state: State): Urgency {
+  if (state.kind !== "ready") return "muted";
+  return statusUrgencyOf(state.data.status);
+}
+
+function statusUrgencyOf(s: string): Urgency {
+  if (s === "blocked") return "blocked";
+  if (s === "in_progress") return "inflow";
+  if (s === "closed" || s === "verified" || s === "reviewed") return "done";
+  if (s === "pending") return "blocked";
+  return "muted";
+}
+
+function drawerTitle(data: EntityDetail): string {
+  if (data.type === "approval" && data.reason) {
+    return approvalReasonLabel(data.reason);
+  }
+  return data.title;
+}
+
+function diffNote(diff: unknown): string | null {
+  if (!diff || typeof diff !== "object") return null;
+  const d = diff as Record<string, unknown>;
+  const to = d.to;
+  if (typeof to === "string") return `→ ${to}`;
+  if (to && typeof to === "object") {
+    const obj = to as Record<string, unknown>;
+    if (typeof obj.status === "string")
+      return `→ ${workOrderStatusLabel(obj.status)}`;
+  }
+  return null;
+}
+
+function CostsList({ data }: { data: EntityDetail }) {
   if (data.costs.length === 0) {
     return <p className="text-sm text-muted-foreground">No costs entered.</p>;
   }
@@ -330,7 +775,7 @@ function CostsTab({ data }: { data: EntityDetail }) {
   );
 }
 
-function FilesTab({ data }: { data: EntityDetail }) {
+function FilesList({ data }: { data: EntityDetail }) {
   if (data.files.length === 0) {
     return <p className="text-sm text-muted-foreground">No files uploaded.</p>;
   }
@@ -377,7 +822,7 @@ function Field({
 
 function DrawerSkeleton() {
   return (
-    <div className="flex-1 space-y-3 p-4">
+    <div className="flex-1 space-y-3 px-4 py-3">
       <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
       <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
       <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />

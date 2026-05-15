@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, sql as drizzleSql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql as drizzleSql } from "drizzle-orm";
 import { workOrders } from "@db/schema/work-orders";
 import { inspections } from "@db/schema/inspections";
 import { projects } from "@db/schema/projects";
@@ -8,11 +8,15 @@ import { units } from "@db/schema/units";
 import { auditLog } from "@db/schema/audit-log";
 import { taskCosts } from "@db/schema/financials";
 import { attachments } from "@db/schema/attachments";
+import { comments } from "@db/schema/comments";
+import { approvals } from "@db/schema/approvals";
+import { users } from "@db/schema/users";
+import { WORK_ORDER_STATUSES, canTransition, type WorkOrderStatus } from "@contracts/state-machines/work-order";
 import { withStaffScope, type ScopedDB } from "./db";
 
 export interface EntityDetail {
   ref: string;
-  type: "wo" | "ins" | "prj";
+  type: "wo" | "ins" | "prj" | "approval";
   id: string;
   title: string;
   description: string | null;
@@ -27,14 +31,48 @@ export interface EntityDetail {
   activity: ActivityItem[];
   costs: CostItem[];
   files: FileItem[];
+  /** Comments, oldest first, with actor name resolved. */
+  comments: CommentItem[];
+  /** Status transitions the operator can perform from the drawer. */
+  nextStatuses: string[];
+  /** For approval refs, the linked work-order context. */
+  linkedWo?: {
+    ref: string;
+    title: string;
+    status: string;
+    dueAt: string | null;
+  };
+  /** For approval refs, the raw amount in cents. */
+  amountCents?: string | null;
+  /** For approval refs, the original reason key (for re-render). */
+  reason?: string;
+  /** Pending approvals attached to a WO drawer — cross-entity causality. */
+  pendingApprovals?: Array<{
+    id: string;
+    ref: string;
+    reason: string;
+    amountCents: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface ActivityItem {
   id: string;
   action: string;
   actorType: string;
+  /** Resolved actor display name (initials for staff, "system"/"vendor" otherwise). */
+  actorName: string | null;
   at: string;
   diff: unknown;
+}
+
+export interface CommentItem {
+  id: string;
+  body: string;
+  actorType: string;
+  actorName: string | null;
+  visibility: "internal" | "external";
+  at: string;
 }
 
 export interface CostItem {
@@ -66,6 +104,7 @@ export async function loadEntityDetail(
   const woMatch = /^WO-(\d+)$/.exec(trimmed);
   const insMatch = /^INS-([A-F0-9]{4,12})$/.exec(trimmed);
   const prjMatch = /^PRJ-([A-F0-9]{4,12})$/.exec(trimmed);
+  const apMatch = /^AP-([A-F0-9]{4,12})$/.exec(trimmed);
 
   return withStaffScope(async (tx, ctx) => {
     if (woMatch) {
@@ -76,6 +115,9 @@ export async function loadEntityDetail(
     }
     if (prjMatch) {
       return loadPrj(tx, ctx.orgId, prjMatch[1]!.toLowerCase());
+    }
+    if (apMatch) {
+      return loadApproval(tx, ctx.orgId, apMatch[1]!.toLowerCase());
     }
     return null;
   });
@@ -108,10 +150,12 @@ async function loadWO(
   const r = rows[0];
   if (!r) return null;
 
-  const [activity, costs, files] = await Promise.all([
+  const [activity, costs, files, commentsList, pending] = await Promise.all([
     loadActivity(tx, orgId, "work_order", r.id),
     loadCosts(tx, orgId, r.id),
     loadFiles(tx, orgId, "work_order", r.id),
+    loadComments(tx, orgId, "work_order", r.id),
+    loadPendingApprovalsForWo(tx, orgId, r.id),
   ]);
 
   return {
@@ -131,6 +175,9 @@ async function loadWO(
     activity,
     costs,
     files,
+    comments: commentsList,
+    nextStatuses: nextWorkOrderStatuses(r.status),
+    pendingApprovals: pending,
   };
 }
 
@@ -164,9 +211,10 @@ async function loadIns(
   const r = rows[0];
   if (!r) return null;
 
-  const [activity, files] = await Promise.all([
+  const [activity, files, commentsList] = await Promise.all([
     loadActivity(tx, orgId, "inspection", r.id),
     loadFiles(tx, orgId, "inspection", r.id),
+    loadComments(tx, orgId, "inspection", r.id),
   ]);
 
   return {
@@ -186,6 +234,8 @@ async function loadIns(
     activity,
     costs: [],
     files,
+    comments: commentsList,
+    nextStatuses: [],
   };
 }
 
@@ -220,9 +270,10 @@ async function loadPrj(
   const r = rows[0];
   if (!r) return null;
 
-  const [activity, files] = await Promise.all([
+  const [activity, files, commentsList] = await Promise.all([
     loadActivity(tx, orgId, "project", r.id),
     loadFiles(tx, orgId, "project", r.id),
+    loadComments(tx, orgId, "project", r.id),
   ]);
 
   return {
@@ -242,7 +293,172 @@ async function loadPrj(
     activity,
     costs: [],
     files,
+    comments: commentsList,
+    nextStatuses: [],
   };
+}
+
+async function loadApproval(
+  tx: ScopedDB,
+  orgId: string,
+  idPrefix: string,
+): Promise<EntityDetail | null> {
+  const rows = await tx
+    .select({
+      id: approvals.id,
+      reason: approvals.reason,
+      amount: approvals.amountCents,
+      notes: approvals.notes,
+      status: approvals.status,
+      createdAt: approvals.createdAt,
+      updatedAt: approvals.updatedAt,
+      targetType: approvals.targetType,
+      targetId: approvals.targetId,
+      woNumber: workOrders.number,
+      woTitle: workOrders.title,
+      woStatus: workOrders.status,
+      woDueAt: workOrders.dueAt,
+    })
+    .from(approvals)
+    .leftJoin(workOrders, eq(workOrders.id, approvals.targetId))
+    .where(
+      and(
+        eq(approvals.orgId, orgId),
+        drizzleSql`left(${approvals.id}::text, ${idPrefix.length}) = ${idPrefix}`,
+      ),
+    )
+    .limit(1);
+  const r = rows[0];
+  if (!r) return null;
+
+  // Comments threaded against the underlying WO — that's where operators
+  // actually discuss the decision.
+  const commentsList =
+    r.targetType === "work_order"
+      ? await loadComments(tx, orgId, "work_order", r.targetId)
+      : [];
+
+  return {
+    ref: `AP-${r.id.slice(0, 6).toUpperCase()}`,
+    type: "approval",
+    id: r.id,
+    title: r.notes ?? r.reason,
+    description: r.notes,
+    status: r.status,
+    priority: null,
+    property: null,
+    unit: null,
+    dueAt: null,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+    legacyHref: "/admin/approvals",
+    activity: [],
+    costs: [],
+    files: [],
+    comments: commentsList,
+    nextStatuses: [],
+    reason: r.reason,
+    amountCents: r.amount,
+    linkedWo: r.woNumber
+      ? {
+          ref: `WO-${r.woNumber}`,
+          title: r.woTitle ?? "",
+          status: r.woStatus ?? "",
+          dueAt: r.woDueAt ? r.woDueAt.toISOString() : null,
+        }
+      : undefined,
+  };
+}
+
+function nextWorkOrderStatuses(current: string): string[] {
+  const cur = current as WorkOrderStatus;
+  return WORK_ORDER_STATUSES.filter((s) => canTransition(cur, s));
+}
+
+async function loadPendingApprovalsForWo(
+  tx: ScopedDB,
+  orgId: string,
+  woId: string,
+): Promise<NonNullable<EntityDetail["pendingApprovals"]>> {
+  const rows = await tx
+    .select({
+      id: approvals.id,
+      reason: approvals.reason,
+      amountCents: approvals.amountCents,
+      createdAt: approvals.createdAt,
+    })
+    .from(approvals)
+    .where(
+      and(
+        eq(approvals.orgId, orgId),
+        eq(approvals.targetType, "work_order"),
+        eq(approvals.targetId, woId),
+        eq(approvals.status, "pending"),
+      ),
+    )
+    .orderBy(desc(approvals.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    ref: `AP-${r.id.slice(0, 6).toUpperCase()}`,
+    reason: r.reason,
+    amountCents: r.amountCents,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+async function loadComments(
+  tx: ScopedDB,
+  orgId: string,
+  targetType: "work_order" | "inspection" | "project",
+  targetId: string,
+): Promise<CommentItem[]> {
+  const rows = await tx
+    .select({
+      id: comments.id,
+      body: comments.body,
+      actorType: comments.actorType,
+      actorUserId: comments.actorUserId,
+      visibility: comments.visibility,
+      createdAt: comments.createdAt,
+    })
+    .from(comments)
+    .where(
+      and(
+        eq(comments.orgId, orgId),
+        eq(comments.targetType, targetType),
+        eq(comments.targetId, targetId),
+      ),
+    )
+    .orderBy(asc(comments.createdAt))
+    .limit(50);
+
+  const userIds = rows
+    .map((r) => r.actorUserId)
+    .filter((v): v is string => !!v);
+  const names = new Map<string, string>();
+  if (userIds.length > 0) {
+    const us = await tx
+      .select({ id: users.id, name: users.name, email: users.email })
+      .from(users)
+      .where(and(eq(users.orgId, orgId), inArray(users.id, userIds)));
+    for (const u of us) {
+      names.set(u.id, u.name ?? u.email.split("@")[0] ?? "user");
+    }
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    body: r.body,
+    actorType: r.actorType,
+    actorName:
+      r.actorType === "user"
+        ? r.actorUserId
+          ? names.get(r.actorUserId) ?? null
+          : null
+        : r.actorType, // "vendor" / "tenant"
+    visibility: r.visibility as "internal" | "external",
+    at: r.createdAt.toISOString(),
+  }));
 }
 
 async function loadActivity(
@@ -263,10 +479,29 @@ async function loadActivity(
     )
     .orderBy(desc(auditLog.createdAt))
     .limit(25);
+
+  const userIds = rows
+    .map((r) => r.actorUserId)
+    .filter((v): v is string => !!v);
+  const names = new Map<string, string>();
+  if (userIds.length > 0) {
+    const us = await tx
+      .select({ id: users.id, name: users.name, email: users.email })
+      .from(users)
+      .where(and(eq(users.orgId, orgId), inArray(users.id, userIds)));
+    for (const u of us) {
+      names.set(u.id, u.name ?? u.email.split("@")[0] ?? "user");
+    }
+  }
+
   return rows.map((r) => ({
     id: r.id,
     action: r.action,
     actorType: r.actorType,
+    actorName:
+      r.actorType === "user" && r.actorUserId
+        ? names.get(r.actorUserId) ?? null
+        : null,
     at: r.createdAt.toISOString(),
     diff: r.diff,
   }));

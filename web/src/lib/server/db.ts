@@ -2,7 +2,7 @@ import "server-only";
 import { sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db, type DB } from "@db/client";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "./auth";
 
 export type ScopedDB = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
