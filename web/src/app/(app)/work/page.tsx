@@ -10,7 +10,6 @@ import { DEFAULT_BOARD_COLUMNS, loadBoard } from "@/lib/server/board";
 import { FilterChipBar } from "@/components/operator/filter-chip-bar";
 import { ViewModeToggle } from "@/components/operator/view-mode-toggle";
 import { EntityRow } from "@/components/operator/entity-row";
-import { EntityDrawer } from "@/components/operator/entity-drawer";
 import { TimeSinceTicker } from "@/components/operator/time-since";
 import { AutoRefresh } from "@/components/operator/auto-refresh";
 import { KanbanBoard } from "@/components/board/kanban-board";
@@ -79,7 +78,6 @@ export default async function WorkPage({
             />
           </div>
         </div>
-        <EntityDrawer />
       </TimeSinceTicker>
     );
   }
@@ -126,8 +124,6 @@ export default async function WorkPage({
           </div>
         )}
       </div>
-
-      <EntityDrawer />
     </TimeSinceTicker>
   );
 }

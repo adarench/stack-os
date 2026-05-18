@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
 import {
@@ -8,14 +9,13 @@ import {
   type QueueLane,
 } from "@/lib/server/queue";
 import { loadRecentActivity } from "@/lib/server/activity";
-import { StatusLine } from "@/components/operator/status-line";
 import { ActivityStrip } from "@/components/operator/activity-strip";
 import { LaneHeader, laneTone } from "@/components/operator/lane-header";
-import { EntityRow } from "@/components/operator/entity-row";
-import { EntityDrawer } from "@/components/operator/entity-drawer";
+import { EntityRow, type TailMode } from "@/components/operator/entity-row";
 import { TimeSinceTicker } from "@/components/operator/time-since";
 import { AutoRefresh } from "@/components/operator/auto-refresh";
 import { LiveIndicator } from "@/components/operator/live-indicator";
+import { cn } from "@/lib/utils";
 import { EmptyAllClear } from "./empty-all-clear";
 
 export const dynamic = "force-dynamic";
@@ -65,96 +65,125 @@ export default async function NowPage() {
   };
 
   const allEmpty = LANES.every((l) => items[l.key].length === 0);
-  const oldestOverdueDetail =
-    summary.pulse.overdue > 0 ? oldestAgeLabel(overdue) : null;
-  const oldestApprovalDetail =
-    summary.pulse.pendingApprovals > 0 ? oldestAgeLabel(needs) : null;
 
   return (
     <TimeSinceTicker>
       <AutoRefresh intervalMs={15_000} />
       <div className="mx-auto max-w-[840px] px-3 py-4 md:px-4">
-        <header className="mb-1 flex items-baseline justify-between">
+        <header className="mb-2 flex items-baseline justify-between">
           <h1 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Now
           </h1>
           <LiveIndicator />
         </header>
-        <StatusLine
-          segments={[
-            {
-              label: "open",
-              value: summary.pulse.openWOs,
-              href: "/work?status=open",
-            },
-            {
-              label: "overdue",
-              value: summary.pulse.overdue,
-              href: "/work?due=overdue",
-              detail: oldestOverdueDetail,
-              alert: summary.pulse.overdue > 0,
-            },
-            {
-              label: "blocked",
-              value: summary.counts.blocked,
-              href: "/work?status=blocked",
-              alert: summary.counts.blocked > 0,
-            },
-            {
-              label: "awaiting",
-              value: summary.pulse.pendingApprovals,
-              href: "/money?tab=approvals",
-              detail: oldestApprovalDetail,
-              alert: summary.pulse.pendingApprovals > 0,
-            },
-            {
-              label: "COIs ≤30d",
-              value: summary.pulse.coisExpiring30d,
-              href: "/compliance?tab=cois&filter=expiring",
-              alert: summary.pulse.coisExpiring30d > 0,
-            },
-          ]}
-        />
 
-        <div className="mt-2">
-          <ActivityStrip events={activity} />
-        </div>
+        <ActivityStrip events={activity} />
 
         {allEmpty ? (
           <EmptyAllClear />
         ) : (
-          <div className="mt-4 space-y-1">
+          <div className="mt-3 space-y-0">
             {LANES.map((lane) => {
               const rows = items[lane.key];
               if (rows.length === 0) return null;
-              const aside = laneAside(lane.key, rows);
               return (
-                <section key={lane.key} aria-label={lane.title}>
-                  <LaneHeader
-                    title={lane.title}
-                    count={rows.length}
-                    tone={laneTone(lane.key, rows.length)}
-                    aside={aside}
-                  />
-                  <div className="space-y-0">
-                    {rows.map((row) => (
-                      <EntityRow
-                        key={`${row.type}-${row.ref}`}
-                        row={row}
-                        showRelativeFuture={lane.futureTime ?? false}
-                      />
-                    ))}
-                  </div>
-                </section>
+                <Lane
+                  key={lane.key}
+                  laneKey={lane.key}
+                  title={lane.title}
+                  rows={rows}
+                  futureTime={lane.futureTime ?? false}
+                />
               );
             })}
           </div>
         )}
       </div>
-
-      <EntityDrawer />
     </TimeSinceTicker>
   );
+}
+
+/**
+ * A /now lane block. Lanes carry their own visual weight: overdue gets a
+ * top border tinted red and a bolder title. Just-changed collapses to the
+ * first 3 rows with a "show more" affordance — the lane exists for
+ * peripheral awareness, not deep work.
+ */
+function Lane({
+  laneKey,
+  title,
+  rows,
+  futureTime,
+}: {
+  laneKey: QueueLane;
+  title: string;
+  rows: QueueItem[];
+  futureTime: boolean;
+}) {
+  const tone = laneTone(laneKey, rows.length);
+  const aside = laneAside(laneKey, rows);
+  const visibleRows =
+    laneKey === "changed" && rows.length > 3 ? rows.slice(0, 3) : rows;
+  const hidden = rows.length - visibleRows.length;
+
+  const tailMode: TailMode = laneToTail(laneKey);
+  const emphasized = laneKey === "overdue" || laneKey === "blocked";
+
+  return (
+    <section
+      aria-label={title}
+      className={cn(
+        "border-t border-border first:border-t-0",
+        laneKey === "overdue" && "border-urgency-overdue/30",
+        laneKey === "blocked" && "border-urgency-blocked/30",
+      )}
+    >
+      <LaneHeader
+        title={title}
+        count={rows.length}
+        tone={tone}
+        emphasized={emphasized}
+        aside={aside}
+      />
+      <div className="space-y-0">
+        {visibleRows.map((row) => (
+          <EntityRow
+            key={`${row.type}-${row.ref}`}
+            row={row}
+            showRelativeFuture={futureTime}
+            tailMode={tailMode}
+          />
+        ))}
+        {hidden > 0 && (
+          <p className="px-2 py-1 text-[11px] text-muted-foreground">
+            <Link
+              href={`/work?recent=24h`}
+              className="hover:text-foreground"
+            >
+              show {hidden} more recent changes →
+            </Link>
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function laneToTail(laneKey: QueueLane): TailMode {
+  switch (laneKey) {
+    case "overdue":
+      return "overdue";
+    case "blocked":
+      return "blocked";
+    case "today":
+      return "today";
+    case "inflight":
+      return "inflight";
+    case "needs":
+      return "needs";
+    case "changed":
+      return "changed";
+  }
 }
 
 /**
@@ -217,11 +246,6 @@ function oldestAgeMs(items: QueueItem[]): number | null {
     if (ms > oldest) oldest = ms;
   }
   return oldest > 0 ? oldest : null;
-}
-
-function oldestAgeLabel(items: QueueItem[]): string | null {
-  const ms = oldestAgeMs(items);
-  return ms === null ? null : `oldest ${humanizeMs(ms)}`;
 }
 
 function humanizeMs(ms: number): string {

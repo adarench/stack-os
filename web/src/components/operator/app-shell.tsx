@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "./theme-provider";
 import { TopBar } from "./top-bar";
@@ -10,25 +11,38 @@ import { CommandPaletteProvider } from "./command-palette";
 import { InstallPrompt } from "./install-prompt";
 import { OfflineIndicator } from "./offline-indicator";
 import { Toaster } from "@/components/ui/sonner";
+import { KeyboardProvider } from "./keyboard-provider";
+import { EntityDrawerDocked } from "./entity-drawer-docked";
+import { cn } from "@/lib/utils";
+import type { ShellSummary } from "@/lib/server/shell";
 
 /**
- * AppShell — flag-gated operator chrome.
+ * AppShell — the persistent operator frame.
  *
- * Layout:
+ *   ┌─────────────────────────────────────────────────────────┐
+ *   │ TopBar  (status line + search + new + profile)          │
+ *   ├──────────┬────────────────────────────┬─────────────────┤
+ *   │          │                            │                 │
+ *   │ LeftRail │ Main (children)            │ EntityDrawer    │  ← docked
+ *   │          │                            │ (when ?d= set)  │
+ *   │          │                            │                 │
+ *   └──────────┴────────────────────────────┴─────────────────┘
+ *   │ BottomTabBar (mobile only)                              │
  *
- *   ┌────────────────────────────────────────────┐
- *   │ TopBar                                     │
- *   ├──────────┬─────────────────────────────────┤
- *   │ LeftRail │ Main (children)                 │
- *   │          │                                 │
- *   └──────────┴─────────────────────────────────┘
- *   │ BottomTabBar (mobile only)                 │
- *
- * Wraps children in providers needed by the new shell. Routes inside the
- * shell continue to render whatever they currently render — the shell only
- * adds chrome around them.
+ * The drawer is a structural sibling of `<main>`, not a modal overlay.
+ * When the operator opens an entity, the queue stays visible and
+ * scrollable to the left of it. This is the cockpit pattern.
  */
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  summary,
+}: {
+  children: React.ReactNode;
+  summary: ShellSummary | null;
+}) {
+  const sp = useSearchParams();
+  const drawerOpen = !!sp.get("d");
+
   return (
     <ThemeProvider
       attribute="class"
@@ -36,21 +50,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      <TooltipProvider>
+      <TooltipProvider delayDuration={300}>
         <CommandPaletteProvider>
-          <div className="flex min-h-svh flex-col">
-            <TopBar />
-            <div className="flex flex-1">
-              <LeftRail />
-              <main className="flex-1 overflow-x-hidden pb-16 md:pb-0">
-                {children}
-              </main>
+          <KeyboardProvider>
+            <div className="flex h-svh flex-col">
+              <TopBar summary={summary} />
+              <div className="flex flex-1 overflow-hidden">
+                <LeftRail summary={summary} />
+                <main
+                  className={cn(
+                    "flex-1 overflow-y-auto overflow-x-hidden pb-16 md:pb-0",
+                    drawerOpen && "md:hidden lg:block lg:max-w-[calc(100%-540px)]",
+                  )}
+                >
+                  {children}
+                </main>
+                <EntityDrawerDocked open={drawerOpen} />
+              </div>
+              <BottomTabBar />
             </div>
-            <BottomTabBar />
-          </div>
-          <InstallPrompt />
-          <OfflineIndicator />
-          <Toaster />
+            <InstallPrompt />
+            <OfflineIndicator />
+            <Toaster />
+          </KeyboardProvider>
         </CommandPaletteProvider>
       </TooltipProvider>
     </ThemeProvider>

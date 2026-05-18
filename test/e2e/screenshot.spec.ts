@@ -2,7 +2,10 @@ import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
-const OUT = resolve(process.cwd(), "test/screenshots");
+const OUT = resolve(
+  process.cwd(),
+  process.env.SHOT_DIR ?? "test/screenshots",
+);
 mkdirSync(OUT, { recursive: true });
 
 /**
@@ -60,7 +63,9 @@ test("captures drawer open on a WO from /now", async ({ page }) => {
   // by matching the row whose monospace ref starts with WO-.
   const woRefCell = page.locator("span", { hasText: /^WO-\d+$/ }).first();
   await woRefCell.click();
-  await page.waitForTimeout(1500);
+  // Wait for drawer data to fully load — look for the OVERVIEW tab text.
+  await page.waitForSelector('button[role="tab"]:has-text("Overview")', { timeout: 10_000 });
+  await page.waitForTimeout(600);
   await page.screenshot({
     path: resolve(OUT, "07-drawer-wo.png"),
     fullPage: false,
@@ -73,9 +78,9 @@ test("captures WO drawer timeline + composer", async ({ page }) => {
   await page.addStyleTag({ content: HIDE_DEV_CHROME });
   const woRefCell = page.locator("span", { hasText: /^WO-\d+$/ }).first();
   await woRefCell.click();
-  await page.waitForTimeout(1200);
+  await page.waitForSelector('button[role="tab"]:has-text("Overview")', { timeout: 10_000 });
   await page.click("button[role=tab]:has-text('Timeline')");
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(800);
   await page.screenshot({
     path: resolve(OUT, "09-drawer-wo-timeline.png"),
     fullPage: false,
@@ -93,7 +98,8 @@ test("captures drawer open on an approval from /now", async ({ page }) => {
     test.skip(true, "No approval visible on /now — seed may need a refresh.");
   }
   await approvalRow.click();
-  await page.waitForTimeout(900);
+  await page.waitForSelector('button[role="tab"]:has-text("Decision")', { timeout: 10_000 });
+  await page.waitForTimeout(600);
   await page.screenshot({
     path: resolve(OUT, "08-drawer-approval.png"),
     fullPage: false,

@@ -5,13 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { X } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TimeSince } from "./time-since";
@@ -173,71 +166,64 @@ export function EntityDrawer() {
     router.replace(next ? `?${next}` : "?", { scroll: false });
   }, [router, searchParams]);
 
+  if (!ref) return null;
+
   return (
-    <Sheet
-      open={!!ref}
-      onOpenChange={(o) => {
-        if (!o) close();
-      }}
+    <div
+      role="complementary"
+      aria-label="Entity detail"
+      className="flex h-full flex-col bg-background"
     >
-      <SheetContent
-        className="flex w-full flex-col p-0 sm:max-w-[540px]"
-        hideCloseButton
-      >
-        <SheetHeader className="flex-row items-center gap-2 border-b border-border px-4 py-3">
-          <UrgencyDot urgency={statusUrgency(state)} />
-          <SheetTitle className="font-mono text-sm">{ref ?? ""}</SheetTitle>
-          {state.kind === "ready" && (
-            <span className="truncate text-sm text-muted-foreground">
-              · {drawerTitle(state.data)}
-            </span>
-          )}
-          <SheetDescription className="sr-only">
-            Entity detail and inline actions.
-          </SheetDescription>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="ml-auto"
-            onClick={close}
-            aria-label="Close"
-          >
-            <X />
-          </Button>
-        </SheetHeader>
-
-        {state.kind === "loading" && <DrawerSkeleton />}
-        {state.kind === "error" && (
-          <div className="flex-1 px-4 py-3 text-sm text-muted-foreground">
-            {state.message}
-          </div>
-        )}
-
-        {state.kind === "ready" && state.data.type === "approval" && (
-          <ApprovalCockpit data={state.data} onMutated={refetch} />
-        )}
-
-        {state.kind === "ready" && state.data.type !== "approval" && (
-          <WorkCockpit data={state.data} onMutated={refetch} />
-        )}
-
-        <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-          <span>
-            Press{" "}
-            <kbd className="rounded border border-border bg-background px-1 font-mono">
-              esc
-            </kbd>{" "}
-            to close
+      <header className="flex flex-row items-center gap-2 border-b border-border px-4 py-3">
+        <UrgencyDot urgency={statusUrgency(state)} />
+        <h2 className="font-mono text-sm">{ref ?? ""}</h2>
+        {state.kind === "ready" && (
+          <span className="truncate text-sm text-muted-foreground">
+            · {drawerTitle(state.data)}
           </span>
-          {state.kind === "ready" && state.data.dueAt && (
-            <span className="flex items-center gap-1">
-              <span>Due</span>
-              <TimeSince at={state.data.dueAt} direction="auto" />
-            </span>
-          )}
+        )}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="ml-auto"
+          onClick={close}
+          aria-label="Close"
+        >
+          <X />
+        </Button>
+      </header>
+
+      {state.kind === "loading" && <DrawerSkeleton />}
+      {state.kind === "error" && (
+        <div className="flex-1 px-4 py-3 text-sm text-muted-foreground">
+          {state.message}
         </div>
-      </SheetContent>
-    </Sheet>
+      )}
+
+      {state.kind === "ready" && state.data.type === "approval" && (
+        <ApprovalCockpit data={state.data} onMutated={refetch} />
+      )}
+
+      {state.kind === "ready" && state.data.type !== "approval" && (
+        <WorkCockpit data={state.data} onMutated={refetch} />
+      )}
+
+      <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+        <span>
+          Press{" "}
+          <kbd className="rounded border border-border bg-background px-1 font-mono">
+            esc
+          </kbd>{" "}
+          to close
+        </span>
+        {state.kind === "ready" && state.data.dueAt && (
+          <span className="flex items-center gap-1">
+            <span>Due</span>
+            <TimeSince at={state.data.dueAt} direction="auto" />
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -4,33 +4,61 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  FOOT_NAV,
   PRIMARY_NAV,
   SECONDARY_NAV,
+  FOOT_NAV,
   type NavItem,
+  type BadgeKey,
 } from "./nav-items";
+import type { ShellSummary } from "@/lib/server/shell";
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(href + "/");
 }
 
+function badgeValue(summary: ShellSummary | null, key?: BadgeKey): number {
+  if (!summary || !key) return 0;
+  switch (key) {
+    case "overdue":
+      return summary.overdue;
+    case "needs":
+      return summary.needs;
+    case "blocked":
+      return summary.blocked;
+    case "cois_30d":
+      return summary.cois30d;
+    case "unread":
+      return summary.unread;
+  }
+}
+
+function badgeAlert(key: BadgeKey | undefined, value: number): boolean {
+  if (!key) return false;
+  if (value === 0) return false;
+  // Overdue and needs lanes always tone red when non-zero.
+  return key === "overdue" || key === "needs";
+}
+
 function RailLink({
   item,
   pathname,
+  summary,
 }: {
   item: NavItem;
   pathname: string;
+  summary: ShellSummary | null;
 }) {
   const active = isActive(pathname, item.href);
   const Icon = item.icon;
+  const value = badgeValue(summary, item.badgeKey);
+  const alert = badgeAlert(item.badgeKey, value);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -52,6 +80,18 @@ function RailLink({
           )}
           <Icon className="size-4 shrink-0" />
           <span className="truncate">{item.label}</span>
+          {value > 0 && (
+            <span
+              className={cn(
+                "ml-auto rounded font-mono text-[10px] tabular-nums px-1 py-0",
+                alert
+                  ? "bg-urgency-overdue/10 text-urgency-overdue"
+                  : "text-muted-foreground",
+              )}
+            >
+              {value}
+            </span>
+          )}
         </Link>
       </TooltipTrigger>
       <TooltipContent side="right">{item.label}</TooltipContent>
@@ -60,31 +100,43 @@ function RailLink({
 }
 
 /**
- * Left rail — desktop only. 200px wide. Items hold the operator's primary
- * destinations; the active item paints a 2px accent on the left edge.
+ * Left rail — desktop only. 200px wide. Five operational destinations,
+ * each with an inline count badge driven from the shell summary. Badges
+ * tone red on overdue / pending sign-offs; otherwise quiet gray.
  */
-export function LeftRail() {
+export function LeftRail({ summary }: { summary: ShellSummary | null }) {
   const pathname = usePathname();
 
   return (
     <aside className="hidden md:flex w-[200px] shrink-0 flex-col border-r border-border bg-background">
       <nav className="flex-1 space-y-0.5 p-2">
         {PRIMARY_NAV.map((item) => (
-          <RailLink key={item.href} item={item} pathname={pathname} />
+          <RailLink
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            summary={summary}
+          />
         ))}
-        {SECONDARY_NAV.length > 0 && (
-          <>
-            <Separator className="my-2" />
-            {SECONDARY_NAV.map((item) => (
-              <RailLink key={item.href} item={item} pathname={pathname} />
-            ))}
-          </>
-        )}
+        {SECONDARY_NAV.length > 0 &&
+          SECONDARY_NAV.map((item) => (
+            <RailLink
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              summary={summary}
+            />
+          ))}
       </nav>
       {FOOT_NAV.length > 0 && (
         <div className="p-2">
           {FOOT_NAV.map((item) => (
-            <RailLink key={item.href} item={item} pathname={pathname} />
+            <RailLink
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              summary={summary}
+            />
           ))}
         </div>
       )}
