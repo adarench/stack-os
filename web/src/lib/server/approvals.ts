@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, isNull, sql as drizzleSql } from "drizzle-orm";
 import { approvals } from "@db/schema/approvals";
 import { workOrders } from "@db/schema/work-orders";
 import { assignments } from "@db/schema/assignments";
+import { vendorUsers } from "@db/schema/vendor-users";
 import { withStaffScope, type ScopedDB } from "./db";
 import { writeAudit } from "./audit";
 import { ensureUserRow } from "./sync-user";
@@ -97,17 +98,27 @@ async function loadVendorStressForWos(
   woIds: string[],
 ): Promise<Map<string, number>> {
   if (woIds.length === 0) return new Map();
+  // The WO may be assigned either directly to a vendor or via a
+  // vendor_user (a specific person at the vendor). Both should
+  // resolve to the same vendor id for stress purposes.
   const vendorByWo = await tx
     .select({
       targetId: assignments.targetId,
-      vendorId: assignments.assigneeId,
+      vendorId: drizzleSql<string>`CASE WHEN ${assignments.assigneeType} = 'vendor' THEN ${assignments.assigneeId} ELSE ${vendorUsers.vendorId} END`,
     })
     .from(assignments)
+    .leftJoin(
+      vendorUsers,
+      and(
+        eq(vendorUsers.id, assignments.assigneeId),
+        eq(assignments.assigneeType, "vendor_user"),
+      ),
+    )
     .where(
       and(
         eq(assignments.orgId, orgId),
         eq(assignments.targetType, "work_order"),
-        eq(assignments.assigneeType, "vendor"),
+        drizzleSql`${assignments.assigneeType} IN ('vendor', 'vendor_user')`,
         inArray(assignments.targetId, woIds),
         isNull(assignments.unassignedAt),
       ),

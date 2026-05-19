@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq, gte, inArray, isNull, lt, sql as drizzleSql } from "drizzle-orm";
 import { workOrders } from "@db/schema/work-orders";
 import { assignments } from "@db/schema/assignments";
+import { vendorUsers } from "@db/schema/vendor-users";
 import { inspections } from "@db/schema/inspections";
 import type { ScopedDB } from "./db";
 
@@ -174,19 +175,27 @@ async function loadVendorStress(
 ): Promise<Map<string, string | number>> {
   if (rows.length === 0) return new Map();
 
-  // Active vendor per focal WO.
+  // Active vendor per focal WO — resolves both direct vendor assignments
+  // and vendor_user assignments (where we look up the parent vendor).
   const woIds = rows.map((r) => r.id);
   const vendorByWo = await tx
     .select({
       targetId: assignments.targetId,
-      vendorId: assignments.assigneeId,
+      vendorId: drizzleSql<string>`CASE WHEN ${assignments.assigneeType} = 'vendor' THEN ${assignments.assigneeId} ELSE ${vendorUsers.vendorId} END`,
     })
     .from(assignments)
+    .leftJoin(
+      vendorUsers,
+      and(
+        eq(vendorUsers.id, assignments.assigneeId),
+        eq(assignments.assigneeType, "vendor_user"),
+      ),
+    )
     .where(
       and(
         eq(assignments.orgId, orgId),
         eq(assignments.targetType, "work_order"),
-        eq(assignments.assigneeType, "vendor"),
+        drizzleSql`${assignments.assigneeType} IN ('vendor', 'vendor_user')`,
         inArray(assignments.targetId, woIds),
         isNull(assignments.unassignedAt),
       ),

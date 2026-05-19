@@ -12,6 +12,7 @@ import { comments } from "@db/schema/comments";
 import { approvals } from "@db/schema/approvals";
 import { users } from "@db/schema/users";
 import { assignments } from "@db/schema/assignments";
+import { vendorUsers } from "@db/schema/vendor-users";
 import { WORK_ORDER_STATUSES, canTransition, type WorkOrderStatus } from "@contracts/state-machines/work-order";
 import { withStaffScope, type ScopedDB } from "./db";
 import {
@@ -251,20 +252,32 @@ async function loadActiveAssignedVendorId(
   orgId: string,
   woId: string,
 ): Promise<string | null> {
+  // The WO may be assigned either directly to a vendor or via a
+  // vendor_user (a specific person at the vendor). Both resolve to
+  // the same vendor id for the drawer's VENDOR block.
   const rows = await tx
-    .select({ assigneeId: assignments.assigneeId })
+    .select({
+      vendorId: drizzleSql<string>`CASE WHEN ${assignments.assigneeType} = 'vendor' THEN ${assignments.assigneeId} ELSE ${vendorUsers.vendorId} END`,
+    })
     .from(assignments)
+    .leftJoin(
+      vendorUsers,
+      and(
+        eq(vendorUsers.id, assignments.assigneeId),
+        eq(assignments.assigneeType, "vendor_user"),
+      ),
+    )
     .where(
       and(
         eq(assignments.orgId, orgId),
         eq(assignments.targetType, "work_order"),
         eq(assignments.targetId, woId),
-        eq(assignments.assigneeType, "vendor"),
+        drizzleSql`${assignments.assigneeType} IN ('vendor', 'vendor_user')`,
       ),
     )
     .orderBy(desc(assignments.assignedAt))
     .limit(1);
-  return rows[0]?.assigneeId ?? null;
+  return rows[0]?.vendorId ?? null;
 }
 
 async function loadIns(
