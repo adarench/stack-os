@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, ne, sql as drizzleSql } from "drizzle
 import { workOrders } from "@db/schema/work-orders";
 import { assignments } from "@db/schema/assignments";
 import { vendors } from "@db/schema/vendors";
+import { vendorUsers } from "@db/schema/vendor-users";
 import { units } from "@db/schema/units";
 import { tenantUsers } from "@db/schema/compliance";
 import { inspections, inspectionFindings } from "@db/schema/inspections";
@@ -165,17 +166,24 @@ export async function loadVendorReliability(
 
   const windowStart = new Date(Date.now() - RELIABILITY_WINDOW_MS);
 
-  // Vendor's WOs in the window via assignments. Active scoping by
-  // assignee_type='vendor' (not vendor_user — we want company-level).
+  // Vendor's WOs — both direct vendor assignments AND vendor_user
+  // assignments where the vendor_user belongs to this vendor. Resolves
+  // to the same company-level view either way.
   const assigned = await tx
     .select({ targetId: assignments.targetId })
     .from(assignments)
+    .leftJoin(
+      vendorUsers,
+      and(
+        eq(vendorUsers.id, assignments.assigneeId),
+        eq(assignments.assigneeType, "vendor_user"),
+      ),
+    )
     .where(
       and(
         eq(assignments.orgId, orgId),
         eq(assignments.targetType, "work_order"),
-        eq(assignments.assigneeType, "vendor"),
-        eq(assignments.assigneeId, vendorId),
+        drizzleSql`(${assignments.assigneeType} = 'vendor' AND ${assignments.assigneeId} = ${vendorId}) OR (${assignments.assigneeType} = 'vendor_user' AND ${vendorUsers.vendorId} = ${vendorId})`,
       ),
     );
   const woIds = assigned.map((a) => a.targetId);

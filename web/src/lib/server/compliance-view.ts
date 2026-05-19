@@ -1,9 +1,10 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, isNull, lte, ne, sql as drizzleSql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, ne, or, sql as drizzleSql } from "drizzle-orm";
 import { vendorCois, tenantInsurancePolicies, tenantUsers } from "@db/schema/compliance";
 import { vendors } from "@db/schema/vendors";
 import { units } from "@db/schema/units";
 import { assignments } from "@db/schema/assignments";
+import { vendorUsers } from "@db/schema/vendor-users";
 import { workOrders } from "@db/schema/work-orders";
 import { withStaffScope, type ScopedDB } from "./db";
 import type { ComplianceStatus } from "@contracts/compliance";
@@ -129,26 +130,46 @@ async function loadOpenWoCountsByVendor(
   vendorIds: string[],
 ): Promise<Map<string, number>> {
   if (vendorIds.length === 0) return new Map();
+  // Count open WOs either directly assigned to the vendor OR assigned
+  // to a vendor_user whose parent vendor is in our list. Both count as
+  // "this vendor is holding this work" from a dispatch POV.
   const rows = await tx
     .select({
-      vendorId: assignments.assigneeId,
+      vendorId: drizzleSql<string>`CASE WHEN ${assignments.assigneeType} = 'vendor' THEN ${assignments.assigneeId} ELSE ${vendorUsers.vendorId} END`,
       n: drizzleSql<string>`count(distinct ${assignments.targetId})::text`,
     })
     .from(assignments)
     .leftJoin(workOrders, eq(workOrders.id, assignments.targetId))
+    .leftJoin(
+      vendorUsers,
+      and(
+        eq(vendorUsers.id, assignments.assigneeId),
+        eq(assignments.assigneeType, "vendor_user"),
+      ),
+    )
     .where(
       and(
         eq(assignments.orgId, orgId),
         eq(assignments.targetType, "work_order"),
-        eq(assignments.assigneeType, "vendor"),
-        inArray(assignments.assigneeId, vendorIds),
+        or(
+          and(
+            eq(assignments.assigneeType, "vendor"),
+            inArray(assignments.assigneeId, vendorIds),
+          ),
+          and(
+            eq(assignments.assigneeType, "vendor_user"),
+            inArray(vendorUsers.vendorId, vendorIds),
+          ),
+        ),
         isNull(assignments.unassignedAt),
         drizzleSql`${workOrders.status} NOT IN ('closed', 'cancelled', 'resolved', 'verified')`,
       ),
     )
-    .groupBy(assignments.assigneeId);
+    .groupBy(drizzleSql`1`);
   const out = new Map<string, number>();
-  for (const r of rows) out.set(r.vendorId, Number(r.n));
+  for (const r of rows) {
+    if (r.vendorId) out.set(r.vendorId, Number(r.n));
+  }
   return out;
 }
 
@@ -243,21 +264,38 @@ async function loadBlockedWoRefsByVendor(
   vendorIds: string[],
 ): Promise<Map<string, BlockedWoRef[]>> {
   if (vendorIds.length === 0) return new Map();
+  // Mirror loadOpenWoCountsByVendor — resolve both direct vendor and
+  // vendor_user assignments so the count matches the listed refs.
   const rows = await tx
     .select({
-      vendorId: assignments.assigneeId,
+      vendorId: drizzleSql<string>`CASE WHEN ${assignments.assigneeType} = 'vendor' THEN ${assignments.assigneeId} ELSE ${vendorUsers.vendorId} END`,
       number: workOrders.number,
       title: workOrders.title,
       updatedAt: workOrders.updatedAt,
     })
     .from(assignments)
     .innerJoin(workOrders, eq(workOrders.id, assignments.targetId))
+    .leftJoin(
+      vendorUsers,
+      and(
+        eq(vendorUsers.id, assignments.assigneeId),
+        eq(assignments.assigneeType, "vendor_user"),
+      ),
+    )
     .where(
       and(
         eq(assignments.orgId, orgId),
         eq(assignments.targetType, "work_order"),
-        eq(assignments.assigneeType, "vendor"),
-        inArray(assignments.assigneeId, vendorIds),
+        or(
+          and(
+            eq(assignments.assigneeType, "vendor"),
+            inArray(assignments.assigneeId, vendorIds),
+          ),
+          and(
+            eq(assignments.assigneeType, "vendor_user"),
+            inArray(vendorUsers.vendorId, vendorIds),
+          ),
+        ),
         isNull(assignments.unassignedAt),
         drizzleSql`${workOrders.status} NOT IN ('closed', 'cancelled', 'resolved', 'verified')`,
       ),
@@ -266,6 +304,7 @@ async function loadBlockedWoRefsByVendor(
 
   const out = new Map<string, BlockedWoRef[]>();
   for (const r of rows) {
+    if (!r.vendorId) continue;
     const list = out.get(r.vendorId) ?? [];
     if (list.length < 5) {
       list.push({ ref: `WO-${r.number}`, title: r.title });
