@@ -114,17 +114,15 @@ export function inspectionStatusLabel(status: string): string {
 /* -------------------- audit log actions -------------------- */
 
 /**
- * How an action verb reads on the org-wide activity strip. Reads like a
- * dispatcher's log: "assigned", "added a comment", "marked blocked". The
- * activity strip prefixes this with the actor handle (@AR, system, etc.)
- * so we keep the verb itself — no subject.
+ * How an action verb reads on the org-wide activity strip and inside
+ * the drawer timeline. Reads like a dispatcher's log book.
  */
 export function auditActionLabel(action: string): string {
   switch (action) {
     case "created":
       return "filed";
     case "status_changed":
-      return "moved";
+      return "marked";
     case "assigned":
       return "assigned";
     case "unassigned":
@@ -152,13 +150,71 @@ export function auditActionLabel(action: string): string {
     case "override":
       return "overrode policy";
     case "coi_expiry_sweep":
-      return "insurance sweep";
+      return "ran the insurance sweep";
     case "tenant_insurance_sweep":
-      return "tenant insurance sweep";
+      return "ran the renter-policy sweep";
     case "template_spawned":
       return "fired a recurring task";
     default:
       return action.replace(/_/g, " ");
+  }
+}
+
+/* -------------------- notification kinds -------------------- */
+
+/**
+ * Type-of-notification label shown as a tiny chip in /inbox rows. Operator
+ * phrases — the kind column in the DB reads engineer-ish; this maps it to
+ * how a teammate would describe it out loud.
+ */
+export function notificationKindLabel(kind: string): string {
+  switch (kind) {
+    case "wo_created":
+      return "new ticket";
+    case "wo_assigned":
+      return "assigned";
+    case "wo_blocked":
+      return "blocked";
+    case "wo_resolved":
+      return "marked done";
+    case "wo_verified":
+      return "verified";
+    case "wo_overdue":
+      return "overdue";
+    case "wo_completed":
+      return "completed";
+    case "approval_requested":
+      return "needs sign-off";
+    case "approval_decided":
+      return "sign-off decided";
+    case "comment_external":
+      return "vendor comment";
+    case "comment_internal":
+      return "team comment";
+    case "vendor_accepted":
+      return "vendor accepted";
+    case "vendor_declined":
+      return "vendor declined";
+    case "coi_expiring":
+      return "insurance expiring";
+    case "coi_expired":
+      return "insurance expired";
+    case "coi_received":
+      return "insurance uploaded";
+    case "tenant_insurance_received":
+      return "renter policy uploaded";
+    case "inspection_scheduled":
+      return "inspection scheduled";
+    case "inspection_in_progress":
+      return "inspection started";
+    case "inspection_completed":
+      return "inspection done";
+    case "inspection_finding":
+      return "inspection finding";
+    case "template_spawned":
+      return "recurring spawned";
+    default:
+      return kind.replace(/_/g, " ");
   }
 }
 

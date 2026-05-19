@@ -11,6 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useCommandPalette } from "./command-palette";
+import { useShortcutHint } from "./keyboard-provider";
 import { cn } from "@/lib/utils";
 import type { ShellSummary } from "@/lib/server/shell";
 
@@ -29,9 +30,19 @@ import type { ShellSummary } from "@/lib/server/shell";
 export function TopBar({ summary }: { summary: ShellSummary | null }) {
   const { setOpen } = useCommandPalette();
   const onOpenCommand = () => setOpen(true);
+  const openShortcuts = useShortcutHint();
   return (
     <header className="sticky top-0 z-30 flex h-11 items-center gap-3 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="flex shrink-0 items-center">
+      {/* Brand anchor — quiet, fixed-width, persistent. When Clerk's
+          OrganizationSwitcher renders empty (single-org or dev bypass)
+          the left side still feels intentional. */}
+      <div className="flex shrink-0 items-center gap-2">
+        <span
+          aria-hidden
+          className="hidden md:inline font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground/80"
+        >
+          STACK · OPS
+        </span>
         <OrganizationSwitcher
           hidePersonal
           appearance={{
@@ -47,7 +58,7 @@ export function TopBar({ summary }: { summary: ShellSummary | null }) {
       </div>
 
       {summary && (
-        <div className="hidden md:flex min-w-0 flex-1 items-center">
+        <div className="hidden md:flex min-w-0 flex-1 items-center border-l border-border pl-3">
           <StatusReadout summary={summary} />
         </div>
       )}
@@ -88,6 +99,19 @@ export function TopBar({ summary }: { summary: ShellSummary | null }) {
               </Button>
             </TooltipTrigger>
             <TooltipContent>New…</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={openShortcuts}
+                aria-label="Keyboard shortcuts"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md font-mono text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                ?
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Keyboard shortcuts</TooltipContent>
           </Tooltip>
         </div>
 

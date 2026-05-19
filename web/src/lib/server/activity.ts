@@ -6,6 +6,7 @@ import { inspections } from "@db/schema/inspections";
 import { projects } from "@db/schema/projects";
 import { users } from "@db/schema/users";
 import { withStaffScope, type ScopedDB } from "./db";
+import { workOrderStatusLabel } from "@/lib/labels";
 
 export interface ActivityEvent {
   id: string;
@@ -82,9 +83,9 @@ function actorLabel(actorType: string): string {
 }
 
 /**
- * Pull a single salient word from a status_changed diff so the dispatcher
- * reads "→ resolved" not just "status_changed". For other actions, the verb
- * alone usually carries the meaning.
+ * Pull the operator-language state name out of a status_changed diff so the
+ * activity strip reads "marked blocked" instead of "moved → in_progress".
+ * For other actions the verb carries the meaning by itself.
  */
 function extractDiffNote(action: string, diff: unknown): string | null {
   if (action !== "status_changed" || !diff || typeof diff !== "object") {
@@ -92,12 +93,14 @@ function extractDiffNote(action: string, diff: unknown): string | null {
   }
   const d = diff as Record<string, unknown>;
   const to = d.to;
-  if (typeof to === "string") return `→ ${to}`;
-  if (to && typeof to === "object") {
-    const obj = to as Record<string, unknown>;
-    if (typeof obj.status === "string") return `→ ${obj.status}`;
-  }
-  return null;
+  const status =
+    typeof to === "string"
+      ? to
+      : to && typeof to === "object"
+        ? ((to as Record<string, unknown>).status as string | undefined)
+        : undefined;
+  if (!status) return null;
+  return workOrderStatusLabel(status);
 }
 
 async function resolveRefs(

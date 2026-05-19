@@ -29,6 +29,16 @@ import {
  * The provider stays stateless — focus is delegated to the browser; we
  * just move it.
  */
+interface KeyboardCtx {
+  openShortcuts: () => void;
+}
+const Ctx = React.createContext<KeyboardCtx | null>(null);
+
+export function useShortcutHint(): () => void {
+  const c = React.useContext(Ctx);
+  return c?.openShortcuts ?? (() => {});
+}
+
 export function KeyboardProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -37,6 +47,8 @@ export function KeyboardProvider({ children }: { children: React.ReactNode }) {
 
   const [helpOpen, setHelpOpen] = React.useState(false);
   const goChord = React.useRef<number | null>(null);
+
+  const openShortcuts = React.useCallback(() => setHelpOpen(true), []);
 
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -128,10 +140,10 @@ export function KeyboardProvider({ children }: { children: React.ReactNode }) {
   }, [router, pathname, sp, cmd]);
 
   return (
-    <>
+    <Ctx.Provider value={{ openShortcuts }}>
       {children}
       <ShortcutOverlay open={helpOpen} onOpenChange={setHelpOpen} />
-    </>
+    </Ctx.Provider>
   );
 }
 

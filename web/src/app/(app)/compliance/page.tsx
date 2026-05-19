@@ -111,41 +111,11 @@ export default async function CompliancePage({
           })}
         </nav>
 
-        {/* Mini summary strip */}
-        <div className="mt-3 mb-2 grid grid-cols-3 gap-2 text-xs">
-          {tab === "cois" ? (
-            <>
-              <Stat label="Active" value={view.summary.coiActive} />
-              <Stat
-                label="Expiring soon"
-                value={view.summary.coiExpiring}
-                tone={view.summary.coiExpiring > 0 ? "amber" : "muted"}
-              />
-              <Stat
-                label="Expired"
-                value={view.summary.coiExpired}
-                tone={view.summary.coiExpired > 0 ? "red" : "muted"}
-              />
-            </>
-          ) : (
-            <>
-              <Stat label="Active" value={view.summary.tenantActive} />
-              <Stat
-                label="Expiring soon"
-                value={view.summary.tenantExpiring}
-                tone={view.summary.tenantExpiring > 0 ? "amber" : "muted"}
-              />
-              <Stat
-                label="Expired"
-                value={view.summary.tenantExpired}
-                tone={view.summary.tenantExpired > 0 ? "red" : "muted"}
-              />
-            </>
-          )}
+        {/* List — the consequence chips on each row carry the urgency
+            signal. We don't need a separate KPI strip. */}
+        <div className="mt-3">
+          {tab === "cois" ? <CoiList rows={view.cois} /> : <TenantList rows={view.tenantIns} />}
         </div>
-
-        {/* List */}
-        {tab === "cois" ? <CoiList rows={view.cois} /> : <TenantList rows={view.tenantIns} />}
       </div>
     </TimeSinceTicker>
   );
@@ -312,32 +282,6 @@ function humanizeMs(absMs: number): string {
   if (w < 8) return `${w}w`;
   const mo = Math.round(d / 30);
   return `${mo}mo`;
-}
-
-function Stat({
-  label,
-  value,
-  tone = "muted",
-}: {
-  label: string;
-  value: number;
-  tone?: "red" | "amber" | "muted";
-}) {
-  const toneClass = {
-    red: "text-urgency-overdue",
-    amber: "text-urgency-blocked",
-    muted: "text-foreground",
-  }[tone];
-  return (
-    <div className="rounded-md border border-border bg-card p-2">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className={cn("font-mono text-xl tabular-nums", toneClass)}>
-        {value}
-      </div>
-    </div>
-  );
 }
 
 function strOrNull(v: string | string[] | undefined): string | null {

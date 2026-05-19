@@ -127,7 +127,10 @@ function Lane({
   const hidden = rows.length - visibleRows.length;
 
   const tailMode: TailMode = laneToTail(laneKey);
-  const emphasized = laneKey === "overdue" || laneKey === "blocked";
+  // Emphasis is tone-driven — any lane whose count crosses red/amber
+  // threshold lifts its title, not just the static overdue/blocked pair.
+  // This is what surfaces NEEDS YOU as a *demand for action*, not a list.
+  const emphasized = tone === "red" || tone === "amber";
 
   return (
     <section

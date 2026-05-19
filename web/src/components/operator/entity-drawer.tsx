@@ -246,7 +246,8 @@ function WorkCockpit({
             {data.activity.length + data.comments.length}
           </span>
         </TabsTrigger>
-        {data.type === "wo" && (
+        {/* Empty tabs vanish — operator surface stays dense and intentional. */}
+        {data.type === "wo" && data.costs.length > 0 && (
           <TabsTrigger value="costs">
             Costs{" "}
             <span className="ml-1 font-mono text-[10px] tabular-nums">
@@ -254,12 +255,14 @@ function WorkCockpit({
             </span>
           </TabsTrigger>
         )}
-        <TabsTrigger value="files">
-          Files{" "}
-          <span className="ml-1 font-mono text-[10px] tabular-nums">
-            {data.files.length}
-          </span>
-        </TabsTrigger>
+        {data.files.length > 0 && (
+          <TabsTrigger value="files">
+            Files{" "}
+            <span className="ml-1 font-mono text-[10px] tabular-nums">
+              {data.files.length}
+            </span>
+          </TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="overview" className="flex-1 overflow-y-auto px-4 py-3">
@@ -268,14 +271,16 @@ function WorkCockpit({
       <TabsContent value="timeline" className="flex flex-1 flex-col overflow-hidden">
         <TimelineFeed data={data} onMutated={onMutated} />
       </TabsContent>
-      {data.type === "wo" && (
+      {data.type === "wo" && data.costs.length > 0 && (
         <TabsContent value="costs" className="flex-1 overflow-y-auto px-4 py-3">
           <CostsList data={data} />
         </TabsContent>
       )}
-      <TabsContent value="files" className="flex-1 overflow-y-auto px-4 py-3">
-        <FilesList data={data} />
-      </TabsContent>
+      {data.files.length > 0 && (
+        <TabsContent value="files" className="flex-1 overflow-y-auto px-4 py-3">
+          <FilesList data={data} />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }
@@ -292,7 +297,7 @@ function WorkOverview({
     .join(" · ");
   return (
     <div className="space-y-4">
-      <Field label="Title">{data.title}</Field>
+      {/* Title already lives in the drawer header — don't repeat it. */}
       {subtitle && <Field label="Location">{subtitle}</Field>}
       <div className="grid grid-cols-2 gap-3">
         <Field label="Status">
@@ -303,13 +308,13 @@ function WorkOverview({
         </Field>
         {data.priority && (
           <Field label="Priority">
-            <span className="capitalize">{data.priority}</span>
+            <span className="lowercase">{data.priority}</span>
           </Field>
         )}
         {data.dueAt && (
           <Field label="Due">
             <span className="font-mono text-xs">
-              {new Date(data.dueAt).toLocaleString()}
+              {compactDate(data.dueAt)}
             </span>
             <TimeSince at={data.dueAt} />
           </Field>
@@ -632,7 +637,7 @@ function ApprovalCockpit({
             </Field>
           )}
           <Field label="Pending since">
-            <TimeSince at={data.createdAt} />
+            <span className="text-sm">{humanizeAgo(data.createdAt)}</span>
           </Field>
           {data.description && (
             <Field label="Notes">
@@ -814,6 +819,37 @@ function DrawerSkeleton() {
       <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
     </div>
   );
+}
+
+/** "4 days ago", "2 hours ago" — operator prose for time-since. */
+function humanizeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.round(ms / 60_000);
+  if (m < 2) return "just now";
+  if (m < 60) return `${m} minutes ago`;
+  const h = Math.round(m / 60);
+  if (h === 1) return "an hour ago";
+  if (h < 24) return `${h} hours ago`;
+  const d = Math.round(h / 24);
+  if (d === 1) return "yesterday";
+  if (d < 14) return `${d} days ago`;
+  const w = Math.round(d / 7);
+  if (w < 8) return `${w} weeks ago`;
+  const mo = Math.round(d / 30);
+  return `${mo} months ago`;
+}
+
+/** Short date for the drawer properties panel: `May 13, 2:00p`. The full
+ *  `.toLocaleString()` output reads like a developer dump; this is what an
+ *  operator would write in a note. */
+function compactDate(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const time = d
+    .toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    .toLowerCase()
+    .replace(/\s/g, "");
+  return `${date} · ${time}`;
 }
 
 function formatSize(bytes: number): string {

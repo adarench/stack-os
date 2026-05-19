@@ -3,23 +3,21 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Download } from "lucide-react";
 import { listPendingApprovals } from "@/lib/server/approvals";
-import { listInvoices } from "@/lib/server/invoices";
+import { listInvoicesEnriched, type InvoiceRow } from "@/lib/server/invoices";
 import { TimeSince, TimeSinceTicker } from "@/components/operator/time-since";
 import { UrgencyDot } from "@/components/operator/urgency-dot";
 import { OwnerChip } from "@/components/operator/owner-chip";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { approvalReasonLabel } from "@/lib/labels";
 import { ApprovalButtons } from "./approval-buttons";
 
 export const dynamic = "force-dynamic";
 
-type Tab = "approvals" | "invoices" | "export";
+type Tab = "approvals" | "invoices";
 
 const TABS: Array<{ value: Tab; label: string }> = [
-  { value: "approvals", label: "Approvals" },
-  { value: "invoices", label: "Invoices" },
-  { value: "export", label: "Export" },
+  { value: "approvals", label: "Sign-offs" },
+  { value: "invoices", label: "Vendor billing" },
 ];
 
 export default async function MoneyPage({
@@ -32,21 +30,16 @@ export default async function MoneyPage({
   if (!orgId) redirect("/select-org");
 
   const sp = await searchParams;
-  const tab: Tab =
-    strOrNull(sp.tab) === "invoices"
-      ? "invoices"
-      : strOrNull(sp.tab) === "export"
-        ? "export"
-        : "approvals";
+  const tab: Tab = strOrNull(sp.tab) === "invoices" ? "invoices" : "approvals";
 
   const [approvals, invoices] = await Promise.all([
     tab === "approvals" ? listPendingApprovals() : Promise.resolve([]),
-    tab === "invoices" ? listInvoices() : Promise.resolve([]),
+    tab === "invoices" ? listInvoicesEnriched() : Promise.resolve([]),
   ]);
 
   return (
     <TimeSinceTicker>
-      <div className="mx-auto max-w-[960px] px-3 py-3 md:px-4">
+      <div className="mx-auto flex h-full max-w-[1080px] flex-col px-3 py-3 md:px-4">
         <nav
           className="flex items-center gap-1 border-b border-border"
           aria-label="Money tabs"
@@ -71,11 +64,19 @@ export default async function MoneyPage({
               </Link>
             );
           })}
+          <a
+            href="/api/export/work-orders.csv"
+            download
+            className="ml-auto inline-flex h-9 items-center gap-1.5 px-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground"
+            aria-label="Export work orders to CSV"
+          >
+            <Download className="size-3.5" />
+            Export CSV
+          </a>
         </nav>
 
         {tab === "approvals" && <ApprovalsTab rows={approvals} />}
         {tab === "invoices" && <InvoicesTab rows={invoices} />}
-        {tab === "export" && <ExportTab />}
       </div>
     </TimeSinceTicker>
   );
@@ -264,67 +265,137 @@ function humanizeMs(absMs: number): string {
   return `${d}d`;
 }
 
-type Invoice = Awaited<ReturnType<typeof listInvoices>>[number];
-
-function InvoicesTab({ rows }: { rows: Invoice[] }) {
+function InvoicesTab({ rows }: { rows: InvoiceRow[] }) {
   if (rows.length === 0) {
     return (
       <p className="mt-6 text-sm text-muted-foreground">
-        No invoices booked. Vendor submissions land here for review and payment.
+        No vendor bills on file. Submissions land here for review and payment.
       </p>
     );
   }
+
+  // Group by vendor so the operator's mental model ("what's outstanding
+  // to Stark?") matches the layout.
+  const byVendor = new Map<string, InvoiceRow[]>();
+  for (const r of rows) {
+    const key = r.vendorName ?? "Unknown vendor";
+    const list = byVendor.get(key);
+    if (list) list.push(r);
+    else byVendor.set(key, [r]);
+  }
+  const vendorOrder = Array.from(byVendor.entries()).sort((a, b) => {
+    const outstandingA = a[1].filter(isOutstanding).length;
+    const outstandingB = b[1].filter(isOutstanding).length;
+    if (outstandingA !== outstandingB) return outstandingB - outstandingA;
+    return a[0].localeCompare(b[0]);
+  });
+
   return (
-    <ul className="mt-3 space-y-0">
-      {rows.map((inv) => (
-        <li
-          key={inv.id}
-          className="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] hover:bg-muted/40"
-        >
-          <UrgencyDot urgency={invoiceUrgency(inv.status)} />
-          <span className="w-[100px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-            {inv.invoiceNumber ?? inv.id.slice(0, 8)}
-          </span>
-          <span className="flex-1 truncate">
-            <span className="text-muted-foreground capitalize">
-              {inv.status}
-            </span>
-          </span>
-          <span className="font-mono text-sm tabular-nums">
-            ${(Number(inv.totalCents) / 100).toFixed(2)}
-          </span>
-          <TimeSince at={inv.updatedAt.toISOString()} />
-        </li>
-      ))}
-    </ul>
+    <div className="mt-3 space-y-4">
+      {vendorOrder.map(([vendor, items]) => {
+        const outstandingCents = items
+          .filter(isOutstanding)
+          .reduce((s, r) => s + Number(r.totalCents), 0);
+        const oldestOutstanding = items
+          .filter(isOutstanding)
+          .reduce<number | null>((max, r) => {
+            const at = r.submittedAt ?? r.updatedAt;
+            if (!at) return max;
+            const ms = Date.now() - at.getTime();
+            return max === null || ms > max ? ms : max;
+          }, null);
+        return (
+          <section key={vendor}>
+            <header className="flex items-baseline gap-2 px-2 pb-1 pt-1">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
+                {vendor}
+              </h3>
+              <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                {items.length} {items.length === 1 ? "bill" : "bills"}
+              </span>
+              {outstandingCents > 0 && (
+                <span className="ml-auto font-mono text-[11px] tabular-nums text-urgency-blocked">
+                  ${(outstandingCents / 100).toFixed(0)} outstanding
+                  {oldestOutstanding && oldestOutstanding > 0 && (
+                    <span className="ml-1 text-muted-foreground">
+                      · oldest {humanizeMs(oldestOutstanding)}
+                    </span>
+                  )}
+                </span>
+              )}
+            </header>
+            <ul className="space-y-0">
+              {items.map((inv) => (
+                <li
+                  key={inv.id}
+                  className="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] hover:bg-muted/40"
+                >
+                  <UrgencyDot urgency={invoiceUrgency(inv.status)} />
+                  <span className="w-[100px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                    {inv.invoiceNumber ?? inv.id.slice(0, 8)}
+                  </span>
+                  {inv.workOrderRef && (
+                    <Link
+                      href={`?d=${inv.workOrderRef}`}
+                      scroll={false}
+                      className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground hover:text-foreground"
+                    >
+                      {inv.workOrderRef}
+                    </Link>
+                  )}
+                  <span className="flex-1 truncate text-muted-foreground">
+                    {invoiceStatusLabel(inv.status)}
+                    {inv.approverName && inv.status !== "submitted" && (
+                      <span className="ml-1 text-muted-foreground/70">
+                        by {inv.approverName}
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-mono text-sm tabular-nums">
+                    ${(Number(inv.totalCents) / 100).toFixed(2)}
+                  </span>
+                  <TimeSince at={(inv.submittedAt ?? inv.updatedAt).toISOString()} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
   );
+}
+
+function isOutstanding(r: InvoiceRow): boolean {
+  return r.status === "submitted" || r.status === "disputed";
 }
 
 function invoiceUrgency(
   status: string,
 ): "overdue" | "blocked" | "inflow" | "done" | "muted" {
-  if (status === "rejected") return "overdue";
+  if (status === "disputed") return "overdue";
   if (status === "submitted") return "blocked";
   if (status === "approved") return "inflow";
   if (status === "paid") return "done";
   return "muted";
 }
 
-function ExportTab() {
-  return (
-    <div className="mt-3 max-w-md space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Download the full work-order export as CSV. Includes status, due
-        dates, costs, and property info.
-      </p>
-      <Button asChild>
-        <a href="/api/export/work-orders.csv" download>
-          <Download className="size-4" />
-          Export work orders (CSV)
-        </a>
-      </Button>
-    </div>
-  );
+function invoiceStatusLabel(status: string): string {
+  switch (status) {
+    case "submitted":
+      return "awaiting review";
+    case "approved":
+      return "approved · awaiting payment";
+    case "paid":
+      return "paid";
+    case "disputed":
+      return "disputed";
+    case "draft":
+      return "draft";
+    case "void":
+      return "void";
+    default:
+      return status;
+  }
 }
 
 function strOrNull(v: string | string[] | undefined): string | null {

@@ -5,6 +5,7 @@ import { Inbox as InboxIcon } from "lucide-react";
 import { loadInbox } from "@/lib/server/inbox";
 import { TimeSince, TimeSinceTicker } from "@/components/operator/time-since";
 import { UrgencyDot } from "@/components/operator/urgency-dot";
+import { notificationKindLabel } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -79,7 +80,7 @@ export default async function InboxPage() {
                     )}
                     {!threadChild && (
                       <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        {n.kind.replace(/_/g, " ")}
+                        {notificationKindLabel(n.kind)}
                       </span>
                     )}
                     <TimeSince at={n.at} className="ml-auto" />

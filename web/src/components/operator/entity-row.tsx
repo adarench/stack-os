@@ -85,6 +85,7 @@ export function EntityRow({
 
   const bar = severityBarTone(row);
   const titleEmphasis = row.priority === "urgent" || row.urgency === "overdue";
+  const recede = row.priority === "low" && bar === null && row.urgency !== "overdue";
 
   return (
     <div
@@ -96,14 +97,15 @@ export function EntityRow({
       className={cn(
         "group relative flex h-8 cursor-default select-none items-center gap-2 rounded-md pl-2 pr-2 text-[13px]",
         "hover:bg-muted/40 focus:bg-muted/40 focus:outline-none focus-visible:bg-muted/60",
-        bar !== null && "pl-[10px]",
+        bar !== null && "pl-[11px]",
+        recede && "opacity-70",
       )}
     >
       {bar !== null && (
         <span
           aria-hidden
           className={cn(
-            "absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full",
+            "absolute left-0 top-1 bottom-1 w-[3px] rounded-sm",
             bar === "red" && "bg-urgency-overdue",
             bar === "amber" && "bg-urgency-blocked",
           )}

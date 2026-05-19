@@ -3,6 +3,9 @@ import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { invoices } from "@db/schema/financials";
 import { approvals } from "@db/schema/approvals";
+import { vendors } from "@db/schema/vendors";
+import { workOrders } from "@db/schema/work-orders";
+import { users } from "@db/schema/users";
 import {
   INVOICE_STATUSES,
   approvalLevelFor,
@@ -139,6 +142,77 @@ async function insertAndMaybeAutoApprove(
   }
 
   return { invoice: row, approvalLevel: level };
+}
+
+/**
+ * Operator-context invoice list — joins vendor + WO + approver so the
+ * /money invoices tab can show "STK-3041 · Stark Plumbing · WO-1001 ·
+ * approved by AR" instead of a bare ID + status. Used by the rendered
+ * money surface; `listInvoices()` below stays unchanged for tests +
+ * legacy admin views.
+ */
+export interface InvoiceRow {
+  id: string;
+  invoiceNumber: string | null;
+  totalCents: string;
+  status: string;
+  submittedAt: Date | null;
+  approvedAt: Date | null;
+  paidAt: Date | null;
+  updatedAt: Date;
+  vendorId: string;
+  vendorName: string | null;
+  workOrderId: string | null;
+  workOrderRef: string | null;
+  workOrderTitle: string | null;
+  approverName: string | null;
+}
+
+export async function listInvoicesEnriched(): Promise<InvoiceRow[]> {
+  return withStaffScope(async (tx, ctx) => {
+    const rows = await tx
+      .select({
+        id: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        totalCents: invoices.totalCents,
+        status: invoices.status,
+        submittedAt: invoices.submittedAt,
+        approvedAt: invoices.approvedAt,
+        paidAt: invoices.paidAt,
+        updatedAt: invoices.updatedAt,
+        vendorId: invoices.vendorId,
+        vendorName: vendors.name,
+        workOrderId: invoices.workOrderId,
+        workOrderNumber: workOrders.number,
+        workOrderTitle: workOrders.title,
+        approverName: users.name,
+        approverEmail: users.email,
+      })
+      .from(invoices)
+      .leftJoin(vendors, eq(vendors.id, invoices.vendorId))
+      .leftJoin(workOrders, eq(workOrders.id, invoices.workOrderId))
+      .leftJoin(users, eq(users.id, invoices.approvedByUserId))
+      .where(eq(invoices.orgId, ctx.orgId))
+      .orderBy(desc(invoices.createdAt))
+      .limit(200);
+
+    return rows.map((r) => ({
+      id: r.id,
+      invoiceNumber: r.invoiceNumber,
+      totalCents: String(r.totalCents),
+      status: r.status,
+      submittedAt: r.submittedAt,
+      approvedAt: r.approvedAt,
+      paidAt: r.paidAt,
+      updatedAt: r.updatedAt,
+      vendorId: r.vendorId,
+      vendorName: r.vendorName,
+      workOrderId: r.workOrderId,
+      workOrderRef: r.workOrderNumber ? `WO-${r.workOrderNumber}` : null,
+      workOrderTitle: r.workOrderTitle,
+      approverName: r.approverName ?? (r.approverEmail ? r.approverEmail.split("@")[0] ?? null : null),
+    }));
+  });
 }
 
 export async function listInvoices(filter?: { status?: InvoiceStatus; vendorId?: string }) {
