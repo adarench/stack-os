@@ -11,8 +11,17 @@ import { attachments } from "@db/schema/attachments";
 import { comments } from "@db/schema/comments";
 import { approvals } from "@db/schema/approvals";
 import { users } from "@db/schema/users";
+import { assignments } from "@db/schema/assignments";
 import { WORK_ORDER_STATUSES, canTransition, type WorkOrderStatus } from "@contracts/state-machines/work-order";
 import { withStaffScope, type ScopedDB } from "./db";
+import {
+  loadUnitHistory,
+  loadVendorReliability,
+  loadSiblingWork,
+  type UnitHistory,
+  type VendorReliability,
+  type SiblingWorkItem,
+} from "./memory";
 
 export interface EntityDetail {
   ref: string;
@@ -54,6 +63,10 @@ export interface EntityDetail {
     amountCents: string | null;
     createdAt: string;
   }>;
+  /** Memory layer — embedded facts about this entity's context. */
+  unitHistory?: UnitHistory | null;
+  vendorReliability?: VendorReliability | null;
+  siblingWork?: SiblingWorkItem[];
 }
 
 export interface ActivityItem {
@@ -139,6 +152,8 @@ async function loadWO(
       dueAt: workOrders.dueAt,
       createdAt: workOrders.createdAt,
       updatedAt: workOrders.updatedAt,
+      propertyId: workOrders.propertyId,
+      unitId: workOrders.unitId,
       propertyName: properties.name,
       unitLabel: units.label,
     })
@@ -150,12 +165,33 @@ async function loadWO(
   const r = rows[0];
   if (!r) return null;
 
-  const [activity, costs, files, commentsList, pending] = await Promise.all([
+  // Resolve the active assigned vendor (assignee_type='vendor'). Drawer
+  // memory needs the vendor's id for the reliability stats; the row's
+  // displayed ownerName comes through the queue loader, not here.
+  const activeVendor = await loadActiveAssignedVendorId(tx, orgId, r.id);
+
+  const [
+    activity,
+    costs,
+    files,
+    commentsList,
+    pending,
+    unitHistory,
+    vendorReliability,
+    siblingWork,
+  ] = await Promise.all([
     loadActivity(tx, orgId, "work_order", r.id),
     loadCosts(tx, orgId, r.id),
     loadFiles(tx, orgId, "work_order", r.id),
     loadComments(tx, orgId, "work_order", r.id),
     loadPendingApprovalsForWo(tx, orgId, r.id),
+    r.unitId ? loadUnitHistory(tx, orgId, r.unitId, r.id) : Promise.resolve(null),
+    activeVendor
+      ? loadVendorReliability(tx, orgId, activeVendor)
+      : Promise.resolve(null),
+    r.propertyId
+      ? loadSiblingWork(tx, orgId, r.propertyId, r.id)
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -178,7 +214,31 @@ async function loadWO(
     comments: commentsList,
     nextStatuses: nextWorkOrderStatuses(r.status),
     pendingApprovals: pending,
+    unitHistory,
+    vendorReliability,
+    siblingWork,
   };
+}
+
+async function loadActiveAssignedVendorId(
+  tx: ScopedDB,
+  orgId: string,
+  woId: string,
+): Promise<string | null> {
+  const rows = await tx
+    .select({ assigneeId: assignments.assigneeId })
+    .from(assignments)
+    .where(
+      and(
+        eq(assignments.orgId, orgId),
+        eq(assignments.targetType, "work_order"),
+        eq(assignments.targetId, woId),
+        eq(assignments.assigneeType, "vendor"),
+      ),
+    )
+    .orderBy(desc(assignments.assignedAt))
+    .limit(1);
+  return rows[0]?.assigneeId ?? null;
 }
 
 async function loadIns(

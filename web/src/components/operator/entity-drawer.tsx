@@ -42,6 +42,31 @@ interface ActivityItem {
   diff: unknown;
 }
 
+interface UnitHistoryC {
+  countLast90d: number;
+  countAllTime: number;
+  topTradeHint: string | null;
+  previousResolved: { ref: string; title: string; resolvedAt: string } | null;
+}
+
+interface VendorReliabilityC {
+  vendorId: string;
+  vendorName: string;
+  sampleSize: number;
+  onTimeRate: number | null;
+  overdueCompletions: number;
+  activeCount: number;
+  activeStressed: number;
+}
+
+interface SiblingWorkItemC {
+  ref: string;
+  title: string;
+  status: string;
+  dueAt: string | null;
+  unitLabel: string | null;
+}
+
 interface EntityDetail {
   ref: string;
   type: "wo" | "ins" | "prj" | "approval";
@@ -88,6 +113,9 @@ interface EntityDetail {
     amountCents: string | null;
     createdAt: string;
   }>;
+  unitHistory?: UnitHistoryC | null;
+  vendorReliability?: VendorReliabilityC | null;
+  siblingWork?: SiblingWorkItemC[];
 }
 
 type State =
@@ -361,6 +389,10 @@ function WorkOverview({
         </Field>
       )}
 
+      <UnitHistoryBlock history={data.unitHistory} unitLabel={data.unit?.label} property={data.property?.name} />
+      <VendorBlock reliability={data.vendorReliability} />
+      <SiblingWorkBlock items={data.siblingWork} propertyName={data.property?.name} />
+
       {data.type === "wo" && data.nextStatuses.length > 0 && (
         <Field label="Move this">
           <StatusButtons
@@ -371,6 +403,174 @@ function WorkOverview({
           />
         </Field>
       )}
+    </div>
+  );
+}
+
+/* -------------------- memory blocks -------------------- */
+
+/**
+ * Recurrence + tenant context for the unit this WO sits on. Renders only
+ * when there's a real signal (≥1 prior WO in the window). Reads as prose:
+ * "3 WOs in 90d (2 plumbing) · last: WO-1023 resolved 14d ago".
+ */
+function UnitHistoryBlock({
+  history,
+  unitLabel,
+  property,
+}: {
+  history?: UnitHistoryC | null;
+  unitLabel?: string;
+  property?: string;
+}) {
+  if (!history || history.countLast90d === 0) return null;
+  const heading = [property, unitLabel].filter(Boolean).join(" · ");
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        Unit history{heading && ` · ${heading}`}
+      </div>
+      <div className="mt-1 space-y-0.5 font-mono text-[11px] tabular-nums text-foreground/90">
+        <div>
+          <span className={cn(history.countLast90d >= 3 && "text-urgency-blocked")}>
+            {history.countLast90d}
+          </span>{" "}
+          <span className="text-muted-foreground">
+            {history.countLast90d === 1 ? "WO" : "WOs"} in 90d
+            {history.topTradeHint && (
+              <span className="text-foreground/70">
+                {" "}
+                · mostly {history.topTradeHint}
+              </span>
+            )}
+          </span>
+        </div>
+        {history.previousResolved && (
+          <div className="text-muted-foreground">
+            previous:{" "}
+            <Link
+              href={`?d=${history.previousResolved.ref}`}
+              scroll={false}
+              className="text-foreground hover:underline"
+            >
+              {history.previousResolved.ref}
+            </Link>{" "}
+            resolved <TimeSince at={history.previousResolved.resolvedAt} className="inline" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Vendor reliability + current load. Statistics gated on min sample —
+ * "100% over 1 job" is noise, not signal. Always reads as compact prose;
+ * never a meter, never a star rating.
+ */
+function VendorBlock({ reliability }: { reliability?: VendorReliabilityC | null }) {
+  if (!reliability) return null;
+  const { vendorName, sampleSize, onTimeRate, overdueCompletions, activeCount, activeStressed } =
+    reliability;
+
+  // Nothing useful to say.
+  if (sampleSize === 0 && activeCount === 0) return null;
+
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        Vendor · {vendorName}
+      </div>
+      <div className="mt-1 space-y-0.5 font-mono text-[11px] tabular-nums text-foreground/90">
+        {onTimeRate !== null && (
+          <div>
+            <span
+              className={cn(
+                onTimeRate >= 0.9
+                  ? "text-foreground"
+                  : onTimeRate >= 0.7
+                    ? "text-urgency-blocked"
+                    : "text-urgency-overdue",
+              )}
+            >
+              {Math.round(onTimeRate * 100)}% on-time
+            </span>{" "}
+            <span className="text-muted-foreground">
+              over {sampleSize} jobs (30d)
+              {overdueCompletions > 0 && (
+                <span className="text-urgency-blocked">
+                  {" "}
+                  · {overdueCompletions} late
+                </span>
+              )}
+            </span>
+          </div>
+        )}
+        {activeCount > 0 && (
+          <div className="text-muted-foreground">
+            <span className="text-foreground">{activeCount}</span> active
+            {activeStressed > 0 && (
+              <span className="text-urgency-overdue">
+                {" "}
+                · {activeStressed} blocked or overdue
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sibling work at the same property. Operator sees "also here at 247
+ * Maple" so they can batch trips or notice clustering. Renders only when
+ * non-empty.
+ */
+function SiblingWorkBlock({
+  items,
+  propertyName,
+}: {
+  items?: SiblingWorkItemC[];
+  propertyName?: string;
+}) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        Also here{propertyName && ` · ${propertyName}`}
+      </div>
+      <ul className="mt-1 space-y-0.5">
+        {items.map((s) => (
+          <li
+            key={s.ref}
+            className="flex items-baseline gap-2 font-mono text-[11px] tabular-nums"
+          >
+            <Link
+              href={`?d=${s.ref}`}
+              scroll={false}
+              className="shrink-0 text-foreground hover:underline"
+            >
+              {s.ref}
+            </Link>
+            <span className="min-w-0 flex-1 truncate text-foreground/80">
+              {s.title}
+            </span>
+            {s.unitLabel && (
+              <span className="shrink-0 text-muted-foreground">{s.unitLabel}</span>
+            )}
+            <span
+              className={cn(
+                "shrink-0 uppercase tracking-wider text-[10px]",
+                s.status === "blocked" && "text-urgency-blocked",
+                s.dueAt && new Date(s.dueAt) < new Date() && "text-urgency-overdue",
+              )}
+            >
+              {workOrderStatusLabel(s.status)}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
