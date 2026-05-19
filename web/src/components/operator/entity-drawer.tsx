@@ -67,6 +67,23 @@ interface SiblingWorkItemC {
   unitLabel: string | null;
 }
 
+interface TenantContextC {
+  name: string | null;
+  email: string | null;
+  unitTicketCount: number;
+}
+
+interface InspectionLineageC {
+  ref: string;
+  kind: string;
+  openFindingsCount: number;
+}
+
+interface DispatchEventC {
+  status: string;
+  at: string;
+}
+
 interface EntityDetail {
   ref: string;
   type: "wo" | "ins" | "prj" | "approval";
@@ -116,6 +133,9 @@ interface EntityDetail {
   unitHistory?: UnitHistoryC | null;
   vendorReliability?: VendorReliabilityC | null;
   siblingWork?: SiblingWorkItemC[];
+  tenantContext?: TenantContextC | null;
+  inspectionLineage?: InspectionLineageC | null;
+  dispatchTimeline?: DispatchEventC[];
 }
 
 type State =
@@ -204,7 +224,7 @@ export function EntityDrawer() {
     >
       <header className="flex flex-row items-center gap-2 border-b border-border px-4 py-3">
         <UrgencyDot urgency={statusUrgency(state)} />
-        <h2 className="font-mono text-sm">{ref ?? ""}</h2>
+        <h2 className="font-mono text-sm" data-ref={ref ?? undefined}>{ref ?? ""}</h2>
         {state.kind === "ready" && (
           <span className="truncate text-sm text-muted-foreground">
             · {drawerTitle(state.data)}
@@ -368,6 +388,7 @@ function WorkOverview({
                 <Link
                   href={`?d=${a.ref}`}
                   scroll={false}
+                  data-ref={a.ref}
                   className="font-mono tabular-nums text-foreground hover:underline"
                 >
                   {a.ref}
@@ -389,9 +410,12 @@ function WorkOverview({
         </Field>
       )}
 
+      <InspectionLineageBlock lineage={data.inspectionLineage} />
+      <TenantBlock tenant={data.tenantContext} />
       <UnitHistoryBlock history={data.unitHistory} unitLabel={data.unit?.label} property={data.property?.name} />
       <VendorBlock reliability={data.vendorReliability} />
       <SiblingWorkBlock items={data.siblingWork} propertyName={data.property?.name} />
+      <DispatchTimelineBlock events={data.dispatchTimeline} />
 
       {data.type === "wo" && data.nextStatuses.length > 0 && (
         <Field label="Move this">
@@ -451,6 +475,7 @@ function UnitHistoryBlock({
             <Link
               href={`?d=${history.previousResolved.ref}`}
               scroll={false}
+              data-ref={history.previousResolved.ref}
               className="text-foreground hover:underline"
             >
               {history.previousResolved.ref}
@@ -549,6 +574,7 @@ function SiblingWorkBlock({
             <Link
               href={`?d=${s.ref}`}
               scroll={false}
+              data-ref={s.ref}
               className="shrink-0 text-foreground hover:underline"
             >
               {s.ref}
@@ -849,6 +875,7 @@ function ApprovalCockpit({
               <Link
                 href={`?d=${data.linkedWo.ref}`}
                 scroll={false}
+                data-ref={data.linkedWo.ref}
                 className="block w-full rounded-md border border-border bg-card px-3 py-2 hover:bg-accent"
               >
                 <div className="flex items-baseline gap-2">
@@ -896,6 +923,139 @@ function ApprovalCockpit({
         <TimelineFeed data={data} onMutated={onMutated} />
       </TabsContent>
     </Tabs>
+  );
+}
+
+/* -------------------- Phase B memory blocks -------------------- */
+
+/**
+ * Tenant context — who's the human on the other end of the call. Renders
+ * a single compact prose line. Skipped when no tenant lives at the unit.
+ */
+function TenantBlock({ tenant }: { tenant?: TenantContextC | null }) {
+  if (!tenant) return null;
+  const name = tenant.name ?? tenant.email ?? "tenant";
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        Tenant
+      </div>
+      <div className="mt-1 font-mono text-[11px] tabular-nums text-foreground/90">
+        <span className="text-foreground">{name}</span>
+        {tenant.unitTicketCount > 0 && (
+          <span className="text-muted-foreground">
+            {" "}
+            · {tenant.unitTicketCount}{" "}
+            {tenant.unitTicketCount === 1 ? "ticket" : "tickets"} at this unit
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Inspection lineage — when this WO was spawned from an inspection, surface
+ * the inspection ref + open-findings count. Lets the operator jump back to
+ * the parent walk-through.
+ */
+function InspectionLineageBlock({
+  lineage,
+}: {
+  lineage?: InspectionLineageC | null;
+}) {
+  if (!lineage) return null;
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        From inspection
+      </div>
+      <div className="mt-1 font-mono text-[11px] tabular-nums text-foreground/90">
+        <Link
+          href={`?d=${lineage.ref}`}
+          scroll={false}
+          data-ref={lineage.ref}
+          className="text-foreground hover:underline"
+        >
+          {lineage.ref}
+        </Link>
+        <span className="text-muted-foreground">
+          {" "}
+          · {lineage.kind.replace(/_/g, " ")} inspection
+        </span>
+        {lineage.openFindingsCount > 0 && (
+          <span className="text-urgency-blocked">
+            {" "}
+            · {lineage.openFindingsCount}{" "}
+            {lineage.openFindingsCount === 1 ? "finding" : "findings"} still open
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Dispatch dot-strip — last 6 status changes oldest → newest. Operator sees
+ * the *shape* of the WO's life at a glance. Not a chart; just dots + verbs.
+ */
+function DispatchTimelineBlock({
+  events,
+}: {
+  events?: DispatchEventC[];
+}) {
+  if (!events || events.length === 0) return null;
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        Dispatch
+      </div>
+      <ol className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] tabular-nums">
+        {events.map((e, i) => {
+          const tone =
+            e.status === "blocked"
+              ? "text-urgency-blocked"
+              : e.status === "cancelled"
+                ? "text-urgency-overdue"
+                : e.status === "closed" || e.status === "verified"
+                  ? "text-muted-foreground"
+                  : "text-foreground/80";
+          return (
+            <li
+              key={`${e.at}-${i}`}
+              className="flex items-baseline gap-1"
+            >
+              <span
+                className={cn(
+                  "size-1.5 self-center rounded-full",
+                  e.status === "blocked" && "bg-urgency-blocked",
+                  e.status === "cancelled" && "bg-urgency-overdue",
+                  e.status === "in_progress" && "bg-urgency-inflow",
+                  e.status === "closed" && "bg-urgency-done",
+                  e.status === "verified" && "bg-urgency-done",
+                  !["blocked", "cancelled", "in_progress", "closed", "verified"].includes(
+                    e.status,
+                  ) && "bg-muted-foreground/60",
+                )}
+                aria-hidden
+              />
+              <span className={tone}>
+                {workOrderStatusLabel(e.status)}
+              </span>
+              <TimeSince
+                at={e.at}
+                className="text-muted-foreground/70"
+              />
+              {i < events.length - 1 && (
+                <span className="text-muted-foreground/40" aria-hidden>
+                  →
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 

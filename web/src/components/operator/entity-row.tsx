@@ -23,6 +23,9 @@ export interface EntityRowData {
   urgency: Urgency;
   /** Open + untouched for 7d+. Drives the stale chip. */
   aged?: boolean;
+  /** Tier 3 row-level memory hints — surfaced as a subtitle line under the
+   *  title. Server-gated on thresholds; never more than 2 per row. */
+  hints?: Array<{ text: string; tone: "alert" | "note" }>;
 }
 
 /**
@@ -87,18 +90,22 @@ export function EntityRow({
   const titleEmphasis = row.priority === "urgent" || row.urgency === "overdue";
   const recede = row.priority === "low" && bar === null && row.urgency !== "overdue";
 
+  const hasHints = (row.hints?.length ?? 0) > 0;
+
   return (
     <div
       data-row="true"
+      data-ref={row.ref}
       role="button"
       tabIndex={0}
       onClick={open}
       onKeyDown={onKey}
       className={cn(
-        "group relative flex h-8 cursor-default select-none items-center gap-2 rounded-md pl-2 pr-2 text-[13px]",
+        "group relative cursor-default select-none rounded-md pl-2 pr-2 text-[13px]",
         "hover:bg-muted/40 focus:bg-muted/40 focus:outline-none focus-visible:bg-muted/60",
         bar !== null && "pl-[11px]",
         recede && "opacity-70",
+        hasHints ? "py-1" : "h-8",
       )}
     >
       {bar !== null && (
@@ -111,25 +118,43 @@ export function EntityRow({
           )}
         />
       )}
-      <UrgencyDot urgency={row.urgency} pulse={row.urgency === "overdue"} />
-      <span className="w-[68px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-        {row.ref}
-      </span>
-      <PriorityChip priority={row.priority ?? null} />
-      <span
-        className={cn(
-          "truncate",
-          titleEmphasis ? "font-medium text-foreground" : "text-foreground",
-        )}
-      >
-        {row.title}
-        {subtitle && (
-          <span className="ml-2 text-muted-foreground">— {subtitle}</span>
-        )}
-      </span>
-      <span className="ml-auto flex items-center gap-2">
-        <Tail row={row} mode={tailMode} showRelativeFuture={!!showRelativeFuture} />
-      </span>
+      <div className="flex h-6 items-center gap-2">
+        <UrgencyDot urgency={row.urgency} pulse={row.urgency === "overdue"} />
+        <span className="w-[68px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+          {row.ref}
+        </span>
+        <PriorityChip priority={row.priority ?? null} />
+        <span
+          className={cn(
+            "truncate",
+            titleEmphasis ? "font-medium text-foreground" : "text-foreground",
+          )}
+        >
+          {row.title}
+          {subtitle && (
+            <span className="ml-2 text-muted-foreground">— {subtitle}</span>
+          )}
+        </span>
+        <span className="ml-auto flex items-center gap-2">
+          <Tail row={row} mode={tailMode} showRelativeFuture={!!showRelativeFuture} />
+        </span>
+      </div>
+      {hasHints && (
+        <div className="flex items-center gap-3 pl-[88px] font-mono text-[10px] tabular-nums leading-tight">
+          {row.hints!.map((h, i) => (
+            <span
+              key={i}
+              className={cn(
+                h.tone === "alert"
+                  ? "text-urgency-overdue/85"
+                  : "text-muted-foreground",
+              )}
+            >
+              {h.text}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

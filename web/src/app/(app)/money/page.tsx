@@ -132,6 +132,7 @@ function ApprovalsTab({ rows }: { rows: Approval[] }) {
                   <Link
                     href={`?d=${a.woRef}`}
                     scroll={false}
+                    data-ref={a.woRef}
                     className="font-mono text-[11px] tabular-nums text-muted-foreground hover:text-foreground"
                   >
                     {a.woRef}
@@ -159,8 +160,27 @@ function ApprovalsTab({ rows }: { rows: Approval[] }) {
                   approvalId={a.id}
                   amountCents={Number(a.amountCents ?? 0)}
                 />
+                {a.vendorStressed !== null && a.vendorStressed >= 2 && (
+                  <span
+                    className={cn(
+                      "ml-auto font-mono text-[10px] uppercase tracking-wider",
+                      a.vendorStressed >= 4
+                        ? "text-urgency-overdue"
+                        : "text-urgency-blocked",
+                    )}
+                  >
+                    vendor: {a.vendorStressed} stressed
+                  </span>
+                )}
                 {a.woOwnerName && (
-                  <span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span
+                    className={cn(
+                      "flex items-center gap-1.5 text-[11px] text-muted-foreground",
+                      a.vendorStressed !== null && a.vendorStressed >= 2
+                        ? ""
+                        : "ml-auto",
+                    )}
+                  >
                     holding
                     <OwnerChip name={a.woOwnerName} />
                   </span>
@@ -338,6 +358,7 @@ function InvoicesTab({ rows }: { rows: InvoiceRow[] }) {
                     <Link
                       href={`?d=${inv.workOrderRef}`}
                       scroll={false}
+                      data-ref={inv.workOrderRef}
                       className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground hover:text-foreground"
                     >
                       {inv.workOrderRef}

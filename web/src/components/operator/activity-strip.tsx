@@ -67,6 +67,7 @@ export function ActivityStrip({ events }: { events: ActivityEvent[] }) {
               <button
                 type="button"
                 onClick={() => openRef(e.targetRef!)}
+                data-ref={e.targetRef}
                 className="shrink-0 text-foreground hover:underline"
               >
                 {e.targetRef}

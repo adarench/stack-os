@@ -18,9 +18,15 @@ import {
   loadUnitHistory,
   loadVendorReliability,
   loadSiblingWork,
+  loadTenantContext,
+  loadInspectionLineage,
+  loadDispatchTimeline,
   type UnitHistory,
   type VendorReliability,
   type SiblingWorkItem,
+  type TenantContext,
+  type InspectionLineage,
+  type DispatchEvent,
 } from "./memory";
 
 export interface EntityDetail {
@@ -67,6 +73,12 @@ export interface EntityDetail {
   unitHistory?: UnitHistory | null;
   vendorReliability?: VendorReliability | null;
   siblingWork?: SiblingWorkItem[];
+  /** Phase B: tenant context (when unit has a tenant). */
+  tenantContext?: TenantContext | null;
+  /** Phase B: inspection lineage (when WO was spawned from an inspection). */
+  inspectionLineage?: InspectionLineage | null;
+  /** Phase B: last 6 status transitions, oldest → newest. */
+  dispatchTimeline?: DispatchEvent[];
 }
 
 export interface ActivityItem {
@@ -154,6 +166,7 @@ async function loadWO(
       updatedAt: workOrders.updatedAt,
       propertyId: workOrders.propertyId,
       unitId: workOrders.unitId,
+      spawnedFromInspectionId: workOrders.spawnedFromInspectionId,
       propertyName: properties.name,
       unitLabel: units.label,
     })
@@ -179,6 +192,9 @@ async function loadWO(
     unitHistory,
     vendorReliability,
     siblingWork,
+    tenantContext,
+    inspectionLineage,
+    dispatchTimeline,
   ] = await Promise.all([
     loadActivity(tx, orgId, "work_order", r.id),
     loadCosts(tx, orgId, r.id),
@@ -192,6 +208,13 @@ async function loadWO(
     r.propertyId
       ? loadSiblingWork(tx, orgId, r.propertyId, r.id)
       : Promise.resolve([]),
+    r.unitId
+      ? loadTenantContext(tx, orgId, r.unitId)
+      : Promise.resolve(null),
+    r.spawnedFromInspectionId
+      ? loadInspectionLineage(tx, orgId, r.spawnedFromInspectionId)
+      : Promise.resolve(null),
+    loadDispatchTimeline(tx, orgId, r.id),
   ]);
 
   return {
@@ -217,6 +240,9 @@ async function loadWO(
     unitHistory,
     vendorReliability,
     siblingWork,
+    tenantContext,
+    inspectionLineage,
+    dispatchTimeline,
   };
 }
 

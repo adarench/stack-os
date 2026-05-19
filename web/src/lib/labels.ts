@@ -160,6 +160,34 @@ export function auditActionLabel(action: string): string {
   }
 }
 
+/* -------------------- notification priority -------------------- */
+
+/**
+ * Operational weight of a notification kind. Drives whether the inbox row
+ * renders bold (high), normal, or muted (quiet). The discipline: don't
+ * surface count, just opacity + font-weight.
+ */
+export function notificationKindPriority(
+  kind: string,
+): "high" | "standard" | "quiet" {
+  switch (kind) {
+    case "wo_blocked":
+    case "wo_overdue":
+    case "coi_expired":
+    case "tenant_insurance_expired":
+    case "vendor_declined":
+    case "approval_decided":
+      return "high";
+    case "template_spawned":
+    case "coi_received":
+    case "tenant_insurance_received":
+    case "wo_resolved":
+      return "quiet";
+    default:
+      return "standard";
+  }
+}
+
 /* -------------------- notification kinds -------------------- */
 
 /**

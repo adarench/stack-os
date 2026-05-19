@@ -4,6 +4,9 @@ import { workOrders } from "@db/schema/work-orders";
 import { assignments } from "@db/schema/assignments";
 import { vendors } from "@db/schema/vendors";
 import { units } from "@db/schema/units";
+import { tenantUsers } from "@db/schema/compliance";
+import { inspections, inspectionFindings } from "@db/schema/inspections";
+import { auditLog } from "@db/schema/audit-log";
 import type { ScopedDB } from "./db";
 
 /**
@@ -314,6 +317,146 @@ export async function loadSiblingWork(
     dueAt: r.dueAt ? r.dueAt.toISOString() : null,
     unitLabel: r.unitLabel,
   }));
+}
+
+/* -------------------- tenant context -------------------- */
+
+export interface TenantContext {
+  name: string | null;
+  email: string | null;
+  /** Total WOs ever filed at this tenant's unit. Used as a proxy for
+   *  resident maintenance load — operators read "5 tickets all time"
+   *  before picking up the phone. */
+  unitTicketCount: number;
+}
+
+/**
+ * Single primary tenant per unit. Real Stack OS may have co-tenants;
+ * we surface the most-recent active one (or fall back to any tenant).
+ */
+export async function loadTenantContext(
+  tx: ScopedDB,
+  orgId: string,
+  unitId: string,
+): Promise<TenantContext | null> {
+  const t = await tx
+    .select({
+      id: tenantUsers.id,
+      name: tenantUsers.name,
+      email: tenantUsers.email,
+    })
+    .from(tenantUsers)
+    .where(
+      and(
+        eq(tenantUsers.orgId, orgId),
+        eq(tenantUsers.unitId, unitId),
+        eq(tenantUsers.status, "active"),
+      ),
+    )
+    .orderBy(desc(tenantUsers.createdAt))
+    .limit(1);
+  if (!t[0]) return null;
+  const countRow = await tx
+    .select({ n: drizzleSql<string>`count(*)::text` })
+    .from(workOrders)
+    .where(and(eq(workOrders.orgId, orgId), eq(workOrders.unitId, unitId)));
+  return {
+    name: t[0].name,
+    email: t[0].email,
+    unitTicketCount: Number(countRow[0]?.n ?? 0),
+  };
+}
+
+/* -------------------- inspection lineage -------------------- */
+
+export interface InspectionLineage {
+  ref: string;
+  kind: string;
+  /** Findings on the spawning inspection that have NOT yet been resolved
+   *  via a spawned WO completion. Operationally useful — tells the
+   *  operator "the walk-through isn't done." */
+  openFindingsCount: number;
+}
+
+export async function loadInspectionLineage(
+  tx: ScopedDB,
+  orgId: string,
+  inspectionId: string,
+): Promise<InspectionLineage | null> {
+  const ins = await tx
+    .select({ id: inspections.id, kind: inspections.kind })
+    .from(inspections)
+    .where(and(eq(inspections.orgId, orgId), eq(inspections.id, inspectionId)))
+    .limit(1);
+  if (!ins[0]) return null;
+  const open = await tx
+    .select({ n: drizzleSql<string>`count(*)::text` })
+    .from(inspectionFindings)
+    .where(
+      and(
+        eq(inspectionFindings.orgId, orgId),
+        eq(inspectionFindings.inspectionId, ins[0].id),
+        eq(inspectionFindings.pass, false),
+      ),
+    );
+  return {
+    ref: `INS-${ins[0].id.slice(0, 6).toUpperCase()}`,
+    kind: ins[0].kind,
+    openFindingsCount: Number(open[0]?.n ?? 0),
+  };
+}
+
+/* -------------------- dispatch timeline -------------------- */
+
+export interface DispatchEvent {
+  status: string;
+  at: string;
+}
+
+/**
+ * Last 6 status transitions on this WO, oldest → newest. Rendered as a
+ * compact dot-strip in the drawer so the operator sees the *shape* of
+ * the WO's life at a glance. Not a chart — just dots + verbs.
+ */
+export async function loadDispatchTimeline(
+  tx: ScopedDB,
+  orgId: string,
+  woId: string,
+): Promise<DispatchEvent[]> {
+  const rows = await tx
+    .select({
+      diff: auditLog.diff,
+      at: auditLog.createdAt,
+    })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.orgId, orgId),
+        eq(auditLog.targetType, "work_order"),
+        eq(auditLog.targetId, woId),
+        eq(auditLog.action, "status_changed"),
+      ),
+    )
+    .orderBy(asc(auditLog.createdAt))
+    .limit(6);
+  const out: DispatchEvent[] = [];
+  for (const r of rows) {
+    const status = extractStatus(r.diff);
+    if (status) out.push({ status, at: r.at.toISOString() });
+  }
+  return out;
+}
+
+function extractStatus(diff: unknown): string | null {
+  if (!diff || typeof diff !== "object") return null;
+  const d = diff as Record<string, unknown>;
+  const to = d.to;
+  if (typeof to === "string") return to;
+  if (to && typeof to === "object") {
+    const o = to as Record<string, unknown>;
+    if (typeof o.status === "string") return o.status;
+  }
+  return null;
 }
 
 /* -------------------- helpers -------------------- */

@@ -12,6 +12,7 @@ import { InstallPrompt } from "./install-prompt";
 import { OfflineIndicator } from "./offline-indicator";
 import { Toaster } from "@/components/ui/sonner";
 import { KeyboardProvider } from "./keyboard-provider";
+import { HoverGraphProvider } from "./hover-graph";
 import { EntityDrawerDocked } from "./entity-drawer-docked";
 import { cn } from "@/lib/utils";
 import type { ShellSummary } from "@/lib/server/shell";
@@ -53,6 +54,7 @@ export function AppShell({
       <TooltipProvider delayDuration={300}>
         <CommandPaletteProvider>
           <KeyboardProvider>
+            <HoverGraphProvider>
             <div className="flex h-svh flex-col">
               <TopBar summary={summary} />
               <div className="flex flex-1 overflow-hidden">
@@ -72,6 +74,7 @@ export function AppShell({
             <InstallPrompt />
             <OfflineIndicator />
             <Toaster />
+            </HoverGraphProvider>
           </KeyboardProvider>
         </CommandPaletteProvider>
       </TooltipProvider>

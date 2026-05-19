@@ -5,7 +5,7 @@ import { Inbox as InboxIcon } from "lucide-react";
 import { loadInbox } from "@/lib/server/inbox";
 import { TimeSince, TimeSinceTicker } from "@/components/operator/time-since";
 import { UrgencyDot } from "@/components/operator/urgency-dot";
-import { notificationKindLabel } from "@/lib/labels";
+import { notificationKindLabel, notificationKindPriority } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -48,51 +48,80 @@ export default async function InboxPage() {
           </p>
         ) : (
           <ul className="space-y-0">
-            {threaded.map(({ n, threadChild }) => (
-              <li
-                key={n.id}
-                className={cn(
-                  "flex items-start gap-2 rounded-md px-2 py-2 text-sm",
-                  n.unread ? "bg-card" : "opacity-70",
-                  threadChild && "pl-6 -mt-1",
-                )}
-              >
-                <UrgencyDot
-                  urgency={n.unread ? "inflow" : "muted"}
-                  className="mt-1.5"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-2">
-                    {!threadChild && (
-                      <span className="font-medium">{n.subject}</span>
-                    )}
-                    {threadChild && (
-                      <span className="text-muted-foreground">{n.subject}</span>
-                    )}
-                    {n.targetRef && (
-                      <Link
-                        href={`?d=${n.targetRef}`}
-                        scroll={false}
-                        className="font-mono text-[11px] tabular-nums text-muted-foreground hover:text-foreground"
-                      >
-                        {n.targetRef}
-                      </Link>
-                    )}
-                    {!threadChild && (
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        {notificationKindLabel(n.kind)}
-                      </span>
-                    )}
-                    <TimeSince at={n.at} className="ml-auto" />
-                  </div>
-                  {n.body && !threadChild && (
-                    <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                      {n.body}
-                    </p>
+            {threaded.map(({ n, threadChild }) => {
+              const prio = notificationKindPriority(n.kind);
+              const isHigh = prio === "high";
+              const isQuiet = prio === "quiet";
+              return (
+                <li
+                  key={n.id}
+                  className={cn(
+                    "flex items-start gap-2 rounded-md px-2 py-2 text-sm",
+                    n.unread ? "bg-card" : "opacity-70",
+                    threadChild && "pl-6 -mt-1",
+                    // Quiet events recede further so high-priority ones
+                    // pop without the loud ones needing extra paint.
+                    isQuiet && !n.unread && "opacity-50",
+                    isQuiet && n.unread && "opacity-80",
                   )}
-                </div>
-              </li>
-            ))}
+                >
+                  <UrgencyDot
+                    urgency={
+                      isHigh && n.unread
+                        ? "overdue"
+                        : n.unread
+                          ? "inflow"
+                          : "muted"
+                    }
+                    className="mt-1.5"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2">
+                      {!threadChild && (
+                        <span
+                          className={cn(
+                            isHigh ? "font-semibold" : "font-medium",
+                          )}
+                        >
+                          {n.subject}
+                        </span>
+                      )}
+                      {threadChild && (
+                        <span className="text-muted-foreground">{n.subject}</span>
+                      )}
+                      {n.targetRef && (
+                        <Link
+                          href={`?d=${n.targetRef}`}
+                          scroll={false}
+                          data-ref={n.targetRef}
+                          className="font-mono text-[11px] tabular-nums text-muted-foreground hover:text-foreground"
+                        >
+                          {n.targetRef}
+                        </Link>
+                      )}
+                      {!threadChild && (
+                        <span
+                          className={cn(
+                            "text-[10px] uppercase tracking-wider",
+                            isHigh
+                              ? "text-urgency-overdue"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {notificationKindLabel(n.kind)}
+                        </span>
+                      )}
+                      <TimeSince at={n.at} className="ml-auto" />
+                    </div>
+                    {n.body && !threadChild && (
+                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                        {n.body}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
 

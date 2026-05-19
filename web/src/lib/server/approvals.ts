@@ -1,9 +1,10 @@
 import "server-only";
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql as drizzleSql } from "drizzle-orm";
 import { approvals } from "@db/schema/approvals";
 import { workOrders } from "@db/schema/work-orders";
-import { withStaffScope } from "./db";
+import { assignments } from "@db/schema/assignments";
+import { withStaffScope, type ScopedDB } from "./db";
 import { writeAudit } from "./audit";
 import { ensureUserRow } from "./sync-user";
 import { loadActiveOwners } from "./owners";
@@ -27,6 +28,10 @@ export interface PendingApprovalRow {
   woDueAt: Date | null;
   /** Who's holding the work that this decision blocks. */
   woOwnerName: string | null;
+  /** Number of stressed (blocked or overdue) WOs the assigned vendor is
+   *  currently carrying. Tier 3: helps the approver see capacity context
+   *  before deciding. Null when no vendor is assigned. */
+  vendorStressed: number | null;
 }
 
 export async function listPendingApprovals(): Promise<PendingApprovalRow[]> {
@@ -55,7 +60,10 @@ export async function listPendingApprovals(): Promise<PendingApprovalRow[]> {
       .limit(500);
 
     const woIds = rows.map((r) => r.woId).filter((id): id is string => !!id);
-    const owners = await loadActiveOwners(tx, ctx.orgId, "work_order", woIds);
+    const [owners, vendorStress] = await Promise.all([
+      loadActiveOwners(tx, ctx.orgId, "work_order", woIds),
+      loadVendorStressForWos(tx, ctx.orgId, woIds),
+    ]);
 
     return rows.map(
       (r): PendingApprovalRow => ({
@@ -71,9 +79,71 @@ export async function listPendingApprovals(): Promise<PendingApprovalRow[]> {
         woStatus: r.woStatus,
         woDueAt: r.woDueAt,
         woOwnerName: r.woId ? owners.get(r.woId) ?? null : null,
+        vendorStressed: r.woId ? vendorStress.get(r.woId) ?? null : null,
       }),
     );
   });
+}
+
+/**
+ * For each work-order id, return the count of stressed (blocked or
+ * overdue) WOs the assigned vendor is currently carrying. Two queries:
+ * first map WO → vendor; second map vendor → stressed count. Joins
+ * are cheap because both queries are scoped by the focal WO list.
+ */
+async function loadVendorStressForWos(
+  tx: ScopedDB,
+  orgId: string,
+  woIds: string[],
+): Promise<Map<string, number>> {
+  if (woIds.length === 0) return new Map();
+  const vendorByWo = await tx
+    .select({
+      targetId: assignments.targetId,
+      vendorId: assignments.assigneeId,
+    })
+    .from(assignments)
+    .where(
+      and(
+        eq(assignments.orgId, orgId),
+        eq(assignments.targetType, "work_order"),
+        eq(assignments.assigneeType, "vendor"),
+        inArray(assignments.targetId, woIds),
+        isNull(assignments.unassignedAt),
+      ),
+    );
+  if (vendorByWo.length === 0) return new Map();
+  const uniqueVendors = Array.from(
+    new Set(vendorByWo.map((r) => r.vendorId)),
+  );
+  const now = new Date();
+  const stressedRows = await tx
+    .select({
+      vendorId: assignments.assigneeId,
+      n: drizzleSql<string>`count(distinct ${workOrders.id})::text`,
+    })
+    .from(assignments)
+    .innerJoin(workOrders, eq(workOrders.id, assignments.targetId))
+    .where(
+      and(
+        eq(assignments.orgId, orgId),
+        eq(assignments.targetType, "work_order"),
+        eq(assignments.assigneeType, "vendor"),
+        inArray(assignments.assigneeId, uniqueVendors),
+        isNull(assignments.unassignedAt),
+        drizzleSql`(${workOrders.status} = 'blocked' OR (${workOrders.dueAt} < ${now} AND ${workOrders.status} NOT IN ('closed', 'cancelled', 'resolved', 'verified')))`,
+      ),
+    )
+    .groupBy(assignments.assigneeId);
+  const stressedByVendor = new Map<string, number>();
+  for (const r of stressedRows) {
+    stressedByVendor.set(r.vendorId, Number(r.n));
+  }
+  const out = new Map<string, number>();
+  for (const r of vendorByWo) {
+    out.set(r.targetId, stressedByVendor.get(r.vendorId) ?? 0);
+  }
+  return out;
 }
 
 export const decideApprovalInput = z.object({

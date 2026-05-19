@@ -54,22 +54,59 @@ export default async function CompliancePage({
               {view.violations.map((v) => (
                 <li
                   key={v.vendorId}
-                  className="flex items-center gap-2 px-2 py-1 text-sm"
+                  className="px-2 py-1 text-sm"
                 >
-                  <UrgencyDot urgency="overdue" />
-                  <span>{v.vendorName}</span>
-                  {v.blockedOpenWoCount > 0 && (
-                    <Link
-                      href={`/work?status=open&q=${encodeURIComponent(v.vendorName)}`}
-                      className="font-mono text-[10px] tabular-nums uppercase tracking-wider text-urgency-overdue hover:underline"
-                    >
-                      blocks {v.blockedOpenWoCount} WO
-                      {v.blockedOpenWoCount === 1 ? "" : "s"}
-                    </Link>
+                  {v.blockedOpenWoCount > 0 && v.blockedWoRefs.length > 0 ? (
+                    <details className="group">
+                      <summary className="flex cursor-pointer list-none items-center gap-2">
+                        <UrgencyDot urgency="overdue" />
+                        <span>{v.vendorName}</span>
+                        <span className="font-mono text-[10px] tabular-nums uppercase tracking-wider text-urgency-overdue group-open:underline">
+                          blocks {v.blockedOpenWoCount} WO
+                          {v.blockedOpenWoCount === 1 ? "" : "s"}{" "}
+                          <span className="ml-0.5 inline-block transition-transform group-open:rotate-90">
+                            ▸
+                          </span>
+                        </span>
+                        <span className="ml-auto text-[11px] text-muted-foreground">
+                          {COMPLIANCE_COPY.noActiveCoi}
+                        </span>
+                      </summary>
+                      <ul className="mt-1 space-y-0 pl-6 font-mono text-[11px] tabular-nums">
+                        {v.blockedWoRefs.map((wo) => (
+                          <li
+                            key={wo.ref}
+                            className="flex items-baseline gap-2 py-0.5"
+                          >
+                            <Link
+                              href={`?d=${wo.ref}`}
+                              scroll={false}
+                              data-ref={wo.ref}
+                              className="text-foreground hover:underline"
+                            >
+                              {wo.ref}
+                            </Link>
+                            <span className="truncate text-muted-foreground">
+                              {wo.title}
+                            </span>
+                          </li>
+                        ))}
+                        {v.blockedOpenWoCount > v.blockedWoRefs.length && (
+                          <li className="py-0.5 text-muted-foreground">
+                            + {v.blockedOpenWoCount - v.blockedWoRefs.length} more
+                          </li>
+                        )}
+                      </ul>
+                    </details>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <UrgencyDot urgency="overdue" />
+                      <span>{v.vendorName}</span>
+                      <span className="ml-auto text-[11px] text-muted-foreground">
+                        {COMPLIANCE_COPY.noActiveCoi}
+                      </span>
+                    </div>
                   )}
-                  <span className="ml-auto text-[11px] text-muted-foreground">
-                    {COMPLIANCE_COPY.noActiveCoi}
-                  </span>
                 </li>
               ))}
             </ul>

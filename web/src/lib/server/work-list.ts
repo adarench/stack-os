@@ -1,12 +1,15 @@
 import "server-only";
-import { and, desc, eq, gte, ilike, lt, or, sql as drizzleSql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNull, lt, or, sql as drizzleSql, type SQL } from "drizzle-orm";
 import { workOrders } from "@db/schema/work-orders";
 import { inspections } from "@db/schema/inspections";
 import { projects } from "@db/schema/projects";
 import { properties } from "@db/schema/properties";
 import { units } from "@db/schema/units";
+import { assignments } from "@db/schema/assignments";
 import { withStaffScope, type ScopedDB } from "./db";
 import { loadActiveOwners } from "./owners";
+import { loadWoRowHints, type RowHint } from "./row-hints";
+import { ensureUserRow } from "./sync-user";
 import type { Urgency } from "../../components/operator/urgency-dot";
 
 /**
@@ -21,15 +24,23 @@ export type WorkType = "wo" | "ins" | "prj" | "all";
 export type DueFilter = "overdue" | "today" | "week" | "later" | "none" | "all";
 export type StatusFilter = "open" | "blocked" | "in_progress" | "done" | "all";
 
+export type MineFilter = "all" | "mine" | "unassigned";
+
 export interface WorkListFilters {
   type?: WorkType;
   status?: StatusFilter;
   due?: DueFilter;
   q?: string;
+  /** all (default) · mine (assigned to current user) · unassigned (no
+   *  active assignment). Filter is applied after the main fetch. */
+  mine?: MineFilter;
   limit?: number;
 }
 
 export interface WorkRow {
+  /** Internal id — used for client-side filtering (e.g. "mine") and the
+   *  upcoming hover-graph index. Not surfaced visually. */
+  id: string;
   ref: string;
   type: "wo" | "ins" | "prj";
   title: string;
@@ -44,6 +55,8 @@ export interface WorkRow {
   urgency: Urgency;
   /** Open + untouched for 7d+. See queue.ts for definition. */
   aged: boolean;
+  /** Tier 3 row-level memory hints (max 2). */
+  hints?: RowHint[];
   legacyHref: string;
 }
 
@@ -66,6 +79,7 @@ export async function loadWorkList(
 ): Promise<{ rows: WorkRow[]; total: number }> {
   const type = filters.type ?? "wo";
   const limit = filters.limit ?? DEFAULT_LIMIT;
+  const mine = filters.mine ?? "all";
 
   return withStaffScope(async (tx, ctx) => {
     const orgId = ctx.orgId;
@@ -81,15 +95,46 @@ export async function loadWorkList(
       : [];
 
     // Merge + sort: pinned by urgency then by lastActionAt desc.
-    const rows = [...woRows, ...insRows, ...prjRows].sort((a, b) => {
+    let rows = [...woRows, ...insRows, ...prjRows].sort((a, b) => {
       if (a.urgency !== b.urgency) {
         return URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency];
       }
       return b.lastActionAt.localeCompare(a.lastActionAt);
     });
 
+    // "Mine" / "Unassigned" filter — applied post-merge so all three
+    // entity types share the same toggle. The userId lookup uses the
+    // standard sync-user helper so phantom seed users map correctly.
+    if (mine === "mine") {
+      const userId = await ensureUserRow(tx, orgId, ctx.userId);
+      const myTargetIds = await loadMyTargetIds(tx, orgId, userId);
+      rows = rows.filter((r) => myTargetIds.has(r.id));
+    } else if (mine === "unassigned") {
+      rows = rows.filter((r) => r.ownerName === null);
+    }
+
     return { rows: rows.slice(0, limit), total: rows.length };
   });
+}
+
+/** Target ids (across all polymorphic types) currently assigned to a user. */
+async function loadMyTargetIds(
+  tx: ScopedDB,
+  orgId: string,
+  userId: string,
+): Promise<Set<string>> {
+  const rows = await tx
+    .select({ targetId: assignments.targetId })
+    .from(assignments)
+    .where(
+      and(
+        eq(assignments.orgId, orgId),
+        eq(assignments.assigneeType, "user"),
+        eq(assignments.assigneeId, userId),
+        isNull(assignments.unassignedAt),
+      ),
+    );
+  return new Set(rows.map((r) => r.targetId));
 }
 
 const URGENCY_RANK: Record<Urgency, number> = {
@@ -155,6 +200,9 @@ async function queryWorkOrders(
       priority: workOrders.priority,
       dueAt: workOrders.dueAt,
       updatedAt: workOrders.updatedAt,
+      unitId: workOrders.unitId,
+      propertyId: workOrders.propertyId,
+      spawnedFromInspectionId: workOrders.spawnedFromInspectionId,
       propertyName: properties.name,
       unitLabel: units.label,
     })
@@ -165,16 +213,16 @@ async function queryWorkOrders(
     .orderBy(desc(workOrders.updatedAt))
     .limit(limit);
 
-  const owners = await loadActiveOwners(
-    tx,
-    orgId,
-    "work_order",
-    rows.map((r) => r.id),
-  );
+  const [owners, hints] = await Promise.all([
+    loadActiveOwners(tx, orgId, "work_order", rows.map((r) => r.id)),
+    loadWoRowHints(tx, orgId, rows),
+  ]);
 
   return rows.map((r): WorkRow => {
     const urgency = woUrgency(r.status, r.dueAt, now);
+    const rowHints = hints.get(r.id) ?? [];
     return {
+      id: r.id,
       ref: `WO-${r.number}`,
       type: "wo",
       title: r.title,
@@ -188,6 +236,7 @@ async function queryWorkOrders(
       lastActionText: lastActionForWO(r.status),
       urgency,
       aged: isAged(urgency, r.updatedAt, now),
+      hints: rowHints.length > 0 ? rowHints : undefined,
       legacyHref: `/work-orders/${r.id}`,
     };
   });
@@ -254,6 +303,7 @@ async function queryInspections(
   return rows.map((r): WorkRow => {
     const urgency = insUrgency(r.status, r.scheduledFor, now);
     return {
+      id: r.id,
       ref: `INS-${r.id.slice(0, 6).toUpperCase()}`,
       type: "ins",
       title: `${capitalize(r.kind.replace(/_/g, " "))} inspection`,
@@ -321,6 +371,7 @@ async function queryProjects(
   return rows.map((r): WorkRow => {
     const urgency: Urgency = r.status === "closed" ? "done" : "muted";
     return {
+      id: r.id,
       ref: `PRJ-${r.id.slice(0, 6).toUpperCase()}`,
       type: "prj",
       title: r.name,

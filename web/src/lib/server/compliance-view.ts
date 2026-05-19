@@ -34,12 +34,19 @@ export interface TenantInsRow {
   updatedAt: string;
 }
 
+export interface BlockedWoRef {
+  ref: string;
+  title: string;
+}
+
 export interface AssignGateViolation {
   vendorId: string;
   vendorName: string;
   /** Open WOs currently assigned to this vendor. The decision-pressure number:
    *  "no COI · blocks 3 active WOs" reads sharper than the violation alone. */
   blockedOpenWoCount: number;
+  /** Up to 5 of those WOs — rendered when the operator expands the chip. */
+  blockedWoRefs: BlockedWoRef[];
 }
 
 export interface ComplianceView {
@@ -212,17 +219,60 @@ async function loadAssignGateViolations(
     .orderBy(asc(vendors.name))
     .limit(100);
 
-  const counts = await loadOpenWoCountsByVendor(
-    tx,
-    orgId,
-    rows.map((r) => r.id),
-  );
+  const [counts, refs] = await Promise.all([
+    loadOpenWoCountsByVendor(tx, orgId, rows.map((r) => r.id)),
+    loadBlockedWoRefsByVendor(tx, orgId, rows.map((r) => r.id)),
+  ]);
 
   return rows.map((r) => ({
     vendorId: r.id,
     vendorName: r.name,
     blockedOpenWoCount: counts.get(r.id) ?? 0,
+    blockedWoRefs: refs.get(r.id) ?? [],
   }));
+}
+
+/**
+ * Up to 5 open WOs per vendor — surfaced inline when the operator
+ * expands a "blocks N WOs" chip. Operators see the actual at-risk
+ * work in one click instead of having to filter /work.
+ */
+async function loadBlockedWoRefsByVendor(
+  tx: ScopedDB,
+  orgId: string,
+  vendorIds: string[],
+): Promise<Map<string, BlockedWoRef[]>> {
+  if (vendorIds.length === 0) return new Map();
+  const rows = await tx
+    .select({
+      vendorId: assignments.assigneeId,
+      number: workOrders.number,
+      title: workOrders.title,
+      updatedAt: workOrders.updatedAt,
+    })
+    .from(assignments)
+    .innerJoin(workOrders, eq(workOrders.id, assignments.targetId))
+    .where(
+      and(
+        eq(assignments.orgId, orgId),
+        eq(assignments.targetType, "work_order"),
+        eq(assignments.assigneeType, "vendor"),
+        inArray(assignments.assigneeId, vendorIds),
+        isNull(assignments.unassignedAt),
+        drizzleSql`${workOrders.status} NOT IN ('closed', 'cancelled', 'resolved', 'verified')`,
+      ),
+    )
+    .orderBy(desc(workOrders.updatedAt));
+
+  const out = new Map<string, BlockedWoRef[]>();
+  for (const r of rows) {
+    const list = out.get(r.vendorId) ?? [];
+    if (list.length < 5) {
+      list.push({ ref: `WO-${r.number}`, title: r.title });
+      out.set(r.vendorId, list);
+    }
+  }
+  return out;
 }
 
 async function loadSummary(tx: ScopedDB, orgId: string) {

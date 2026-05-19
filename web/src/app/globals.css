@@ -119,3 +119,22 @@
     font-family: var(--font-sans);
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────
+ * Cross-entity hover graph (Tier 3, Sprint 5).
+ *
+ * Elements carry `data-ref="WO-1043"` etc. When the operator hovers
+ * one, the HoverGraphProvider toggles `data-hover-related="true"` on
+ * every other on-screen element with the same ref. The result is a
+ * faint background tint — the operator's eye sees the relationships
+ * without having to navigate.
+ *
+ * Discipline: subtle (~6% foreground tint), no animation, no motion.
+ * The graph should be felt, not announced.
+ * ──────────────────────────────────────────────────────────────── */
+[data-ref][data-hover-related="true"] {
+  background-color: color-mix(in oklch, var(--foreground) 6%, transparent);
+  border-radius: 4px;
+  outline: 1px solid color-mix(in oklch, var(--foreground) 12%, transparent);
+  outline-offset: 1px;
+}

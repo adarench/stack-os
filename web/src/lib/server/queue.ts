@@ -8,6 +8,7 @@ import { units } from "@db/schema/units";
 import { vendorCois } from "@db/schema/compliance";
 import { withStaffScope, type ScopedDB } from "./db";
 import { loadActiveOwners } from "./owners";
+import { loadWoRowHints, type RowHint } from "./row-hints";
 import { approvalReasonLabel } from "@/lib/labels";
 import type { Urgency } from "../../components/operator/urgency-dot";
 
@@ -50,6 +51,8 @@ export interface QueueItem {
   /** Open + untouched for 7d+. Drives the row's "stale" chip. Skipped on
    *  overdue / today / done where other signals already speak. */
   aged: boolean;
+  /** Tier 3: row-level memory hints (max 2). Renders as subtitle line. */
+  hints?: RowHint[];
   /** Legacy detail URL during the migration window. */
   legacyHref: string;
 }
@@ -221,13 +224,16 @@ async function overdueLane(
     .orderBy(inspections.scheduledFor)
     .limit(LANE_LIMIT);
 
-  const [woOwners, insOwners] = await Promise.all([
+  const [woOwners, insOwners, woHints] = await Promise.all([
     loadActiveOwners(tx, orgId, "work_order", woRows.map((r) => r.id)),
     loadActiveOwners(tx, orgId, "inspection", insRows.map((r) => r.id)),
+    loadWoRowHints(tx, orgId, woRows),
   ]);
 
   return [
-    ...woRows.map((r) => mapWO(r, "overdue", woOwners.get(r.id) ?? null)),
+    ...woRows.map((r) =>
+      mapWO(r, "overdue", woOwners.get(r.id) ?? null, woHints.get(r.id) ?? []),
+    ),
     ...insRows.map((r) => mapIns(r, "overdue", insOwners.get(r.id) ?? null)),
   ];
 }
@@ -240,13 +246,13 @@ async function blockedLane(
     .where(and(eq(workOrders.orgId, orgId), eq(workOrders.status, "blocked")))
     .orderBy(desc(workOrders.updatedAt))
     .limit(LANE_LIMIT);
-  const owners = await loadActiveOwners(
-    tx,
-    orgId,
-    "work_order",
-    rows.map((r) => r.id),
+  const [owners, hints] = await Promise.all([
+    loadActiveOwners(tx, orgId, "work_order", rows.map((r) => r.id)),
+    loadWoRowHints(tx, orgId, rows),
+  ]);
+  return rows.map((r) =>
+    mapWO(r, "blocked", owners.get(r.id) ?? null, hints.get(r.id) ?? []),
   );
-  return rows.map((r) => mapWO(r, "blocked", owners.get(r.id) ?? null));
 }
 
 async function todayLane(
@@ -277,12 +283,15 @@ async function todayLane(
     )
     .orderBy(inspections.scheduledFor)
     .limit(LANE_LIMIT);
-  const [woOwners, insOwners] = await Promise.all([
+  const [woOwners, insOwners, woHints] = await Promise.all([
     loadActiveOwners(tx, orgId, "work_order", woRows.map((r) => r.id)),
     loadActiveOwners(tx, orgId, "inspection", insRows.map((r) => r.id)),
+    loadWoRowHints(tx, orgId, woRows),
   ]);
   return [
-    ...woRows.map((r) => mapWO(r, "today", woOwners.get(r.id) ?? null)),
+    ...woRows.map((r) =>
+      mapWO(r, "today", woOwners.get(r.id) ?? null, woHints.get(r.id) ?? []),
+    ),
     ...insRows.map((r) => mapIns(r, "today", insOwners.get(r.id) ?? null)),
   ].sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""));
 }
@@ -306,12 +315,15 @@ async function inflightLane(
     )
     .orderBy(desc(inspections.updatedAt))
     .limit(LANE_LIMIT);
-  const [woOwners, insOwners] = await Promise.all([
+  const [woOwners, insOwners, woHints] = await Promise.all([
     loadActiveOwners(tx, orgId, "work_order", woRows.map((r) => r.id)),
     loadActiveOwners(tx, orgId, "inspection", insRows.map((r) => r.id)),
+    loadWoRowHints(tx, orgId, woRows),
   ]);
   return [
-    ...woRows.map((r) => mapWO(r, "inflow", woOwners.get(r.id) ?? null)),
+    ...woRows.map((r) =>
+      mapWO(r, "inflow", woOwners.get(r.id) ?? null, woHints.get(r.id) ?? []),
+    ),
     ...insRows.map((r) => mapIns(r, "inflow", insOwners.get(r.id) ?? null)),
   ].sort(byUpdatedDesc);
 }
@@ -343,12 +355,15 @@ async function changedLane(
     )
     .orderBy(desc(inspections.updatedAt))
     .limit(LANE_LIMIT);
-  const [woOwners, insOwners] = await Promise.all([
+  const [woOwners, insOwners, woHints] = await Promise.all([
     loadActiveOwners(tx, orgId, "work_order", woRows.map((r) => r.id)),
     loadActiveOwners(tx, orgId, "inspection", insRows.map((r) => r.id)),
+    loadWoRowHints(tx, orgId, woRows),
   ]);
   return [
-    ...woRows.map((r) => mapWO(r, "muted", woOwners.get(r.id) ?? null)),
+    ...woRows.map((r) =>
+      mapWO(r, "muted", woOwners.get(r.id) ?? null, woHints.get(r.id) ?? []),
+    ),
     ...insRows.map((r) => mapIns(r, "muted", insOwners.get(r.id) ?? null)),
   ].sort(byUpdatedDesc);
 }
@@ -418,6 +433,9 @@ interface WoRow {
   priority: "low" | "normal" | "high" | "urgent";
   dueAt: Date | null;
   updatedAt: Date;
+  unitId: string | null;
+  propertyId: string | null;
+  spawnedFromInspectionId: string | null;
   propertyName: string | null;
   unitLabel: string | null;
 }
@@ -442,6 +460,9 @@ function woQuery(tx: ScopedDB) {
       priority: workOrders.priority,
       dueAt: workOrders.dueAt,
       updatedAt: workOrders.updatedAt,
+      unitId: workOrders.unitId,
+      propertyId: workOrders.propertyId,
+      spawnedFromInspectionId: workOrders.spawnedFromInspectionId,
       propertyName: properties.name,
       unitLabel: units.label,
     })
@@ -466,7 +487,12 @@ function insQuery(tx: ScopedDB) {
     .leftJoin(units, eq(units.id, inspections.unitId));
 }
 
-function mapWO(r: WoRow, urgency: Urgency, ownerName: string | null): QueueItem {
+function mapWO(
+  r: WoRow,
+  urgency: Urgency,
+  ownerName: string | null,
+  hints: RowHint[] = [],
+): QueueItem {
   return {
     ref: `WO-${r.number}`,
     type: "wo",
@@ -481,6 +507,7 @@ function mapWO(r: WoRow, urgency: Urgency, ownerName: string | null): QueueItem 
     lastActionText: lastActionForStatus(r.status),
     urgency,
     aged: isAged(urgency, r.updatedAt),
+    hints: hints.length > 0 ? hints : undefined,
     legacyHref: `/work-orders/${r.id}`,
   };
 }
