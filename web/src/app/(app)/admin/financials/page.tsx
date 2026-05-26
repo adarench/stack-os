@@ -34,12 +34,12 @@ export default async function FinancialsPage() {
   return (
     <main className="mx-auto max-w-2xl p-4 pb-24">
       <header className="mb-4 flex items-center gap-3">
-        <Link href="/work-orders" className="text-sm text-neutral-500">
+        <Link href="/work" className="text-sm text-neutral-500">
           ← Back
         </Link>
         <h1 className="text-lg font-semibold">Financials</h1>
         <Link
-          href="/admin/approvals"
+          href="/money?tab=approvals"
           className="ml-auto rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs uppercase tracking-wide text-neutral-600"
         >
           Approvals

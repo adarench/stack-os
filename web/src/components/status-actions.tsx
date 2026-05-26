@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { allowedNext, type WorkOrderStatus } from "@contracts/state-machines/work-order";
-import { transitionStatusAction } from "@/app/(app)/work-orders/_actions";
+import { transitionStatusAction } from "@/lib/actions/work-orders";
 
 export function StatusActions({
   workOrderId,

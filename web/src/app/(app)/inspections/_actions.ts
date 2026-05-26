@@ -66,8 +66,8 @@ export async function completeInspectionAction(formData: FormData): Promise<void
   await completeInspection(inspectionId);
   revalidatePath(`/inspections/${inspectionId}`);
   revalidatePath("/inspections");
-  revalidatePath("/work-orders");
-  revalidatePath("/board");
+  revalidatePath("/work");
+  revalidatePath("/now");
 }
 
 export async function reviewInspectionAction(formData: FormData): Promise<void> {

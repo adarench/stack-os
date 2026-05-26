@@ -7,7 +7,7 @@ export function FilterSelect({
   value,
   options,
   preserve,
-  action = "/board",
+  action = "/work",
 }: {
   name: string;
   value: string;

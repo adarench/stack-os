@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import {
   attachUploadedFileAction,
   requestUploadUrl,
-} from "@/app/(app)/work-orders/_actions";
+} from "@/lib/actions/work-orders";
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 

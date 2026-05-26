@@ -1,6 +1,6 @@
 import { listCosts, totalForWorkOrder } from "@/lib/server/costs";
 import type { CostKind } from "@contracts/financials";
-import { addCostAction } from "@/app/(app)/work-orders/_actions";
+import { addCostAction } from "@/lib/actions/work-orders";
 import { COST_KINDS } from "@contracts/financials";
 
 const KIND_BADGE: Record<CostKind, string> = {

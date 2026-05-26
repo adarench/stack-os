@@ -18,17 +18,17 @@ import { COST_KINDS, type CostKind } from "@contracts/financials";
 
 export async function createWorkOrderAction(input: CreateWorkOrderInput) {
   const row = await createWorkOrder(input);
-  revalidatePath("/work-orders");
-  redirect(`/work-orders/${row.id}`);
+  revalidatePath("/work");
+  revalidatePath("/now");
+  redirect(`/work?d=WO-${row.number}`);
 }
 
 export async function transitionStatusAction(formData: FormData) {
   const id = String(formData.get("id"));
   const to = String(formData.get("to"));
   await updateWorkOrderStatus({ id, to: to as never });
-  revalidatePath(`/work-orders/${id}`);
-  revalidatePath("/work-orders");
-  revalidatePath("/board");
+  revalidatePath("/work");
+  revalidatePath("/now");
 }
 
 /**
@@ -41,9 +41,8 @@ export async function moveWorkOrderAction(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     await updateWorkOrderStatus({ id, to });
-    revalidatePath(`/work-orders/${id}`);
-    revalidatePath("/work-orders");
-    revalidatePath("/board");
+    revalidatePath("/work");
+    revalidatePath("/now");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
@@ -55,7 +54,8 @@ export async function addCommentAction(formData: FormData) {
   const body = String(formData.get("body") ?? "").trim();
   if (!body) return;
   await createComment({ targetType: "work_order", targetId, body, visibility: "internal" });
-  revalidatePath(`/work-orders/${targetId}`);
+  revalidatePath("/work");
+  revalidatePath("/now");
 }
 
 export async function assignVendorAction(formData: FormData) {
@@ -63,8 +63,8 @@ export async function assignVendorAction(formData: FormData) {
   const vendorUserId = String(formData.get("vendorUserId"));
   if (!vendorUserId) return;
   await assignVendor({ workOrderId, vendorUserId });
-  revalidatePath(`/work-orders/${workOrderId}`);
-  revalidatePath("/work-orders");
+  revalidatePath("/work");
+  revalidatePath("/now");
 }
 
 export interface SignedUploadResult {
@@ -94,7 +94,8 @@ export async function addCostAction(formData: FormData): Promise<void> {
     description: String(formData.get("description") ?? "") || undefined,
     amountCents: Number(formData.get("amountCents") ?? 0),
   });
-  revalidatePath(`/work-orders/${workOrderId}`);
+  revalidatePath("/work");
+  revalidatePath("/now");
 }
 
 export async function attachUploadedFileAction(input: {
@@ -115,5 +116,6 @@ export async function attachUploadedFileAction(input: {
     sizeBytes: input.sizeBytes,
     kind: input.kind ?? "general",
   });
-  revalidatePath(`/work-orders/${input.targetId}`);
+  revalidatePath("/work");
+  revalidatePath("/now");
 }

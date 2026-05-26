@@ -450,7 +450,7 @@ async function loadApproval(
     dueAt: null,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
-    legacyHref: "/admin/approvals",
+    legacyHref: "/money?tab=approvals",
     activity: [],
     costs: [],
     files: [],

@@ -418,7 +418,7 @@ async function needsLane(
       lastActionText: "needs decision",
       urgency: "blocked",
       aged: isAged("blocked", r.updatedAt),
-      legacyHref: "/admin/approvals",
+      legacyHref: "/money?tab=approvals",
     };
   });
 }

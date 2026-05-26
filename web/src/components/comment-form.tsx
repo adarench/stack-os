@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useTransition } from "react";
-import { addCommentAction } from "@/app/(app)/work-orders/_actions";
+import { addCommentAction } from "@/lib/actions/work-orders";
 
 export function CommentForm({ targetId }: { targetId: string }) {
   const ref = useRef<HTMLFormElement | null>(null);

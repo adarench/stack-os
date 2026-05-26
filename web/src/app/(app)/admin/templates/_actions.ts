@@ -36,6 +36,6 @@ export async function spawnNowAction(formData: FormData): Promise<void> {
   const id = String(formData.get("id"));
   await spawnTemplateNow(id);
   revalidatePath("/admin/templates");
-  revalidatePath("/work-orders");
-  revalidatePath("/board");
+  revalidatePath("/work");
+  revalidatePath("/now");
 }

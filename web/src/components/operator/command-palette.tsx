@@ -11,7 +11,6 @@ import {
   ListTodo,
   Plus,
   Search,
-  Settings as SettingsIcon,
   ShieldCheck,
   type LucideIcon,
   Wallet,
@@ -179,13 +178,6 @@ export function CommandPaletteProvider({
         shortcut: "g i",
         run: () => go("/inbox"),
       },
-      {
-        id: "nav-settings",
-        label: "Go to Settings",
-        group: "Navigate",
-        icon: SettingsIcon,
-        run: () => go("/settings"),
-      },
 
       // Create
       {
@@ -194,7 +186,7 @@ export function CommandPaletteProvider({
         group: "Create",
         icon: Plus,
         keywords: ["wo", "create", "new"],
-        run: () => go("/work-orders/new"),
+        run: () => go("/work/new"),
       },
       {
         id: "create-inspection",

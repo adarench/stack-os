@@ -20,7 +20,7 @@ export default async function CoisPage() {
   return (
     <main className="mx-auto max-w-2xl p-4 pb-24">
       <header className="mb-4 flex items-center gap-3">
-        <Link href="/work-orders" className="text-sm text-neutral-500">
+        <Link href="/work" className="text-sm text-neutral-500">
           ← Back
         </Link>
         <h1 className="text-lg font-semibold">Vendor COIs</h1>

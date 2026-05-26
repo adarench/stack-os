@@ -16,7 +16,7 @@ import {
   canTransition,
   type WorkOrderStatus,
 } from "@contracts/state-machines/work-order";
-import { moveWorkOrderAction } from "@/app/(app)/work-orders/_actions";
+import { moveWorkOrderAction } from "@/lib/actions/work-orders";
 import type { BoardWorkOrder } from "@/lib/server/board";
 import { Column } from "./column";
 import { Card } from "./card";

@@ -45,15 +45,18 @@ async function main() {
   results.push(await probe("/sign-up", 200));
   results.push(await probe("/vendor/invalid", 200));
 
-  // Auth-gated → 307 to /sign-in
+  // Auth-gated → 307 to /sign-in (five operator surfaces + admin CRUD)
   for (const p of [
     "/",
-    "/work-orders",
-    "/work-orders/new",
-    "/board",
-    "/dispatcher",
+    "/now",
+    "/work",
+    "/work/new",
+    "/compliance",
+    "/money",
+    "/inbox",
     "/admin/properties",
     "/admin/vendors",
+    "/admin/templates",
   ]) {
     results.push(await probe(p, 307, /\/sign-in/));
   }
