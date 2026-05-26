@@ -51,6 +51,26 @@ export type TailMode =
   | "default";
 
 /**
+ * Per-lane row morphology overrides. The same EntityRow renders in every
+ * lane; the projection is the small bag of toggles that makes OVERDUE feel
+ * dangerous, IN-FLIGHT feel throughput-oriented, JUST CHANGED feel ephemeral.
+ * See docs/design/lane_behavior_model.md.
+ */
+export interface LaneProjection {
+  /** Override the default severity-bar tone. */
+  barTone?: "red" | "amber" | "brand" | null;
+  /** Suppress severity bar entirely (IN-FLIGHT, TODAY, JUST CHANGED). */
+  suppressBar?: boolean;
+  /** Render the urgency-dot pulse. Defaults to true on overdue; pass false
+   *  on non-oldest OVERDUE rows so only the loudest row pulses. */
+  pulse?: boolean;
+  /** Receded visual — lower contrast title (JUST CHANGED). */
+  receded?: boolean;
+  /** Scheduled-time anchor on the left edge instead of in the tail (TODAY). */
+  timeAnchorLeft?: boolean;
+}
+
+/**
  * Canonical row. Composition reflects pressure:
  *  - urgent/overdue/blocked rows show a 3px colored bar on the left edge
  *    so the silhouette differs from routine rows at peripheral-vision
@@ -63,10 +83,13 @@ export function EntityRow({
   row,
   showRelativeFuture,
   tailMode = "default",
+  projection,
 }: {
   row: EntityRowData;
   showRelativeFuture?: boolean;
   tailMode?: TailMode;
+  /** Per-lane visual overrides. Omit for /work catalog rows. */
+  projection?: LaneProjection;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -86,9 +109,24 @@ export function EntityRow({
   const subtitle =
     [row.property, row.unit].filter(Boolean).join(" · ") || null;
 
-  const bar = severityBarTone(row);
-  const titleEmphasis = row.priority === "urgent" || row.urgency === "overdue";
-  const recede = row.priority === "low" && bar === null && row.urgency !== "overdue";
+  // Projection wins; fall back to severity-based default.
+  const bar = projection?.suppressBar
+    ? null
+    : projection?.barTone !== undefined
+      ? projection.barTone
+      : severityBarTone(row);
+  const titleEmphasis =
+    !projection?.receded &&
+    (row.priority === "urgent" || row.urgency === "overdue");
+  const recede =
+    projection?.receded === true ||
+    (row.priority === "low" && bar === null && row.urgency !== "overdue");
+  // Default: pulse if urgency is overdue. Projection can suppress (so only
+  // the single oldest OVERDUE row pulses, not every row in the lane).
+  const shouldPulse =
+    projection?.pulse !== undefined
+      ? projection.pulse
+      : row.urgency === "overdue";
 
   const hasHints = (row.hints?.length ?? 0) > 0;
 
@@ -115,11 +153,16 @@ export function EntityRow({
             "absolute left-0 top-1 bottom-1 w-[3px] rounded-sm",
             bar === "red" && "bg-urgency-overdue",
             bar === "amber" && "bg-urgency-blocked",
+            bar === "brand" && "bg-urgency-brand",
           )}
         />
       )}
       <div className="flex h-6 items-center gap-2">
-        <UrgencyDot urgency={row.urgency} pulse={row.urgency === "overdue"} />
+        {projection?.timeAnchorLeft && row.dueAt ? (
+          <ScheduledTimeAnchor at={row.dueAt} />
+        ) : (
+          <UrgencyDot urgency={row.urgency} pulse={shouldPulse} />
+        )}
         <span className="w-[68px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
           {row.ref}
         </span>
@@ -128,6 +171,7 @@ export function EntityRow({
           className={cn(
             "truncate",
             titleEmphasis ? "font-medium text-foreground" : "text-foreground",
+            recede && "text-muted-foreground",
           )}
         >
           {row.title}
@@ -236,18 +280,40 @@ function BlockedTail({ row }: { row: EntityRowData }) {
   );
 }
 
-/** Scheduled time for today's lane. */
+/** Scheduled time for today's lane. With the TODAY projection's
+ *  `timeAnchorLeft`, the time already renders on the row's left edge —
+ *  this tail then carries the owner instead. */
 function TodayTail({ row }: { row: EntityRowData }) {
+  if (row.ownerName) {
+    return (
+      <span className="hidden md:inline max-w-[140px] truncate text-[11px] text-muted-foreground">
+        {row.ownerName}
+      </span>
+    );
+  }
   if (!row.dueAt) {
     return <TimeSince at={row.lastActionAt} />;
   }
-  const t = new Date(row.dueAt);
+  return (
+    <span className="font-mono text-[10px] uppercase tracking-wider text-urgency-blocked">
+      unassigned
+    </span>
+  );
+}
+
+/** Left-edge scheduled time anchor used by the TODAY lane. Replaces the
+ *  urgency dot — time IS the urgency in this lane. */
+function ScheduledTimeAnchor({ at }: { at: string }) {
+  const t = new Date(at);
   const label = t
     .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     .toLowerCase()
     .replace(/\s/g, "");
   return (
-    <span className="shrink-0 font-mono text-[11px] tabular-nums text-foreground">
+    <span
+      aria-label={`Scheduled ${label}`}
+      className="inline-flex w-[36px] shrink-0 justify-end font-mono text-[11px] tabular-nums text-foreground"
+    >
       {label}
     </span>
   );

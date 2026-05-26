@@ -12,6 +12,12 @@ import { loadRecentActivity } from "@/lib/server/activity";
 import { ActivityStrip } from "@/components/operator/activity-strip";
 import { LaneHeader, laneTone } from "@/components/operator/lane-header";
 import { EntityRow, type TailMode } from "@/components/operator/entity-row";
+import {
+  laneBgTint,
+  laneProjection,
+  oldestRef as pickOldestRef,
+  verbSummary,
+} from "@/lib/operator/lane-projection";
 import { TimeSinceTicker } from "@/components/operator/time-since";
 import { AutoRefresh } from "@/components/operator/auto-refresh";
 import { LiveIndicator } from "@/components/operator/live-indicator";
@@ -132,6 +138,11 @@ function Lane({
   // This is what surfaces NEEDS YOU as a *demand for action*, not a list.
   const emphasized = tone === "red" || tone === "amber";
 
+  const laneTintClass = laneBgTint(laneKey);
+  // Single oldest OVERDUE row gets the pulse; the rest go silent so the
+  // lane doesn't strobe.
+  const oldestRef = laneKey === "overdue" ? pickOldestRef(rows) : null;
+
   return (
     <section
       aria-label={title}
@@ -139,6 +150,7 @@ function Lane({
         "border-t border-border first:border-t-0",
         laneKey === "overdue" && "border-urgency-overdue/30",
         laneKey === "blocked" && "border-urgency-blocked/30",
+        laneTintClass,
       )}
     >
       <LaneHeader
@@ -155,6 +167,7 @@ function Lane({
             row={row}
             showRelativeFuture={futureTime}
             tailMode={tailMode}
+            projection={laneProjection(laneKey, row, oldestRef)}
           />
         ))}
         {hidden > 0 && (
@@ -171,6 +184,7 @@ function Lane({
     </section>
   );
 }
+
 
 function laneToTail(laneKey: QueueLane): TailMode {
   switch (laneKey) {
@@ -215,21 +229,37 @@ function laneAside(
         .map((it) => it.dueAt)
         .filter((d): d is string => !!d)
         .sort()[0];
-      if (!next) return null;
-      const t = new Date(next);
-      const label = t
-        .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-        .toLowerCase()
-        .replace(/\s/g, "");
-      return <Caption>next {label}</Caption>;
+      const unassigned = items.filter((i) => !i.ownerName).length;
+      if (!next && unassigned === 0) return null;
+      const parts: string[] = [];
+      if (next) {
+        const t = new Date(next);
+        const label = t
+          .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+          .toLowerCase()
+          .replace(/\s/g, "");
+        parts.push(`next ${label}`);
+      }
+      if (unassigned > 0) parts.push(`${unassigned} unassigned`);
+      return <Caption>{parts.join(" · ")}</Caption>;
     }
     case "inflight": {
       const unassigned = items.filter((i) => !i.ownerName).length;
-      if (unassigned === 0) return null;
-      return <Caption>{unassigned} unassigned</Caption>;
+      const oldest = oldestAgeMs(items);
+      const parts: string[] = [];
+      if (unassigned > 0) parts.push(`${unassigned} unassigned`);
+      if (oldest !== null && oldest > 24 * 60 * 60 * 1000) {
+        parts.push(`oldest active ${humanizeMs(oldest)}`);
+      }
+      if (parts.length === 0) return null;
+      return <Caption>{parts.join(" · ")}</Caption>;
     }
-    case "changed":
-      return null;
+    case "changed": {
+      // Action-verb summary — "8 resolved · 4 assigned · 2 status" lets the
+      // operator see the shape of the morning without reading rows.
+      const summary = verbSummary(items);
+      return summary ? <Caption>{summary}</Caption> : null;
+    }
   }
 }
 
