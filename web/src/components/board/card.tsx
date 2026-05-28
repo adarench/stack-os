@@ -1,6 +1,5 @@
 "use client";
 
-import { useDraggable } from "@dnd-kit/core";
 import Link from "next/link";
 import {
   allowedNext,
@@ -16,46 +15,53 @@ const PRIORITY_DOT: Record<WorkOrderPriority, string> = {
   urgent: "bg-rose-600",
 };
 
+/**
+ * Kanban card. Drag-drop is removed per docs/design/p9_cockpit_strategy.md
+ * (PM-tool gimmick). Cards now select on click (Shift-click toggles
+ * multi-select); the bottom action bar carries the batch status transition.
+ * The per-card "Move…" menu stays as a single-card quick-action.
+ */
 export function Card({
   wo,
+  selected,
+  onSelect,
   onMove,
 }: {
   wo: BoardWorkOrder;
+  selected: boolean;
+  onSelect: (id: string, shift: boolean) => void;
   onMove: (to: WorkOrderStatus) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: wo.id,
-  });
-  const style: React.CSSProperties | undefined = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
   const next = allowedNext(wo.status as WorkOrderStatus);
   return (
     <article
-      ref={setNodeRef}
-      style={style}
-      className={`rounded border border-neutral-200 bg-white p-2 text-sm shadow-sm ${
-        isDragging ? "opacity-60" : ""
+      data-card="true"
+      data-card-id={wo.id}
+      onClick={(e) => onSelect(wo.id, e.shiftKey)}
+      className={`cursor-default rounded border bg-white p-2 text-sm shadow-sm transition-colors ${
+        selected
+          ? "border-urgency-brand ring-2 ring-urgency-brand/30"
+          : "border-neutral-200 hover:border-neutral-300"
       }`}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
         <span
-          className={`inline-block h-2 w-2 rounded-full ${PRIORITY_DOT[wo.priority as WorkOrderPriority]}`}
+          className={`inline-block h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[wo.priority as WorkOrderPriority]}`}
           aria-label={`priority ${wo.priority}`}
         />
-        <span className="text-xs text-neutral-500">WO-{wo.number}</span>
-        <button
-          {...attributes}
-          {...listeners}
-          type="button"
-          className="ml-auto cursor-grab text-neutral-400 active:cursor-grabbing"
-          aria-label="Drag handle"
-        >
-          ⋮⋮
-        </button>
+        <span className="font-mono text-[11px] tabular-nums text-neutral-500">
+          WO-{wo.number}
+        </span>
+        {selected && (
+          <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-urgency-brand">
+            selected
+          </span>
+        )}
       </div>
       <Link
-        href={`/work-orders/${wo.id}`}
+        href={`/work?d=WO-${wo.number}`}
+        scroll={false}
+        onClick={(e) => e.stopPropagation()}
         className="mt-1 block text-sm leading-snug text-neutral-900 hover:underline"
       >
         {wo.title}
@@ -66,7 +72,7 @@ export function Card({
         </div>
       )}
       {next.length > 0 && (
-        <details className="mt-2">
+        <details className="mt-2" onClick={(e) => e.stopPropagation()}>
           <summary className="cursor-pointer select-none text-xs text-neutral-500">
             Move…
           </summary>
@@ -75,7 +81,10 @@ export function Card({
               <button
                 key={to}
                 type="button"
-                onClick={() => onMove(to)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMove(to);
+                }}
                 className="rounded-full border border-neutral-300 bg-white px-2 py-0.5 text-xs text-neutral-700 active:bg-neutral-100"
               >
                 → {to.replace(/_/g, " ")}
