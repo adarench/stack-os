@@ -62,13 +62,57 @@ export function useCommandPalette() {
  * Commands are statically declared here for v1. Surface-scoped commands can
  * be added via a register/unregister API in a later step.
  */
+interface EntityHit {
+  ref: string;
+  type: "wo" | "ins" | "prj";
+  title: string;
+}
+
 export function CommandPaletteProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const [hits, setHits] = React.useState<EntityHit[]>([]);
   const router = useRouter();
+
+  // Reset typeahead state when the palette closes so reopens start clean.
+  React.useEffect(() => {
+    if (!open) {
+      setQuery("");
+      setHits([]);
+    }
+  }, [open]);
+
+  // Debounced entity search — fires after the operator pauses typing.
+  // Empty queries clear hits without a network call.
+  React.useEffect(() => {
+    const q = query.trim();
+    if (q.length === 0) {
+      setHits([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const r = await fetch(
+          `/api/me/search?q=${encodeURIComponent(q)}`,
+          { cache: "no-store" },
+        );
+        if (!r.ok) return;
+        const data = (await r.json()) as { hits: EntityHit[] };
+        if (!cancelled) setHits(data.hits ?? []);
+      } catch {
+        if (!cancelled) setHits([]);
+      }
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query]);
 
   // Global keybinding: ⌘K / Ctrl+K toggles; `/` opens when not in an input.
   React.useEffect(() => {
@@ -243,16 +287,46 @@ export function CommandPaletteProvider({
     <CommandPaletteContext.Provider value={value}>
       {children}
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Search or jump to…" />
+        <CommandInput
+          placeholder="Search or jump to…"
+          value={query}
+          onValueChange={setQuery}
+        />
         <CommandList>
           <CommandEmpty>No matches.</CommandEmpty>
 
-          {grouped.Navigate.length > 0 && (
-            <CommandGroup heading="Navigate">
-              {grouped.Navigate.map((cmd) => (
-                <CommandRow key={cmd.id} cmd={cmd} />
+          {hits.length > 0 && (
+            <CommandGroup heading="Entities">
+              {hits.map((hit) => (
+                <CommandItem
+                  key={hit.ref}
+                  value={`${hit.ref} ${hit.title}`}
+                  onSelect={() => {
+                    setOpen(false);
+                    router.push(`?d=${encodeURIComponent(hit.ref)}`, {
+                      scroll: false,
+                    });
+                  }}
+                >
+                  <Search className="text-muted-foreground" />
+                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                    {hit.ref}
+                  </span>
+                  <span className="flex-1 truncate">{hit.title}</span>
+                </CommandItem>
               ))}
             </CommandGroup>
+          )}
+
+          {grouped.Navigate.length > 0 && (
+            <>
+              {hits.length > 0 && <CommandSeparator />}
+              <CommandGroup heading="Navigate">
+                {grouped.Navigate.map((cmd) => (
+                  <CommandRow key={cmd.id} cmd={cmd} />
+                ))}
+              </CommandGroup>
+            </>
           )}
 
           {grouped.Create.length > 0 && (
@@ -265,9 +339,6 @@ export function CommandPaletteProvider({
               </CommandGroup>
             </>
           )}
-
-          {/* Search group is a placeholder — entity typeahead wires in step 4
-              alongside the /api/me/queue endpoint. */}
         </CommandList>
 
         <div className="flex items-center justify-between border-t border-border bg-muted/30 px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">

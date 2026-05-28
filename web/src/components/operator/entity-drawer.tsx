@@ -18,6 +18,7 @@ import {
 } from "@/lib/labels";
 import {
   addCommentAction,
+  assignVendorAction,
   decideApprovalAction,
   setStatusAction,
 } from "@/app/(app)/_drawer/actions";
@@ -427,8 +428,140 @@ function WorkOverview({
           />
         </Field>
       )}
+
+      {data.type === "wo" && (
+        <Field label="Assign vendor">
+          <AssignVendorMenu entityRef={data.ref} onMutated={onMutated} />
+        </Field>
+      )}
     </div>
   );
+}
+
+/**
+ * Drawer Assign action — the P8 DoD gap. Lazy-loads the vendor list on
+ * first open so the drawer mount stays cheap. Surfaces COI gate violations
+ * inline with an override toggle (audit-logged server-side).
+ */
+function AssignVendorMenu({
+  entityRef,
+  onMutated,
+}: {
+  entityRef: string;
+  onMutated: () => void;
+}) {
+  const [items, setItems] = React.useState<AssignableVendorUserClient[] | null>(
+    null,
+  );
+  const [loading, setLoading] = React.useState(false);
+  const [vendorUserId, setVendorUserId] = React.useState<string>("");
+  const [override, setOverride] = React.useState(false);
+  const [pending, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    if (items !== null) return;
+    setLoading(true);
+    fetch("/api/me/vendors", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: { items: AssignableVendorUserClient[] }) => {
+        setItems(data.items ?? []);
+      })
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [items]);
+
+  const selected = items?.find((v) => v.id === vendorUserId) ?? null;
+  const blockedByCoi =
+    selected !== null &&
+    (selected.coiState === "expired" || selected.coiState === "missing");
+
+  const submit = () => {
+    if (!vendorUserId) return;
+    startTransition(async () => {
+      const r = await assignVendorAction({
+        ref: entityRef,
+        vendorUserId,
+        overrideCoi: override,
+      });
+      if (r.ok) {
+        toast.success("Assigned");
+        setVendorUserId("");
+        setOverride(false);
+        onMutated();
+      } else if (r.error === "vendor_coi_missing_or_expired") {
+        toast.error("Vendor COI is missing or expired — override to proceed");
+      } else {
+        toast.error(`Couldn't assign: ${r.error}`);
+      }
+    });
+  };
+
+  if (loading && items === null) {
+    return (
+      <p className="text-xs text-muted-foreground">Loading vendors…</p>
+    );
+  }
+  if ((items ?? []).length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        No assignable vendors. Invite one from{" "}
+        <Link href="/admin/vendors" className="underline">
+          /admin/vendors
+        </Link>
+        .
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <select
+        value={vendorUserId}
+        onChange={(e) => setVendorUserId(e.target.value)}
+        className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
+      >
+        <option value="">— pick a vendor user —</option>
+        {(items ?? []).map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.vendorName} · {v.name || v.email}
+            {v.coiState === "expired" && "  (COI expired)"}
+            {v.coiState === "missing" && "  (no COI)"}
+            {v.coiState === "expiring" && "  (COI expiring)"}
+          </option>
+        ))}
+      </select>
+      {blockedByCoi && (
+        <label className="flex items-center gap-1.5 text-[11px] text-urgency-blocked">
+          <input
+            type="checkbox"
+            checked={override}
+            onChange={(e) => setOverride(e.target.checked)}
+          />
+          Override COI gate (audit-logged)
+        </label>
+      )}
+      <Button
+        type="button"
+        size="sm"
+        disabled={
+          !vendorUserId || pending || (blockedByCoi && !override)
+        }
+        onClick={submit}
+      >
+        {pending ? "Assigning…" : "Assign"}
+      </Button>
+    </div>
+  );
+}
+
+interface AssignableVendorUserClient {
+  id: string;
+  name: string | null;
+  email: string;
+  vendorId: string;
+  vendorName: string;
+  vendorTrade: string | null;
+  coiState: "active" | "expiring" | "expired" | "missing";
 }
 
 /* -------------------- memory blocks -------------------- */
