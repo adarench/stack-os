@@ -4,6 +4,89 @@
 
 ---
 
+## P10 — Cockpit evolution · ready for phone walk (2026-05-28)
+
+**Method (code-side):** Stages A–F shipped behind the existing
+`NEXT_PUBLIC_NEW_SHELL=1` flag on `redesign/operator-shell`. Each stage
+is its own commit; the test gate moved from 125 → 154 green over the
+sequence. Production build is clean; typecheck is clean.
+
+### What shipped (Stages A–F)
+
+| Stage | What | Tests |
+|---|---|---|
+| A · Strip | 8 routes removed (5 operator surfaces remain); /work-orders/_actions moved to /lib/actions; stat tiles gone | 125 → 111 (dropped board/dispatcher/dashboard test files) |
+| B · Lane projection | LaneProjection sum type; OVERDUE pulses oldest-only; NEEDS YOU indigo bar; IN-FLIGHT/CHANGED/TODAY no bar; TODAY left-anchored time; lane bg tints; enriched lane asides | 111 → 128 |
+| C · Consequence chips | consequences.ts loader; chips on OVERDUE top-3 + all NEEDS YOU; life-safety / delays-turn / tenant / unblocks signals | 128 → 139 |
+| D · Drawer Assign + ⌘K typeahead | Assign UI in WO drawer with COI gate + audit-logged override; /api/me/search + entity typeahead in command palette | 139 → 139 |
+| E · Kanban batching | drag-drop removed; click + shift-click selection; batch action bar with status-target intersection; per-card audit | 139 → 146 |
+| F · /work power-lens | 5 built-in saved-view tabs (All / Mine / Mine-overdue / Unassigned / Backlog); free-form filters collapsed behind disclosure | 146 → 154 |
+
+### What's left for human validation (Stage G)
+
+The only validation that actually matters. Run the three loops from
+docs/design/operator_attention_model.md against the seeded org:
+
+```
+pnpm --filter web db:seed org_audit_walkthrough
+```
+
+Then open https://stack-os-six.vercel.app on a phone (or local dev) and walk:
+
+1. **Morning loop (8am scan) — target 60–90s for 8–12 decisions**
+   - [ ] Land on `/now`. Verify the silhouette pass: at a glance,
+         which lanes look loud? Six lanes should now have distinct
+         morphology — OVERDUE red bar + pulse on oldest only;
+         BLOCKED amber; NEEDS YOU indigo; IN-FLIGHT/JUST CHANGED/TODAY
+         no bar.
+   - [ ] Read lane header asides. OVERDUE should show "oldest Nd";
+         BLOCKED should show reason summary; NEEDS YOU should show
+         oldest age; TODAY should combine "next 2:30p · N unassigned";
+         JUST CHANGED should show verb summary.
+   - [ ] Click the top OVERDUE row. Drawer opens. Verify the
+         consequence chip in the row tail before clicking ("delays turn",
+         "tenant", "life safety", or "unblocks WO-XXXX").
+   - [ ] In the drawer, scroll past the memory blocks to the
+         "Assign vendor" section. Select a vendor user. If COI is
+         missing/expired, the "Override COI gate" checkbox should appear.
+   - [ ] Press `esc`. Drawer closes. `/now` re-renders.
+
+2. **Triage loop (mid-day) — consequence > aging > urgency**
+   - [ ] Confirm NEEDS YOU consequence chip shows "unblocks WO-XXXX"
+         for each pending approval — operator picks highest-consequence
+         first.
+   - [ ] Use the saved-view tabs on `/work`. Tap "Mine, overdue".
+         Verify the URL is `/work?type=wo&mine=mine&due=overdue`.
+   - [ ] Open one row; check the drawer's full memory layer (unit
+         history, vendor reliability, inspection lineage, sibling work).
+
+3. **Unblock loop (vendor-side / ⌘K) — target 20–40s per thread**
+   - [ ] Press `⌘K`. Type `WO-1` (or a partial number). Verify the
+         Entities group shows matching WOs; selecting one opens the
+         drawer at `?d=<ref>`.
+   - [ ] Type a title fragment ("leak"). Verify free-text matches.
+   - [ ] From the drawer, add a comment (`c`). Press `s` for status
+         menu. (Assign action is now in the drawer body, not keyboard
+         yet — `a` binding is a follow-up.)
+
+4. **Kanban batching on /work?view=board**
+   - [ ] Click a card. Verify it highlights with the indigo selection
+         ring; column header shows "1/N".
+   - [ ] Shift-click 2 more cards in the same column. The bottom
+         action bar appears with "3 selected".
+   - [ ] Press `s` (or click "Status →"). Menu shows the intersection
+         of allowedNext across all 3.
+   - [ ] Pick a target. Cards transition optimistically; toast confirms;
+         action bar dismisses.
+   - [ ] Press `esc` mid-selection — selection clears.
+   - [ ] Try to drag a card. Verify nothing happens — drag-drop is
+         removed by design.
+
+### File results in this doc under a "## P10 — walked" section. Until that
+section exists, P10 is code-complete but not validated.
+
+---
+
 ## P8 — Operator-shell redesign · audit walkthrough (2026-05-12)
 
 **Method:** seeded a synthetic org (`org_audit_walkthrough`) at real Stack

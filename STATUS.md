@@ -1,6 +1,29 @@
 # Stack OS — current state
 
-**Updated:** 2026-05-12 (demo-ready pass) · **Live:** https://stack-os-six.vercel.app · **Repo:** https://github.com/adarench/stack-os · **Active branch:** `redesign/operator-shell`
+**Updated:** 2026-05-28 (P10 code-complete, awaiting phone walk) · **Live:** https://stack-os-six.vercel.app · **Repo:** https://github.com/adarench/stack-os · **Active branch:** `redesign/operator-shell`
+
+## Where we are — P10 ready for phone walk (Stage G)
+
+P9 design lock + P10 implementation Stages A–F have shipped on
+`redesign/operator-shell` (8 commits since 2026-05-12 audit). The product
+has pivoted from "rows of records" to "operational pressure" per the
+seven design docs in `docs/design/p9_*.md`. **The only validation left
+is the phone walkthrough** — see `docs/stack-ops/VALIDATION.md` for the
+checklist.
+
+Test gate: **154 / 154 green** (was 125 at P8). Build clean. Typecheck clean.
+
+| P10 Stage | What | State |
+|---|---|---|
+| A · Strip | 5 operator surfaces; 8 routes removed; stat tiles gone | ■ shipped |
+| B · Lane projection | Per-lane row morphology + bg tints + asides | ■ shipped |
+| C · Consequence chips | Downstream-pressure chip on OVERDUE top-3 + all NEEDS YOU | ■ shipped |
+| D · Drawer Assign + ⌘K typeahead | Both P8 DoD gaps closed | ■ shipped |
+| E · Kanban batching | Drag-drop removed; Shift-select + batch action bar | ■ shipped |
+| F · /work power-lens | 5 built-in saved-view tabs; filters collapsed | ■ shipped |
+| G · Validation walk | Phone walk against seeded org | ▢ ready for Brad |
+
+---
 
 ---
 
