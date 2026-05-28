@@ -12,6 +12,7 @@ import {
 import { DEFAULT_BOARD_COLUMNS, loadBoard } from "@/lib/server/board";
 import { FilterChipBar } from "@/components/operator/filter-chip-bar";
 import { ViewModeToggle } from "@/components/operator/view-mode-toggle";
+import { SavedViewTabs, activeViewFor } from "@/components/operator/saved-view-tabs";
 import { EntityRow, type TailMode } from "@/components/operator/entity-row";
 import { TimeSinceTicker } from "@/components/operator/time-since";
 import { AutoRefresh } from "@/components/operator/auto-refresh";
@@ -106,14 +107,20 @@ export default async function WorkPage({
     <TimeSinceTicker>
       <AutoRefresh intervalMs={30_000} />
       <div className="mx-auto max-w-[1280px] px-3 md:px-4">
+        <SavedViewTabs active={activeViewFor(sp)} />
         <div className="flex items-center gap-3 py-1.5">
-          <MineToggle current={mine} sp={sp} />
           <span className="font-mono text-[11px] tabular-nums uppercase tracking-wider text-muted-foreground">
             {rows.length} {rows.length === 1 ? "item" : "items"}
           </span>
-          <div className="min-w-0 flex-1 overflow-x-auto">
-            <FilterChipBar />
-          </div>
+          <details className="min-w-0 flex-1">
+            <summary className="cursor-pointer select-none font-mono text-[11px] uppercase tracking-wider text-muted-foreground hover:text-foreground">
+              Custom filters
+            </summary>
+            <div className="mt-1.5 flex items-center gap-3 overflow-x-auto">
+              <MineToggle current={mine} sp={sp} />
+              <FilterChipBar />
+            </div>
+          </details>
           <span className="shrink-0">
             <ViewModeToggle />
           </span>
