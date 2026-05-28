@@ -9,6 +9,11 @@ import { vendorCois } from "@db/schema/compliance";
 import { withStaffScope, type ScopedDB } from "./db";
 import { loadActiveOwners } from "./owners";
 import { loadWoRowHints, type RowHint } from "./row-hints";
+import {
+  consequenceForApproval,
+  loadWoConsequences,
+  type Consequence,
+} from "./consequences";
 import { approvalReasonLabel } from "@/lib/labels";
 import type { Urgency } from "../../components/operator/urgency-dot";
 
@@ -53,6 +58,9 @@ export interface QueueItem {
   aged: boolean;
   /** Tier 3: row-level memory hints (max 2). Renders as subtitle line. */
   hints?: RowHint[];
+  /** Stage C: downstream-consequence signals. Rendered as a chip in the
+   *  row tail on OVERDUE top-3 + all NEEDS YOU per lane projection. */
+  consequence?: Consequence;
   /** Legacy detail URL during the migration window. */
   legacyHref: string;
 }
@@ -224,15 +232,22 @@ async function overdueLane(
     .orderBy(inspections.scheduledFor)
     .limit(LANE_LIMIT);
 
-  const [woOwners, insOwners, woHints] = await Promise.all([
+  const [woOwners, insOwners, woHints, woConsequences] = await Promise.all([
     loadActiveOwners(tx, orgId, "work_order", woRows.map((r) => r.id)),
     loadActiveOwners(tx, orgId, "inspection", insRows.map((r) => r.id)),
     loadWoRowHints(tx, orgId, woRows),
+    loadWoConsequences(tx, orgId, woRows),
   ]);
 
   return [
     ...woRows.map((r) =>
-      mapWO(r, "overdue", woOwners.get(r.id) ?? null, woHints.get(r.id) ?? []),
+      mapWO(
+        r,
+        "overdue",
+        woOwners.get(r.id) ?? null,
+        woHints.get(r.id) ?? [],
+        woConsequences.get(r.id),
+      ),
     ),
     ...insRows.map((r) => mapIns(r, "overdue", insOwners.get(r.id) ?? null)),
   ];
@@ -418,6 +433,7 @@ async function needsLane(
       lastActionText: "needs decision",
       urgency: "blocked",
       aged: isAged("blocked", r.updatedAt),
+      consequence: consequenceForApproval(r.woNumber ? `WO-${r.woNumber}` : null),
       legacyHref: "/money?tab=approvals",
     };
   });
@@ -435,6 +451,7 @@ interface WoRow {
   updatedAt: Date;
   unitId: string | null;
   propertyId: string | null;
+  projectId: string | null;
   spawnedFromInspectionId: string | null;
   propertyName: string | null;
   unitLabel: string | null;
@@ -462,6 +479,7 @@ function woQuery(tx: ScopedDB) {
       updatedAt: workOrders.updatedAt,
       unitId: workOrders.unitId,
       propertyId: workOrders.propertyId,
+      projectId: workOrders.projectId,
       spawnedFromInspectionId: workOrders.spawnedFromInspectionId,
       propertyName: properties.name,
       unitLabel: units.label,
@@ -492,6 +510,7 @@ function mapWO(
   urgency: Urgency,
   ownerName: string | null,
   hints: RowHint[] = [],
+  consequence: Consequence | undefined = undefined,
 ): QueueItem {
   return {
     ref: `WO-${r.number}`,
@@ -508,6 +527,7 @@ function mapWO(
     urgency,
     aged: isAged(urgency, r.updatedAt),
     hints: hints.length > 0 ? hints : undefined,
+    consequence,
     legacyHref: `/work-orders/${r.id}`,
   };
 }

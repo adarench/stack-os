@@ -25,11 +25,13 @@ export interface ProjectionRow {
 
 /**
  * Build the lane projection for a given row in a given lane. Pass
- * `oldestRef` so OVERDUE pulses only on the single oldest row.
+ * `oldestRef` so OVERDUE pulses only on the single oldest row, and
+ * `rowIndex` so OVERDUE's top-3 surface their consequence chip while
+ * deep-lane rows stay quiet.
  *
- *   OVERDUE      red bar, pulse only oldest, severity preserved
+ *   OVERDUE      red bar, pulse only oldest, consequence chip on top-3
  *   BLOCKED      amber bar always (never red), pulse off
- *   NEEDS YOU    brand (indigo) bar, no pulse, severity preserved
+ *   NEEDS YOU    brand (indigo) bar, no pulse, consequence chip on all
  *   IN-FLIGHT    no bar, no pulse — active work isn't urgency by definition
  *   JUST CHANGED no bar, receded contrast (ephemeral feel)
  *   TODAY        no bar, scheduled time on left, no pulse
@@ -38,17 +40,21 @@ export function laneProjection(
   lane: LaneKey,
   row: ProjectionRow,
   oldestRef: string | null,
+  rowIndex: number = 0,
 ): LaneProjection {
   switch (lane) {
     case "overdue":
       return {
         barTone: "red",
         pulse: row.ref === oldestRef,
+        // Top 3 expand — consequence chip surfaces inline. Rest collapse so
+        // density holds and the chip retains meaning.
+        showConsequence: rowIndex < 3,
       };
     case "blocked":
       return { barTone: "amber", pulse: false };
     case "needs":
-      return { barTone: "brand", pulse: false };
+      return { barTone: "brand", pulse: false, showConsequence: true };
     case "inflight":
       return { suppressBar: true, pulse: false };
     case "today":

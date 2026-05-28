@@ -26,6 +26,10 @@ export interface EntityRowData {
   /** Tier 3 row-level memory hints — surfaced as a subtitle line under the
    *  title. Server-gated on thresholds; never more than 2 per row. */
   hints?: Array<{ text: string; tone: "alert" | "note" }>;
+  /** Stage C: downstream consequence chip text. Rendered in the row tail
+   *  ahead of owner when the lane projection allows. e.g. "blocks turn",
+   *  "tenant", "life safety", "unblocks WO-1043". */
+  consequenceLabel?: string | null;
 }
 
 /**
@@ -68,6 +72,10 @@ export interface LaneProjection {
   receded?: boolean;
   /** Scheduled-time anchor on the left edge instead of in the tail (TODAY). */
   timeAnchorLeft?: boolean;
+  /** Show the consequence chip when the row carries one. OVERDUE top-3 and
+   *  all NEEDS YOU rows opt in; other lanes stay quiet so the chip retains
+   *  meaning. */
+  showConsequence?: boolean;
 }
 
 /**
@@ -180,6 +188,9 @@ export function EntityRow({
           )}
         </span>
         <span className="ml-auto flex items-center gap-2">
+          {projection?.showConsequence && row.consequenceLabel && (
+            <ConsequenceChip label={row.consequenceLabel} />
+          )}
           <Tail row={row} mode={tailMode} showRelativeFuture={!!showRelativeFuture} />
         </span>
       </div>
@@ -427,6 +438,27 @@ function humanize(ms: number): string {
   if (h < 24) return `${h}h`;
   const d = Math.round(h / 24);
   return `${d}d`;
+}
+
+/**
+ * Consequence chip — what happens downstream if this row stays put. Renders
+ * only when the lane projection opts in (OVERDUE top-3, all NEEDS YOU) and
+ * the row carries a label. Tone-coded: life-safety + delays-turn are red;
+ * unblocks/tenant are softer.
+ */
+function ConsequenceChip({ label }: { label: string }) {
+  const loud = /^life safety$|^delays turn$/.test(label);
+  return (
+    <span
+      className={cn(
+        "shrink-0 font-mono text-[10px] uppercase tracking-wider",
+        loud ? "text-urgency-overdue" : "text-foreground/75",
+      )}
+      title={`Consequence: ${label}`}
+    >
+      {label}
+    </span>
+  );
 }
 
 /**

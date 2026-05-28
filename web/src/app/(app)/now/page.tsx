@@ -8,6 +8,7 @@ import {
   type QueueItem,
   type QueueLane,
 } from "@/lib/server/queue";
+import { consequenceChipLabel } from "@/lib/server/consequences";
 import { loadRecentActivity } from "@/lib/server/activity";
 import { ActivityStrip } from "@/components/operator/activity-strip";
 import { LaneHeader, laneTone } from "@/components/operator/lane-header";
@@ -161,13 +162,16 @@ function Lane({
         aside={aside}
       />
       <div className="space-y-0">
-        {visibleRows.map((row) => (
+        {visibleRows.map((row, idx) => (
           <EntityRow
             key={`${row.type}-${row.ref}`}
-            row={row}
+            row={{
+              ...row,
+              consequenceLabel: consequenceChipLabel(row.consequence),
+            }}
             showRelativeFuture={futureTime}
             tailMode={tailMode}
-            projection={laneProjection(laneKey, row, oldestRef)}
+            projection={laneProjection(laneKey, row, oldestRef, idx)}
           />
         ))}
         {hidden > 0 && (
