@@ -38,6 +38,9 @@ export const BUILTIN_VIEWS: SavedView[] = [
     label: "Backlog",
     params: { type: "wo", status: "open", backlog: "open" },
   },
+  // Turns are a first-class workflow — scan them as their own pressure list,
+  // ranked by move-in risk (urgency now derives from the turn's child state).
+  { slug: "turns", label: "Turns", params: { type: "prj", status: "open" } },
 ];
 
 /**

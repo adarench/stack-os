@@ -64,7 +64,7 @@ export function useCommandPalette() {
  */
 interface EntityHit {
   ref: string;
-  type: "wo" | "ins" | "prj";
+  type: "wo" | "ins" | "prj" | "unit";
   title: string;
 }
 

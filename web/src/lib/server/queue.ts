@@ -15,6 +15,8 @@ import {
   type Consequence,
 } from "./consequences";
 import { approvalReasonLabel } from "@/lib/labels";
+import { projects } from "@db/schema/projects";
+import { loadTurnStatuses, type TurnComputed } from "./turn-status";
 import type { Urgency } from "../../components/operator/urgency-dot";
 
 /**
@@ -49,6 +51,8 @@ export interface QueueItem {
   ownerName: string | null;
   property: string | null;
   unit: string | null;
+  /** Raw unit FK — lets the row pivot to the unit drawer (?d=UNT-…). */
+  unitId: string | null;
   dueAt: string | null;
   lastActionAt: string;
   lastActionText: string | null;
@@ -63,6 +67,100 @@ export interface QueueItem {
   consequence?: Consequence;
   /** Legacy detail URL during the migration window. */
   legacyHref: string;
+}
+
+/**
+ * At-risk turns for the /now cockpit. A turn is a first-class pressure object:
+ * if it's off-track or at-risk for its move-in date, it surfaces on the
+ * operator's default surface — not only when they navigate to /work → Turns.
+ * On-track turns stay silent (pressure discipline).
+ */
+export async function loadAtRiskTurns(): Promise<QueueItem[]> {
+  return withStaffScope(async (tx, ctx) => {
+    const orgId = ctx.orgId;
+    const rows = await tx
+      .select({
+        id: projects.id,
+        name: projects.name,
+        status: projects.status,
+        targetCompletion: projects.targetCompletion,
+        updatedAt: projects.updatedAt,
+        unitId: projects.unitId,
+        propertyName: properties.name,
+        unitLabel: units.label,
+      })
+      .from(projects)
+      .leftJoin(properties, eq(properties.id, projects.propertyId))
+      .leftJoin(units, eq(units.id, projects.unitId))
+      .where(
+        and(
+          eq(projects.orgId, orgId),
+          eq(projects.kind, "unit_turn"),
+          drizzleSql`${projects.status} NOT IN ('closed', 'cancelled')`,
+        ),
+      );
+    if (rows.length === 0) return [];
+
+    const statuses = await loadTurnStatuses(
+      tx,
+      orgId,
+      rows.map((r) => ({ id: r.id, targetCompletion: r.targetCompletion })),
+    );
+
+    const items: QueueItem[] = [];
+    for (const r of rows) {
+      const ts = statuses.get(r.id);
+      if (!ts || (ts.confidence !== "off_track" && ts.confidence !== "at_risk")) {
+        continue; // on-track turns stay quiet
+      }
+      items.push({
+        ref: `PRJ-${r.id.slice(0, 6).toUpperCase()}`,
+        type: "prj",
+        title: r.name,
+        status: r.status,
+        priority: null,
+        ownerName: null,
+        property: r.propertyName,
+        unit: r.unitLabel,
+        unitId: r.unitId,
+        dueAt: r.targetCompletion ? r.targetCompletion.toISOString() : null,
+        lastActionAt: r.updatedAt.toISOString(),
+        lastActionText: turnPressureText(ts),
+        urgency: ts.urgency,
+        aged: false,
+        hints: [{ text: turnPressureText(ts), tone: ts.confidence === "off_track" ? "alert" : "note" }],
+        legacyHref: `/projects/${r.id}`,
+      });
+    }
+    // Worst-first: off_track (overdue urgency) above at_risk (blocked).
+    items.sort((a, b) => URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency]);
+    return items;
+  });
+}
+
+const URGENCY_ORDER: Record<Urgency, number> = {
+  overdue: 0,
+  blocked: 1,
+  today: 2,
+  inflow: 3,
+  muted: 4,
+  done: 5,
+};
+
+/** "move-in 9d · 0/6 done · 2 blocked · 1 awaiting sign-off". */
+function turnPressureText(ts: TurnComputed): string {
+  const parts: string[] = [];
+  if (ts.daysToMoveIn != null) {
+    parts.push(
+      ts.daysToMoveIn >= 0
+        ? `move-in ${ts.daysToMoveIn}d`
+        : `move-in ${-ts.daysToMoveIn}d ago`,
+    );
+  }
+  parts.push(`${ts.done}/${ts.total} done`);
+  if (ts.blocked > 0) parts.push(`${ts.blocked} blocked`);
+  if (ts.pendingApprovals > 0) parts.push(`${ts.pendingApprovals} awaiting sign-off`);
+  return parts.join(" · ");
 }
 
 export interface QueueSummary {
@@ -428,6 +526,9 @@ async function needsLane(
       ownerName: r.woId ? owners.get(r.woId) ?? null : null,
       property: r.propertyName,
       unit: r.unitLabel,
+      // Approvals pivot to their decision, not a unit; the spine pivot is a
+      // WO/inspection concern.
+      unitId: null,
       dueAt: null,
       lastActionAt: r.updatedAt.toISOString(),
       lastActionText: "needs decision",
@@ -463,6 +564,7 @@ interface InsRow {
   status: string;
   scheduledFor: Date | null;
   updatedAt: Date;
+  unitId: string | null;
   propertyName: string | null;
   unitLabel: string | null;
 }
@@ -497,6 +599,7 @@ function insQuery(tx: ScopedDB) {
       status: inspections.status,
       scheduledFor: inspections.scheduledFor,
       updatedAt: inspections.updatedAt,
+      unitId: inspections.unitId,
       propertyName: properties.name,
       unitLabel: units.label,
     })
@@ -521,6 +624,7 @@ function mapWO(
     ownerName,
     property: r.propertyName,
     unit: r.unitLabel,
+    unitId: r.unitId,
     dueAt: r.dueAt ? r.dueAt.toISOString() : null,
     lastActionAt: r.updatedAt.toISOString(),
     lastActionText: lastActionForStatus(r.status),
@@ -543,6 +647,7 @@ function mapIns(r: InsRow, urgency: Urgency, ownerName: string | null): QueueIte
     ownerName,
     property: r.propertyName,
     unit: r.unitLabel,
+    unitId: r.unitId,
     dueAt: r.scheduledFor ? r.scheduledFor.toISOString() : null,
     lastActionAt: r.updatedAt.toISOString(),
     lastActionText: r.status,

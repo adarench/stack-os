@@ -11,6 +11,7 @@ import { loadActiveOwners } from "./owners";
 import { loadWoRowHints, type RowHint } from "./row-hints";
 import { ensureUserRow } from "./sync-user";
 import type { Urgency } from "../../components/operator/urgency-dot";
+import { loadTurnStatuses, type TurnComputed } from "./turn-status";
 
 /**
  * Unified work-list reader. Powers /work.
@@ -49,6 +50,8 @@ export interface WorkRow {
   ownerName: string | null;
   property: string | null;
   unit: string | null;
+  /** Raw unit FK — lets the row pivot to the unit drawer (?d=UNT-…). */
+  unitId: string | null;
   dueAt: string | null;
   lastActionAt: string;
   lastActionText: string | null;
@@ -231,6 +234,7 @@ async function queryWorkOrders(
       ownerName: owners.get(r.id) ?? null,
       property: r.propertyName,
       unit: r.unitLabel,
+      unitId: r.unitId,
       dueAt: r.dueAt ? r.dueAt.toISOString() : null,
       lastActionAt: r.updatedAt.toISOString(),
       lastActionText: lastActionForWO(r.status),
@@ -283,6 +287,7 @@ async function queryInspections(
       status: inspections.status,
       scheduledFor: inspections.scheduledFor,
       updatedAt: inspections.updatedAt,
+      unitId: inspections.unitId,
       propertyName: properties.name,
       unitLabel: units.label,
     })
@@ -312,6 +317,7 @@ async function queryInspections(
       ownerName: owners.get(r.id) ?? null,
       property: r.propertyName,
       unit: r.unitLabel,
+      unitId: r.unitId,
       dueAt: r.scheduledFor ? r.scheduledFor.toISOString() : null,
       lastActionAt: r.updatedAt.toISOString(),
       lastActionText: r.status,
@@ -349,8 +355,10 @@ async function queryProjects(
       id: projects.id,
       name: projects.name,
       status: projects.status,
+      kind: projects.kind,
       targetCompletion: projects.targetCompletion,
       updatedAt: projects.updatedAt,
+      unitId: projects.unitId,
       propertyName: properties.name,
       unitLabel: units.label,
     })
@@ -368,8 +376,18 @@ async function queryProjects(
     rows.map((r) => r.id),
   );
 
+  // Turns become first-class pressure: their urgency derives from move-in date
+  // + child-WO state, not the hardcoded "muted" they used to carry.
+  const turnInputs = rows
+    .filter((r) => r.kind === "unit_turn" && r.status !== "closed")
+    .map((r) => ({ id: r.id, targetCompletion: r.targetCompletion }));
+  const turnStatuses = await loadTurnStatuses(tx, orgId, turnInputs, now);
+
   return rows.map((r): WorkRow => {
-    const urgency: Urgency = r.status === "closed" ? "done" : "muted";
+    const ts = r.kind === "unit_turn" ? turnStatuses.get(r.id) : undefined;
+    const urgency: Urgency =
+      r.status === "closed" ? "done" : ts ? ts.urgency : "muted";
+    const hints = ts ? turnRowHint(ts) : undefined;
     return {
       id: r.id,
       ref: `PRJ-${r.id.slice(0, 6).toUpperCase()}`,
@@ -380,14 +398,35 @@ async function queryProjects(
       ownerName: owners.get(r.id) ?? null,
       property: r.propertyName,
       unit: r.unitLabel,
+      unitId: r.unitId,
       dueAt: r.targetCompletion ? r.targetCompletion.toISOString() : null,
       lastActionAt: r.updatedAt.toISOString(),
       lastActionText: r.status,
       urgency,
       aged: isAged(urgency, r.updatedAt, now),
+      hints,
       legacyHref: `/projects/${r.id}`,
     };
   });
+}
+
+/** Subtitle hint for a turn row: "move-in 9d · 1/6 done · 2 blocked". */
+function turnRowHint(ts: TurnComputed): RowHint[] | undefined {
+  const parts: string[] = [];
+  if (ts.daysToMoveIn != null) {
+    parts.push(
+      ts.daysToMoveIn >= 0
+        ? `move-in ${ts.daysToMoveIn}d`
+        : `move-in ${-ts.daysToMoveIn}d ago`,
+    );
+  }
+  parts.push(`${ts.done}/${ts.total} done`);
+  if (ts.blocked > 0) parts.push(`${ts.blocked} blocked`);
+  if (ts.pendingApprovals > 0) parts.push(`${ts.pendingApprovals} awaiting sign-off`);
+  if (parts.length === 0) return undefined;
+  return [
+    { text: parts.join(" · "), tone: ts.confidence === "off_track" ? "alert" : "note" },
+  ];
 }
 
 const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;

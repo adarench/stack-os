@@ -137,8 +137,8 @@ export async function decideApprovalAction(
 /* ------------------ helpers ------------------ */
 
 function targetTypeFor(
-  t: "wo" | "ins" | "prj" | "approval",
-): "work_order" | "inspection" | "project" {
+  t: "wo" | "ins" | "prj" | "unit" | "approval",
+): "work_order" | "inspection" | "project" | "unit" {
   switch (t) {
     case "wo":
       return "work_order";
@@ -146,6 +146,8 @@ function targetTypeFor(
       return "inspection";
     case "prj":
       return "project";
+    case "unit":
+      return "unit";
     case "approval":
       return "work_order";
   }

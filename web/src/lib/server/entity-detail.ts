@@ -15,6 +15,7 @@ import { assignments } from "@db/schema/assignments";
 import { vendorUsers } from "@db/schema/vendor-users";
 import { WORK_ORDER_STATUSES, canTransition, type WorkOrderStatus } from "@contracts/state-machines/work-order";
 import { withStaffScope, type ScopedDB } from "./db";
+import { loadTurnStatuses } from "./turn-status";
 import {
   loadUnitHistory,
   loadVendorReliability,
@@ -32,7 +33,7 @@ import {
 
 export interface EntityDetail {
   ref: string;
-  type: "wo" | "ins" | "prj" | "approval";
+  type: "wo" | "ins" | "prj" | "unit" | "approval";
   id: string;
   title: string;
   description: string | null;
@@ -80,6 +81,30 @@ export interface EntityDetail {
   inspectionLineage?: InspectionLineage | null;
   /** Phase B: last 6 status transitions, oldest → newest. */
   dispatchTimeline?: DispatchEvent[];
+  /** Phase 2: turn outcome — only on unit_turn projects. Answers
+   *  "is this turn on track for its move-in date?" */
+  turn?: TurnDetail | null;
+}
+
+export interface TurnDetail {
+  moveInAt: string | null;
+  daysToMoveIn: number | null;
+  total: number;
+  done: number;
+  open: number;
+  blocked: number;
+  overdue: number;
+  pendingApprovals: number;
+  confidence: "on_track" | "at_risk" | "off_track";
+  blockers: Array<{
+    ref: string;
+    title: string;
+    reason: string;
+    owner: string | null;
+    actorNeeded: "you" | "vendor";
+    approvalRef: string | null;
+    amountCents: string | null;
+  }>;
 }
 
 export interface ActivityItem {
@@ -130,6 +155,7 @@ export async function loadEntityDetail(
   const woMatch = /^WO-(\d+)$/.exec(trimmed);
   const insMatch = /^INS-([A-F0-9]{4,12})$/.exec(trimmed);
   const prjMatch = /^PRJ-([A-F0-9]{4,12})$/.exec(trimmed);
+  const unitMatch = /^UNT-([A-F0-9]{4,12})$/.exec(trimmed);
   const apMatch = /^AP-([A-F0-9]{4,12})$/.exec(trimmed);
 
   return withStaffScope(async (tx, ctx) => {
@@ -141,6 +167,9 @@ export async function loadEntityDetail(
     }
     if (prjMatch) {
       return loadPrj(tx, ctx.orgId, prjMatch[1]!.toLowerCase());
+    }
+    if (unitMatch) {
+      return loadUnit(tx, ctx.orgId, unitMatch[1]!.toLowerCase());
     }
     if (apMatch) {
       return loadApproval(tx, ctx.orgId, apMatch[1]!.toLowerCase());
@@ -375,6 +404,29 @@ async function loadPrj(
     loadComments(tx, orgId, "project", r.id),
   ]);
 
+  // For a unit turn, compute the outcome: is it on track for move-in?
+  let turn: EntityDetail["turn"] = null;
+  if (r.kind === "unit_turn") {
+    const statuses = await loadTurnStatuses(tx, orgId, [
+      { id: r.id, targetCompletion: r.targetCompletion },
+    ]);
+    const tc = statuses.get(r.id);
+    if (tc) {
+      turn = {
+        moveInAt: r.targetCompletion ? r.targetCompletion.toISOString() : null,
+        daysToMoveIn: tc.daysToMoveIn,
+        total: tc.total,
+        done: tc.done,
+        open: tc.open,
+        blocked: tc.blocked,
+        overdue: tc.overdue,
+        pendingApprovals: tc.pendingApprovals,
+        confidence: tc.confidence,
+        blockers: tc.blockers,
+      };
+    }
+  }
+
   return {
     ref: `PRJ-${r.id.slice(0, 6).toUpperCase()}`,
     type: "prj",
@@ -394,7 +446,127 @@ async function loadPrj(
     files,
     comments: commentsList,
     nextStatuses: [],
+    turn,
   };
+}
+
+/**
+ * Unit drawer — the spine. "Everything on this unit": its open work, its
+ * recurrence history, and its tenant. Reuses the existing memory loaders so
+ * the drawer renders the same UnitHistory / Tenant / sibling-work blocks the
+ * WO drawer already knows how to show. Derived entirely from existing FKs —
+ * no unit status column, no schema change.
+ */
+async function loadUnit(
+  tx: ScopedDB,
+  orgId: string,
+  idPrefix: string,
+): Promise<EntityDetail | null> {
+  const rows = await tx
+    .select({
+      id: units.id,
+      label: units.label,
+      createdAt: units.createdAt,
+      updatedAt: units.updatedAt,
+      propertyName: properties.name,
+    })
+    .from(units)
+    .leftJoin(properties, eq(properties.id, units.propertyId))
+    .where(
+      and(
+        eq(units.orgId, orgId),
+        drizzleSql`left(${units.id}::text, ${idPrefix.length}) = ${idPrefix}`,
+      ),
+    )
+    .limit(1);
+  const r = rows[0];
+  if (!r) return null;
+
+  const [activity, files, commentsList, unitHistory, tenantContext, openWork] =
+    await Promise.all([
+      loadActivity(tx, orgId, "unit", r.id),
+      loadFiles(tx, orgId, "unit", r.id),
+      loadComments(tx, orgId, "unit", r.id),
+      // No focal WO to exclude — pass the nil uuid so nothing is filtered out.
+      loadUnitHistory(tx, orgId, r.id, NIL_UUID),
+      loadTenantContext(tx, orgId, r.id),
+      loadOpenWorkOnUnit(tx, orgId, r.id),
+    ]);
+
+  return {
+    ref: `UNT-${r.id.slice(0, 6).toUpperCase()}`,
+    type: "unit",
+    id: r.id,
+    title: [r.propertyName, r.label].filter(Boolean).join(" "),
+    description: null,
+    // Occupancy is a plain read of tenant presence — not a readiness model
+    // (that lands in Phase 1). Renders via the WO status-label fallback.
+    status: tenantContext ? "occupied" : "vacant",
+    priority: null,
+    property: r.propertyName ? { name: r.propertyName } : null,
+    unit: { label: r.label },
+    dueAt: null,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+    legacyHref: "/admin/properties",
+    activity,
+    costs: [],
+    files,
+    comments: commentsList,
+    nextStatuses: [],
+    unitHistory,
+    tenantContext,
+    siblingWork: openWork,
+  };
+}
+
+/** Nil uuid — a valid uuid that never matches a real row, used to satisfy
+ *  loadUnitHistory's "exclude focal WO" param when there is no focal WO. */
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Open WOs sitting on a unit — the unit's live work, rendered in the drawer's
+ * "Also here" block. Active-first sort mirrors loadSiblingWork.
+ */
+async function loadOpenWorkOnUnit(
+  tx: ScopedDB,
+  orgId: string,
+  unitId: string,
+): Promise<NonNullable<EntityDetail["siblingWork"]>> {
+  const rows = await tx
+    .select({
+      number: workOrders.number,
+      title: workOrders.title,
+      status: workOrders.status,
+      dueAt: workOrders.dueAt,
+    })
+    .from(workOrders)
+    .where(
+      and(
+        eq(workOrders.orgId, orgId),
+        eq(workOrders.unitId, unitId),
+        drizzleSql`${workOrders.status} NOT IN ('closed', 'cancelled', 'verified', 'resolved')`,
+      ),
+    )
+    .orderBy(
+      drizzleSql`case ${workOrders.status}
+        when 'blocked' then 0
+        when 'in_progress' then 1
+        when 'assigned' then 2
+        when 'scheduled' then 3
+        when 'triaged' then 4
+        else 5 end`,
+      asc(workOrders.dueAt),
+      desc(workOrders.updatedAt),
+    )
+    .limit(8);
+  return rows.map((r) => ({
+    ref: `WO-${r.number}`,
+    title: r.title,
+    status: r.status,
+    dueAt: r.dueAt ? r.dueAt.toISOString() : null,
+    unitLabel: null,
+  }));
 }
 
 async function loadApproval(
@@ -508,7 +680,7 @@ async function loadPendingApprovalsForWo(
 async function loadComments(
   tx: ScopedDB,
   orgId: string,
-  targetType: "work_order" | "inspection" | "project",
+  targetType: "work_order" | "inspection" | "project" | "unit",
   targetId: string,
 ): Promise<CommentItem[]> {
   const rows = await tx
@@ -563,7 +735,7 @@ async function loadComments(
 async function loadActivity(
   tx: ScopedDB,
   orgId: string,
-  targetType: "work_order" | "inspection" | "project",
+  targetType: "work_order" | "inspection" | "project" | "unit",
   targetId: string,
 ): Promise<ActivityItem[]> {
   const rows = await tx
@@ -629,7 +801,7 @@ async function loadCosts(
 async function loadFiles(
   tx: ScopedDB,
   orgId: string,
-  targetType: "work_order" | "inspection" | "project",
+  targetType: "work_order" | "inspection" | "project" | "unit",
   targetId: string,
 ): Promise<FileItem[]> {
   const rows = await tx

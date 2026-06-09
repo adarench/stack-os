@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
 import {
+  loadAtRiskTurns,
   loadQueueLane,
   loadQueueSummary,
   type QueueItem,
@@ -50,17 +51,27 @@ export default async function NowPage() {
 
   // Fan out: summary + six lanes + recent activity in parallel. Each
   // query is RLS-scoped.
-  const [summary, needs, overdue, blocked, today, inflight, changed, activity] =
-    await Promise.all([
-      loadQueueSummary(),
-      loadQueueLane("needs"),
-      loadQueueLane("overdue"),
-      loadQueueLane("blocked"),
-      loadQueueLane("today"),
-      loadQueueLane("inflight"),
-      loadQueueLane("changed"),
-      loadRecentActivity(12),
-    ]);
+  const [
+    summary,
+    atRiskTurns,
+    needs,
+    overdue,
+    blocked,
+    today,
+    inflight,
+    changed,
+    activity,
+  ] = await Promise.all([
+    loadQueueSummary(),
+    loadAtRiskTurns(),
+    loadQueueLane("needs"),
+    loadQueueLane("overdue"),
+    loadQueueLane("blocked"),
+    loadQueueLane("today"),
+    loadQueueLane("inflight"),
+    loadQueueLane("changed"),
+    loadRecentActivity(12),
+  ]);
 
   const items: Record<QueueLane, QueueItem[]> = {
     needs,
@@ -71,7 +82,8 @@ export default async function NowPage() {
     changed,
   };
 
-  const allEmpty = LANES.every((l) => items[l.key].length === 0);
+  const allEmpty =
+    atRiskTurns.length === 0 && LANES.every((l) => items[l.key].length === 0);
 
   return (
     <TimeSinceTicker>
@@ -90,6 +102,16 @@ export default async function NowPage() {
           <EmptyAllClear />
         ) : (
           <div className="mt-3 space-y-0">
+            {/* Turns are first-class pressure: at-risk move-ins lead the
+                cockpit so an operator encounters them by default. */}
+            {atRiskTurns.length > 0 && (
+              <Lane
+                laneKey="overdue"
+                title="Turns at risk"
+                rows={atRiskTurns}
+                futureTime={false}
+              />
+            )}
             {LANES.map((lane) => {
               const rows = items[lane.key];
               if (rows.length === 0) return null;

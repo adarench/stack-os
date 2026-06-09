@@ -87,7 +87,7 @@ interface DispatchEventC {
 
 interface EntityDetail {
   ref: string;
-  type: "wo" | "ins" | "prj" | "approval";
+  type: "wo" | "ins" | "prj" | "unit" | "approval";
   id: string;
   title: string;
   description: string | null;
@@ -137,6 +137,28 @@ interface EntityDetail {
   tenantContext?: TenantContextC | null;
   inspectionLineage?: InspectionLineageC | null;
   dispatchTimeline?: DispatchEventC[];
+  turn?: TurnDetailC | null;
+}
+
+interface TurnDetailC {
+  moveInAt: string | null;
+  daysToMoveIn: number | null;
+  total: number;
+  done: number;
+  open: number;
+  blocked: number;
+  overdue: number;
+  pendingApprovals: number;
+  confidence: "on_track" | "at_risk" | "off_track";
+  blockers: Array<{
+    ref: string;
+    title: string;
+    reason: string;
+    owner: string | null;
+    actorNeeded: "you" | "vendor";
+    approvalRef: string | null;
+    amountCents: string | null;
+  }>;
 }
 
 type State =
@@ -346,6 +368,8 @@ function WorkOverview({
     .join(" · ");
   return (
     <div className="space-y-4">
+      {/* Turn outcome leads — "is this on track?" and "what do I do?". */}
+      <TurnBlock turn={data.turn} onMutated={onMutated} />
       {/* Title already lives in the drawer header — don't repeat it. */}
       {subtitle && <Field label="Location">{subtitle}</Field>}
       <div className="grid grid-cols-2 gap-3">
@@ -562,6 +586,236 @@ interface AssignableVendorUserClient {
   vendorName: string;
   vendorTrade: string | null;
   coiState: "active" | "expiring" | "expired" | "missing";
+}
+
+/* -------------------- turn outcome -------------------- */
+
+/**
+ * Turn outcome block — the answer to "is this turn on track for move-in?"
+ * Confidence headline + move-in countdown + progress + the children holding
+ * the date. Renders only on unit_turn projects (data.turn present).
+ */
+function TurnBlock({
+  turn,
+  onMutated,
+}: {
+  turn?: TurnDetailC | null;
+  onMutated: () => void;
+}) {
+  if (!turn) return null;
+  const label =
+    turn.confidence === "on_track"
+      ? "On track"
+      : turn.confidence === "at_risk"
+        ? "At risk"
+        : "Off track";
+  const tone =
+    turn.confidence === "on_track"
+      ? "text-urgency-done"
+      : turn.confidence === "at_risk"
+        ? "text-urgency-blocked"
+        : "text-urgency-overdue";
+  const dot =
+    turn.confidence === "on_track"
+      ? "bg-urgency-done"
+      : turn.confidence === "at_risk"
+        ? "bg-urgency-blocked"
+        : "bg-urgency-overdue";
+  const moveIn =
+    turn.daysToMoveIn == null
+      ? null
+      : turn.daysToMoveIn >= 0
+        ? `move-in in ${turn.daysToMoveIn}d`
+        : `move-in ${-turn.daysToMoveIn}d ago`;
+  const pct = turn.total > 0 ? Math.round((turn.done / turn.total) * 100) : 0;
+  // Intervention: the highest-leverage next move = the worst blocker (already
+  // sorted overdue → awaiting approval → blocked).
+  const next = turn.blockers[0] ?? null;
+  return (
+    <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <span className={cn("size-2 rounded-full", dot)} aria-hidden />
+        <span className={cn("text-sm font-medium", tone)}>{label}</span>
+        {moveIn && (
+          <span
+            className={cn(
+              "ml-auto font-mono text-[11px] tabular-nums",
+              turn.daysToMoveIn != null && turn.daysToMoveIn < 0
+                ? "text-urgency-overdue"
+                : "text-muted-foreground",
+            )}
+          >
+            {moveIn}
+          </span>
+        )}
+      </div>
+
+      {next && (
+        <p className="mt-1.5 text-[12px] text-foreground/90">
+          <span className="font-medium">Next:</span> {nextActionPhrase(next)}
+        </p>
+      )}
+
+      <div className="mt-2">
+        <div className="flex items-baseline justify-between text-[11px] text-muted-foreground">
+          <span className="font-mono tabular-nums">
+            {turn.done}/{turn.total} done
+          </span>
+          <span className="font-mono tabular-nums">
+            {turn.blocked > 0 && (
+              <span className="text-urgency-blocked">{turn.blocked} blocked</span>
+            )}
+            {turn.blocked > 0 && turn.pendingApprovals > 0 && " · "}
+            {turn.pendingApprovals > 0 && (
+              <span className="text-urgency-blocked">
+                {turn.pendingApprovals} awaiting sign-off
+              </span>
+            )}
+          </span>
+        </div>
+        <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn(
+              "h-full rounded-full",
+              turn.confidence === "off_track"
+                ? "bg-urgency-overdue"
+                : turn.confidence === "at_risk"
+                  ? "bg-urgency-blocked"
+                  : "bg-urgency-done",
+            )}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {turn.blockers.length > 0 && (
+        <div className="mt-2.5">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            Holding the move-in
+          </div>
+          <ul className="mt-1.5 space-y-2">
+            {turn.blockers.map((b) => (
+              <TurnBlockerRow key={b.ref} blocker={b} onMutated={onMutated} />
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "sign off the $720 dishwasher (WO-1051)" / "reassign WO-1050 — floors, Northstar GC". */
+function nextActionPhrase(b: TurnDetailC["blockers"][number]): string {
+  if (b.approvalRef) {
+    return `sign off ${formatAmount(b.amountCents)} on ${b.ref}`;
+  }
+  if (b.actorNeeded === "vendor") {
+    return `chase or reassign ${b.ref}${b.owner ? ` — ${b.owner}` : ""} (${b.reason})`;
+  }
+  return `clear ${b.ref} (${b.reason})`;
+}
+
+function formatAmount(cents: string | null): string {
+  if (!cents) return "the estimate";
+  return `$${(Number(cents) / 100).toFixed(0)}`;
+}
+
+/**
+ * One blocker, made actionable. Approvals get a one-click sign-off; vendor
+ * work gets an inline reassign. The whole point of Phase 2: act from the turn.
+ */
+function TurnBlockerRow({
+  blocker,
+  onMutated,
+}: {
+  blocker: TurnDetailC["blockers"][number];
+  onMutated: () => void;
+}) {
+  const [pending, startTransition] = React.useTransition();
+  const [reassigning, setReassigning] = React.useState(false);
+
+  const signOff = () => {
+    if (!blocker.approvalRef) return;
+    startTransition(async () => {
+      const r = await decideApprovalAction({
+        ref: blocker.approvalRef!,
+        to: "approved",
+      });
+      if (r.ok) {
+        toast.success("Signed off");
+        onMutated();
+      } else {
+        toast.error(`Couldn't sign off: ${r.error}`);
+      }
+    });
+  };
+
+  const reasonTone =
+    blocker.reason === "overdue"
+      ? "text-urgency-overdue"
+      : "text-urgency-blocked";
+
+  return (
+    <li className="space-y-1">
+      <div className="flex items-baseline gap-2 font-mono text-[11px] tabular-nums">
+        <Link
+          href={`?d=${blocker.ref}`}
+          scroll={false}
+          data-ref={blocker.ref}
+          className="shrink-0 text-foreground hover:underline"
+        >
+          {blocker.ref}
+        </Link>
+        <span className="min-w-0 flex-1 truncate text-foreground/80">
+          {blocker.title}
+        </span>
+        <span
+          className={cn(
+            "shrink-0 text-[10px] uppercase tracking-wider",
+            reasonTone,
+          )}
+        >
+          {blocker.reason}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 pl-[2px] text-[11px]">
+        <span className="text-muted-foreground">
+          {blocker.actorNeeded === "you" ? (
+            <span className="text-foreground/90">needs you</span>
+          ) : (
+            <>waiting on {blocker.owner ?? "vendor"}</>
+          )}
+        </span>
+        <span className="ml-auto flex items-center gap-1.5">
+          {blocker.approvalRef ? (
+            <Button type="button" size="sm" disabled={pending} onClick={signOff}>
+              {pending ? "Signing…" : `Sign off ${formatAmount(blocker.amountCents)}`}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setReassigning((v) => !v)}
+            >
+              {reassigning ? "Cancel" : "Reassign"}
+            </Button>
+          )}
+        </span>
+      </div>
+      {reassigning && (
+        <div className="pl-[2px] pt-0.5">
+          <AssignVendorMenu
+            entityRef={blocker.ref}
+            onMutated={() => {
+              setReassigning(false);
+              onMutated();
+            }}
+          />
+        </div>
+      )}
+    </li>
+  );
 }
 
 /* -------------------- memory blocks -------------------- */

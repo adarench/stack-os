@@ -3,6 +3,8 @@ import { and, eq, ilike, or, sql as drizzleSql, desc } from "drizzle-orm";
 import { workOrders } from "@db/schema/work-orders";
 import { inspections } from "@db/schema/inspections";
 import { projects } from "@db/schema/projects";
+import { units } from "@db/schema/units";
+import { properties } from "@db/schema/properties";
 import { withStaffScope } from "./db";
 import { parseWoNumber, searchPattern } from "./work-orders";
 
@@ -18,7 +20,7 @@ import { parseWoNumber, searchPattern } from "./work-orders";
  */
 export interface SearchHit {
   ref: string;
-  type: "wo" | "ins" | "prj";
+  type: "wo" | "ins" | "prj" | "unit";
   title: string;
   property: string | null;
   unit: string | null;
@@ -67,8 +69,10 @@ export async function searchEntities(
 
     if (!pattern) return [];
 
-    // Fan out three lightweight searches; merge and cap.
-    const [wos, inss, prjs] = await Promise.all([
+    // Fan out four lightweight searches; merge and cap. Units are the spine —
+    // searchable by their own label or their property name so "Maple #2" or
+    // "247 Maple" both surface the unit.
+    const [wos, inss, prjs, unts] = await Promise.all([
       tx
         .select({
           ref: drizzleSql<string>`'WO-' || ${workOrders.number}::text`,
@@ -118,6 +122,23 @@ export async function searchEntities(
         )
         .orderBy(desc(projects.updatedAt))
         .limit(limit),
+      tx
+        .select({
+          ref: drizzleSql<string>`'UNT-' || left(${units.id}::text, 6)`,
+          label: units.label,
+          property: properties.name,
+          updatedAt: units.updatedAt,
+        })
+        .from(units)
+        .leftJoin(properties, eq(properties.id, units.propertyId))
+        .where(
+          and(
+            eq(units.orgId, ctx.orgId),
+            or(ilike(units.label, pattern), ilike(properties.name, pattern)),
+          ),
+        )
+        .orderBy(desc(units.updatedAt))
+        .limit(limit),
     ]);
 
     const hits: SearchHit[] = [
@@ -146,6 +167,15 @@ export async function searchEntities(
           title: r.title,
           property: null,
           unit: null,
+        }),
+      ),
+      ...unts.map(
+        (r): SearchHit => ({
+          ref: r.ref,
+          type: "unit",
+          title: [r.property, r.label].filter(Boolean).join(" · "),
+          property: r.property,
+          unit: r.label,
         }),
       ),
     ];

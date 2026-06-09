@@ -17,6 +17,9 @@ export interface EntityRowData {
   ownerName: string | null;
   property: string | null;
   unit: string | null;
+  /** Raw unit FK. When present, the property·unit subtitle pivots to the
+   *  unit drawer (the spine) instead of only opening this row's entity. */
+  unitId?: string | null;
   dueAt: string | null;
   lastActionAt: string;
   lastActionText: string | null;
@@ -114,6 +117,18 @@ export function EntityRow({
     }
   };
 
+  // Pivot to the unit (the spine) without triggering the row's own open().
+  const openUnit = React.useCallback(
+    (e: React.MouseEvent) => {
+      if (!row.unitId) return;
+      e.stopPropagation();
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.set("d", `UNT-${row.unitId.slice(0, 6).toUpperCase()}`);
+      router.replace(`?${sp.toString()}`, { scroll: false });
+    },
+    [router, searchParams, row.unitId],
+  );
+
   const subtitle =
     [row.property, row.unit].filter(Boolean).join(" · ") || null;
 
@@ -183,9 +198,20 @@ export function EntityRow({
           )}
         >
           {row.title}
-          {subtitle && (
-            <span className="ml-2 text-muted-foreground">— {subtitle}</span>
-          )}
+          {subtitle &&
+            (row.unitId ? (
+              <span
+                role="link"
+                tabIndex={-1}
+                onClick={openUnit}
+                title="Open unit"
+                className="ml-2 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                — {subtitle}
+              </span>
+            ) : (
+              <span className="ml-2 text-muted-foreground">— {subtitle}</span>
+            ))}
         </span>
         <span className="ml-auto flex items-center gap-2">
           {projection?.showConsequence && row.consequenceLabel && (
