@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, lt, lte, sql as drizzleSql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, lte, or, sql as drizzleSql } from "drizzle-orm";
 import { workOrders } from "@db/schema/work-orders";
 import { inspections } from "@db/schema/inspections";
 import { approvals } from "@db/schema/approvals";
@@ -146,6 +146,48 @@ const URGENCY_ORDER: Record<Urgency, number> = {
   muted: 4,
   done: 5,
 };
+
+/**
+ * Dispatch needed: work that's ready to move but hasn't been picked up —
+ * new/triaged WOs that aren't overdue (those scream in the Overdue lane).
+ * Each row carries its next action (Triage / Assign vendor) as a hint, and
+ * is openable in the drawer where the assign/status actions live. Answers
+ * "what work needs someone to take ownership or get it moving?"
+ */
+export async function loadDispatchNeeded(
+  now: Date = new Date(),
+): Promise<QueueItem[]> {
+  return withStaffScope(async (tx, ctx) => {
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const rows = await woQuery(tx)
+      .where(
+        and(
+          eq(workOrders.orgId, ctx.orgId),
+          drizzleSql`${workOrders.status} IN ('new', 'triaged')`,
+          // exclude overdue — they belong to the Overdue lane
+          or(isNull(workOrders.dueAt), gte(workOrders.dueAt, startOfToday)),
+        ),
+      )
+      .orderBy(desc(workOrders.priority), asc(workOrders.dueAt))
+      .limit(20);
+    if (rows.length === 0) return [];
+    const owners = await loadActiveOwners(
+      tx,
+      ctx.orgId,
+      "work_order",
+      rows.map((r) => r.id),
+    );
+    return rows.map((r) => {
+      const nextAction = r.status === "new" ? "Triage" : "Assign vendor";
+      const dueToday = r.dueAt != null && r.dueAt < new Date(startOfToday.getTime() + 86_400_000);
+      const urgency: Urgency = dueToday ? "today" : "muted";
+      return mapWO(r, urgency, owners.get(r.id) ?? null, [
+        { text: nextAction, tone: "note" },
+      ]);
+    });
+  });
+}
 
 /** "move-in 9d · 0/6 done · 2 blocked · 1 awaiting sign-off". */
 function turnPressureText(ts: TurnComputed): string {

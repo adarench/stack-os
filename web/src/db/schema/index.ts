@@ -17,3 +17,4 @@ export * from "./inspections";
 export * from "./projects";
 export * from "./compliance";
 export * from "./financials";
+export * from "./follow-ups";

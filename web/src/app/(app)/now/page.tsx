@@ -4,6 +4,7 @@ import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
 import {
   loadAtRiskTurns,
+  loadDispatchNeeded,
   loadQueueLane,
   loadQueueSummary,
   type QueueItem,
@@ -14,7 +15,9 @@ import {
   loadComplianceView,
   selectComplianceBlockers,
 } from "@/lib/server/compliance-view";
+import { listFollowUpsForLane } from "@/lib/server/follow-ups";
 import { ComplianceLane } from "@/components/operator/compliance-lane";
+import { FollowUpLane } from "@/components/operator/follow-up-lane";
 import { loadRecentActivity } from "@/lib/server/activity";
 import { ActivityStrip } from "@/components/operator/activity-strip";
 import { LaneHeader, laneTone } from "@/components/operator/lane-header";
@@ -56,10 +59,13 @@ export default async function NowPage() {
 
   // Fan out: summary + six lanes + recent activity in parallel. Each
   // query is RLS-scoped.
+  // Fan out every lane of the morning-triage loop in parallel. RLS-scoped.
   const [
     summary,
     atRiskTurns,
     complianceView,
+    dispatch,
+    followUps,
     needs,
     overdue,
     blocked,
@@ -71,6 +77,8 @@ export default async function NowPage() {
     loadQueueSummary(),
     loadAtRiskTurns(),
     loadComplianceView(),
+    loadDispatchNeeded(),
+    listFollowUpsForLane(),
     loadQueueLane("needs"),
     loadQueueLane("overdue"),
     loadQueueLane("blocked"),
@@ -89,10 +97,14 @@ export default async function NowPage() {
     inflight,
     changed,
   };
+  // The bottom group = the remaining queue lanes (needs is positioned up top).
+  const tailLanes = LANES.filter((l) => l.key !== "needs");
 
   const allEmpty =
     atRiskTurns.length === 0 &&
     complianceBlockers.length === 0 &&
+    dispatch.length === 0 &&
+    followUps.length === 0 &&
     LANES.every((l) => items[l.key].length === 0);
 
   return (
@@ -112,9 +124,9 @@ export default async function NowPage() {
           <EmptyAllClear />
         ) : (
           <div className="mt-3 space-y-0">
-            {/* "Can we act?" leads the morning: compliance blockers + at-risk
-                turns surface before the work queues. */}
-            <ComplianceLane blockers={complianceBlockers} />
+            {/* The morning operating loop, in priority order:
+                turns at risk → needs your sign-off → dispatch needed →
+                follow-up needed → blocked by compliance → the work queues. */}
             {atRiskTurns.length > 0 && (
               <Lane
                 laneKey="overdue"
@@ -123,7 +135,25 @@ export default async function NowPage() {
                 futureTime={false}
               />
             )}
-            {LANES.map((lane) => {
+            {needs.length > 0 && (
+              <Lane
+                laneKey="needs"
+                title="Needs your sign-off"
+                rows={needs}
+                futureTime={false}
+              />
+            )}
+            {dispatch.length > 0 && (
+              <Lane
+                laneKey="needs"
+                title="Dispatch needed"
+                rows={dispatch}
+                futureTime={false}
+              />
+            )}
+            <FollowUpLane items={followUps} />
+            <ComplianceLane blockers={complianceBlockers} />
+            {tailLanes.map((lane) => {
               const rows = items[lane.key];
               if (rows.length === 0) return null;
               return (

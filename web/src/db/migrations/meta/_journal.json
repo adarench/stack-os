@@ -36,6 +36,13 @@
       "when": 1778265934845,
       "tag": "0004_acoustic_songbird",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781028901634,
+      "tag": "0005_loose_sebastian_shaw",
+      "breakpoints": true
     }
   ]
 }
