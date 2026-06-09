@@ -10,6 +10,11 @@ import {
   type QueueLane,
 } from "@/lib/server/queue";
 import { consequenceChipLabel } from "@/lib/server/consequences";
+import {
+  loadComplianceView,
+  selectComplianceBlockers,
+} from "@/lib/server/compliance-view";
+import { ComplianceLane } from "@/components/operator/compliance-lane";
 import { loadRecentActivity } from "@/lib/server/activity";
 import { ActivityStrip } from "@/components/operator/activity-strip";
 import { LaneHeader, laneTone } from "@/components/operator/lane-header";
@@ -54,6 +59,7 @@ export default async function NowPage() {
   const [
     summary,
     atRiskTurns,
+    complianceView,
     needs,
     overdue,
     blocked,
@@ -64,6 +70,7 @@ export default async function NowPage() {
   ] = await Promise.all([
     loadQueueSummary(),
     loadAtRiskTurns(),
+    loadComplianceView(),
     loadQueueLane("needs"),
     loadQueueLane("overdue"),
     loadQueueLane("blocked"),
@@ -72,6 +79,7 @@ export default async function NowPage() {
     loadQueueLane("changed"),
     loadRecentActivity(12),
   ]);
+  const complianceBlockers = selectComplianceBlockers(complianceView, new Date());
 
   const items: Record<QueueLane, QueueItem[]> = {
     needs,
@@ -83,7 +91,9 @@ export default async function NowPage() {
   };
 
   const allEmpty =
-    atRiskTurns.length === 0 && LANES.every((l) => items[l.key].length === 0);
+    atRiskTurns.length === 0 &&
+    complianceBlockers.length === 0 &&
+    LANES.every((l) => items[l.key].length === 0);
 
   return (
     <TimeSinceTicker>
@@ -102,8 +112,9 @@ export default async function NowPage() {
           <EmptyAllClear />
         ) : (
           <div className="mt-3 space-y-0">
-            {/* Turns are first-class pressure: at-risk move-ins lead the
-                cockpit so an operator encounters them by default. */}
+            {/* "Can we act?" leads the morning: compliance blockers + at-risk
+                turns surface before the work queues. */}
+            <ComplianceLane blockers={complianceBlockers} />
             {atRiskTurns.length > 0 && (
               <Lane
                 laneKey="overdue"

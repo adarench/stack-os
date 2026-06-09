@@ -65,6 +65,92 @@ export interface ComplianceView {
   };
 }
 
+/**
+ * A compliance blocker as it appears on the /now command view: a vendor that
+ * can't be dispatched (no/expired COI) or is about to lapse — with the open
+ * work it puts at risk. Pure derivation from ComplianceView so it's testable.
+ */
+export interface ComplianceBlocker {
+  key: string;
+  vendorName: string;
+  reason: "no COI" | "COI expired" | "COI expiring";
+  /** "expired 3d ago" / "in 8d" — null when no expiry on file. */
+  detail: string | null;
+  /** Open WOs this vendor is holding (the "what breaks" number). */
+  blockedCount: number;
+  /** Up to 5 of those WO refs, when known (violations carry them). */
+  blockedWoRefs: BlockedWoRef[];
+  tone: "alert" | "warn";
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Morning-triage blockers, worst-first: vendors who can't be dispatched
+ * (alert) above vendors expiring soon (warn). A vendor with an expired COI
+ * row is shown as "COI expired" (with a date), not the generic "no COI".
+ */
+export function selectComplianceBlockers(
+  view: ComplianceView,
+  now: Date,
+): ComplianceBlocker[] {
+  const out: ComplianceBlocker[] = [];
+  const expiredVendorIds = new Set(
+    view.cois.filter((c) => c.status === "expired").map((c) => c.vendorId),
+  );
+
+  // Assign-gate violations — but only the truly COI-less ones; vendors whose
+  // COI lapsed are surfaced (with a date) by the expired branch below.
+  for (const v of view.violations) {
+    if (expiredVendorIds.has(v.vendorId)) continue;
+    out.push({
+      key: `viol-${v.vendorId}`,
+      vendorName: v.vendorName,
+      reason: "no COI",
+      detail: null,
+      blockedCount: v.blockedOpenWoCount,
+      blockedWoRefs: v.blockedWoRefs,
+      tone: "alert",
+    });
+  }
+  for (const c of view.cois) {
+    if (c.status === "expired") {
+      out.push({
+        key: `coi-${c.id}`,
+        vendorName: c.vendorName,
+        reason: "COI expired",
+        detail: c.expiresAt ? expiryDetail(c.expiresAt, now) : null,
+        blockedCount: c.affectedOpenWoCount,
+        blockedWoRefs: [],
+        tone: "alert",
+      });
+    } else if (c.status === "expiring") {
+      out.push({
+        key: `coi-${c.id}`,
+        vendorName: c.vendorName,
+        reason: "COI expiring",
+        detail: c.expiresAt ? expiryDetail(c.expiresAt, now) : null,
+        blockedCount: c.affectedOpenWoCount,
+        blockedWoRefs: [],
+        tone: "warn",
+      });
+    }
+  }
+
+  out.sort((a, b) => {
+    if (a.tone !== b.tone) return a.tone === "alert" ? -1 : 1;
+    return b.blockedCount - a.blockedCount;
+  });
+  return out;
+}
+
+function expiryDetail(iso: string, now: Date): string {
+  const days = Math.ceil((new Date(iso).getTime() - now.getTime()) / DAY_MS);
+  if (days < 0) return `expired ${-days}d ago`;
+  if (days === 0) return "expires today";
+  return `in ${days}d`;
+}
+
 export async function loadComplianceView(): Promise<ComplianceView> {
   return withStaffScope(async (tx, ctx) => {
     const orgId = ctx.orgId;
