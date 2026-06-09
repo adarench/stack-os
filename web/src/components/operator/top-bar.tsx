@@ -52,8 +52,8 @@ export function TopBar({ summary }: { summary: ShellSummary | null }) {
                 "px-2 py-1 rounded-md hover:bg-accent text-sm",
             },
           }}
-          afterSelectOrganizationUrl="/now"
-          afterCreateOrganizationUrl="/now"
+          afterSelectOrganizationUrl="/my"
+          afterCreateOrganizationUrl="/my"
         />
       </div>
 

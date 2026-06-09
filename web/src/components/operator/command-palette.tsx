@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
+  CalendarDays,
   ClipboardList,
   ClipboardPlus,
   FolderPlus,
@@ -151,12 +151,22 @@ export function CommandPaletteProvider({
     () => [
       // Navigate
       {
-        id: "nav-now",
-        label: "Go to Now",
+        id: "nav-my",
+        label: "Go to My Work",
         group: "Navigate",
-        icon: Activity,
-        shortcut: "g n",
-        run: () => go("/now"),
+        icon: ListTodo,
+        keywords: ["mine", "assigned", "me"],
+        shortcut: "g m",
+        run: () => go("/my"),
+      },
+      {
+        id: "nav-calendar",
+        label: "Go to Calendar",
+        group: "Navigate",
+        icon: CalendarDays,
+        keywords: ["recurring", "walk", "schedule", "pm"],
+        shortcut: "g a",
+        run: () => go("/calendar"),
       },
       {
         id: "nav-work",
@@ -203,7 +213,6 @@ export function CommandPaletteProvider({
         label: "Go to Money",
         group: "Navigate",
         icon: Wallet,
-        shortcut: "g m",
         run: () => go("/money"),
       },
       {

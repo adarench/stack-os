@@ -2,6 +2,12 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { notifications, notificationPreferences } from "@db/schema/notifications";
 import { sendEmail } from "./email";
+import {
+  loadPushSubscriptions,
+  prunePushSubscription,
+  sendWebPush,
+  type PushPayload,
+} from "./push";
 import { withScope, type ScopedDB } from "./db";
 import type { ActorType, NotificationChannel, PolymorphicTarget } from "@contracts/polymorphic";
 import { inngest } from "@/lib/inngest-client";
@@ -80,8 +86,11 @@ export async function markNotificationStatus(
 /**
  * Read prefs for a recipient. Returns the set of enabled channels.
  *
- * Default when no prefs row exists for a channel: email + in_app on,
- * sms + push off.
+ * Default when no prefs row exists for a channel: email + in_app on, sms off.
+ * Push defaults ON for staff users (internal techs — reliable phone awareness
+ * is the whole point) and OFF for vendor users (no push subscriptions yet).
+ * Either way, push only actually sends if the recipient has a registered
+ * subscription, so a default-on with no device is a harmless no-op.
  */
 export async function enabledChannels(
   tx: ScopedDB,
@@ -89,10 +98,11 @@ export async function enabledChannels(
   recipient: { userId?: string | null; vendorUserId?: string | null },
 ): Promise<NotificationChannel[]> {
   const channels: NotificationChannel[] = ["email", "sms", "push", "in_app"];
+  const isStaff = !!recipient.userId;
   const defaults: Record<NotificationChannel, boolean> = {
     email: true,
     sms: false,
-    push: false,
+    push: isStaff,
     in_app: true,
   };
 
@@ -194,7 +204,58 @@ export async function dispatchInline(args: {
       // Skip channels with no recipient address.
       if (channel === "email" && !args.recipientEmail) continue;
       if (channel === "sms" && !args.recipientPhone) continue;
-      if (channel === "push") continue; // not implemented yet
+      if (channel === "push") {
+        // Web-push to every device the staff user has registered. Records one
+        // notifications row reflecting the aggregate outcome; prunes any
+        // subscription the push service reports as gone (404/410).
+        if (!args.recipientUserId) continue; // vendor push not wired yet
+        const subs = await loadPushSubscriptions(
+          tx,
+          args.orgId,
+          args.recipientUserId,
+        );
+        if (subs.length === 0) continue;
+
+        const { id } = await recordNotification(tx, {
+          orgId: args.orgId,
+          recipientUserId: args.recipientUserId,
+          recipientVendorUserId: args.recipientVendorUserId,
+          channel: "push",
+          kind: args.kind,
+          subject: args.subject,
+          body: args.body,
+          targetType: args.targetType,
+          targetId: args.targetId,
+        });
+
+        const payload: PushPayload = {
+          title: args.subject,
+          body: args.body,
+          url: targetUrl(args.targetType, args.targetId),
+          tag: args.targetId ?? args.kind,
+        };
+        let anyOk = false;
+        let lastError: string | undefined;
+        for (const sub of subs) {
+          const r = await sendWebPush(sub, payload);
+          if (r.ok) anyOk = true;
+          else {
+            lastError = r.error;
+            if (r.gone) await prunePushSubscription(tx, sub.id);
+          }
+        }
+        if (anyOk) {
+          await markNotificationStatus(tx, id, { status: "sent" });
+          sent.push("push");
+        } else {
+          await markNotificationStatus(tx, id, {
+            status: "failed",
+            error: lastError ?? "all push sends failed",
+          });
+          failed.push("push");
+        }
+        continue;
+      }
       if (channel === "in_app") {
         const { id } = await recordNotification(tx, {
           orgId: args.orgId,
@@ -266,4 +327,26 @@ function escapeHtml(s: string) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+/**
+ * Deep link a notification opens to. Work orders are the dominant case and
+ * land on the legacy detail route (which carries status + photo + comment
+ * actions). Other targets fall back to My Work.
+ */
+function targetUrl(
+  targetType: PolymorphicTarget | undefined,
+  targetId: string | undefined,
+): string {
+  if (!targetType || !targetId) return "/my";
+  switch (targetType) {
+    case "work_order":
+      return `/work-orders/${targetId}`;
+    case "inspection":
+      return `/inspections/${targetId}`;
+    case "project":
+      return `/projects/${targetId}`;
+    default:
+      return "/my";
+  }
 }

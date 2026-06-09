@@ -19,10 +19,10 @@ import {
  *   esc         close the drawer
  *   /           focus the search (opens the command palette)
  *   ?           toggle this shortcut overlay
- *   g then n    /now
+ *   g then m    /my (My Work)
+ *   g then a    /calendar
  *   g then w    /work
  *   g then c    /compliance
- *   g then m    /money
  *   g then i    /inbox
  *
  * Rows opt in with `data-row="true"` and own focus via `tabIndex={0}`.
@@ -75,10 +75,10 @@ export function KeyboardProvider({ children }: { children: React.ReactNode }) {
       }
       if (goChord.current !== null) {
         const target =
-          e.key === "n" ? "/now"
+          e.key === "m" ? "/my"
+          : e.key === "a" ? "/calendar"
           : e.key === "w" ? "/work"
           : e.key === "c" ? "/compliance"
-          : e.key === "m" ? "/money"
           : e.key === "i" ? "/inbox"
           : null;
         if (target) {
