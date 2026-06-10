@@ -13,6 +13,7 @@ export * from "./assignments";
 export * from "./task-scopes";
 export * from "./task-templates";
 export * from "./notifications";
+export * from "./push-subscriptions";
 export * from "./inspections";
 export * from "./projects";
 export * from "./compliance";

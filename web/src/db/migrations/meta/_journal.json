@@ -43,6 +43,13 @@
       "when": 1781028901634,
       "tag": "0005_loose_sebastian_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781046653262,
+      "tag": "0006_loose_earthquake",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,8 @@
 import {
   type LucideIcon,
   ListTodo,
-  Activity,
+  CalendarDays,
+  ClipboardCheck,
   ShieldCheck,
   Wallet,
 } from "lucide-react";
@@ -26,19 +27,25 @@ export type BadgeKey =
   | "unread";
 
 /**
- * The morning-triage loop. PRIMARY is the three surfaces a PM runs their day
- * from: /now (the command view), /work (the queue detail), /compliance (the
- * vendor detail). /money is demoted to secondary — approvals are actioned
- * inline from the /now lane + drawer, so it's a supporting surface, not a
- * daily destination. /inbox is hidden until email/text actually feed it.
+ * The maintenance-execution loop. PRIMARY is the three surfaces the team
+ * runs their day from:
+ *   /my          — the technician's own open work ("what's on me")
+ *   /calendar    — recurring walks + scheduled work (the Trello replacement)
+ *   /inspections — the recurring inspection flow
+ *
+ * Dispatch (/dispatcher), Compliance and Money are SECONDARY — reachable from
+ * the rail / More menu, not daily destinations. The old abstract /now pressure
+ * console is intentionally absent: it redirects to /my and stays off the nav.
  */
 export const PRIMARY_NAV: NavItem[] = [
-  { href: "/now", label: "Now", icon: Activity, mobile: true },
-  { href: "/work", label: "Work", icon: ListTodo, mobile: true, badgeKey: "overdue" },
-  { href: "/compliance", label: "Compliance", icon: ShieldCheck, mobile: true, badgeKey: "cois_30d" },
+  { href: "/my", label: "My Work", icon: ListTodo, mobile: true, badgeKey: "overdue" },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays, mobile: true },
+  { href: "/inspections", label: "Inspections", icon: ClipboardCheck, mobile: true },
 ];
 
 export const SECONDARY_NAV: NavItem[] = [
+  { href: "/dispatcher", label: "Dispatch", icon: ListTodo, badgeKey: "needs" },
+  { href: "/compliance", label: "Compliance", icon: ShieldCheck, badgeKey: "cois_30d" },
   { href: "/money", label: "Money", icon: Wallet, badgeKey: "needs" },
 ];
 export const FOOT_NAV: NavItem[] = [];

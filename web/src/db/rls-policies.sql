@@ -72,6 +72,7 @@ ALTER TABLE task_templates           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE task_template_fires      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE push_subscriptions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspections              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspection_findings      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects                 ENABLE ROW LEVEL SECURITY;
@@ -100,6 +101,7 @@ ALTER TABLE task_templates           FORCE ROW LEVEL SECURITY;
 ALTER TABLE task_template_fires      FORCE ROW LEVEL SECURITY;
 ALTER TABLE notifications            FORCE ROW LEVEL SECURITY;
 ALTER TABLE notification_preferences FORCE ROW LEVEL SECURITY;
+ALTER TABLE push_subscriptions       FORCE ROW LEVEL SECURITY;
 ALTER TABLE inspections              FORCE ROW LEVEL SECURITY;
 ALTER TABLE inspection_findings      FORCE ROW LEVEL SECURITY;
 ALTER TABLE projects                 FORCE ROW LEVEL SECURITY;
@@ -145,7 +147,7 @@ DECLARE
     'work_orders', 'comments', 'attachments', 'audit_log',
     'approvals', 'assignments', 'task_scopes',
     'task_templates', 'task_template_fires',
-    'notifications', 'notification_preferences',
+    'notifications', 'notification_preferences', 'push_subscriptions',
     'inspections', 'inspection_findings', 'projects',
     'vendor_cois', 'tenant_users', 'tenant_insurance_policies',
     'task_costs', 'task_time_entries', 'invoices', 'follow_ups'
