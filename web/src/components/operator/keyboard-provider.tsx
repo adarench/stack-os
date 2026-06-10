@@ -196,10 +196,10 @@ function ShortcutOverlay({
             <Row keys={["esc"]}>close the drawer</Row>
           </Section>
           <Section title="Navigate">
-            <Row keys={["g", "n"]}>now</Row>
+            <Row keys={["g", "m"]}>my work</Row>
+            <Row keys={["g", "a"]}>calendar</Row>
             <Row keys={["g", "w"]}>work</Row>
             <Row keys={["g", "c"]}>compliance</Row>
-            <Row keys={["g", "m"]}>money</Row>
             <Row keys={["g", "i"]}>inbox</Row>
           </Section>
           <Section title="Find">
