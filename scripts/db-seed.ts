@@ -509,10 +509,13 @@ interface TemplateSeed {
 }
 
 const TEMPLATES: TemplateSeed[] = [
-  { name: "Quarterly HVAC filter swap", description: "Replace HVAC filters every 90 days.", cron: "0 9 1 */3 *", defaultTitle: "Quarterly HVAC filter swap", defaultPriority: "low", pIdx: 3, uIdx: 1, lastFiredDays: -7, nextFireDays: 83, timesFired: 6 },
+  // Crons match the cadence presets in /admin/templates so the list renders
+  // friendly labels ("Weekly · Mondays 9am"), not raw cron.
+  { name: "Weekly property walk", description: "Walk the property: grounds, common areas, mechanical rooms. Photo anything off.", cron: "0 9 * * 1", defaultTitle: "Weekly property walk", defaultPriority: "normal", pIdx: 0, uIdx: 0, lastFiredDays: -2, nextFireDays: 5, timesFired: 31 },
+  { name: "Quarterly HVAC filter swap", description: "Replace HVAC filters every 90 days.", cron: "0 9 1 1,4,7,10 *", defaultTitle: "Quarterly HVAC filter swap", defaultPriority: "low", pIdx: 3, uIdx: 1, lastFiredDays: -7, nextFireDays: 83, timesFired: 6 },
   { name: "Monthly smoke detector test", description: "Code-required monthly smoke detector battery test.", cron: "0 9 1 * *", defaultTitle: "Monthly smoke detector test", defaultPriority: "normal", pIdx: 0, uIdx: 0, lastFiredDays: -2, nextFireDays: 28, timesFired: 14 },
-  { name: "Weekly common area cleaning", description: "Mop lobby, wipe surfaces, take out trash.", cron: "0 8 * * 1", defaultTitle: "Common area cleaning", defaultPriority: "low", pIdx: 0, uIdx: 0, lastFiredDays: -1, nextFireDays: 6, timesFired: 52 },
-  { name: "Annual fire extinguisher inspection", description: "Yearly tag check + recharge if needed.", cron: "0 9 15 6 *", defaultTitle: "Annual fire extinguisher inspection", defaultPriority: "normal", pIdx: 4, uIdx: 0, lastFiredDays: -120, nextFireDays: 245, timesFired: 3 },
+  { name: "Weekly common area cleaning", description: "Mop lobby, wipe surfaces, take out trash.", cron: "0 9 * * 5", defaultTitle: "Common area cleaning", defaultPriority: "low", pIdx: 0, uIdx: 0, lastFiredDays: -1, nextFireDays: 6, timesFired: 52 },
+  { name: "Annual fire extinguisher inspection", description: "Yearly tag check + recharge if needed.", cron: "0 9 1 1 *", defaultTitle: "Annual fire extinguisher inspection", defaultPriority: "normal", pIdx: 4, uIdx: 0, lastFiredDays: -120, nextFireDays: 205, timesFired: 3 },
 ];
 
 /* -------------------- invoices -------------------- */
@@ -693,7 +696,7 @@ async function main() {
   for (const p of PROPERTIES) {
     const [row] = await sql<{ id: string }[]>`
       insert into properties (org_id, name, address_line1, city, state, postal_code, country, timezone)
-      values (${ORG_ID}, ${p.name}, ${p.addressLine1}, ${p.city}, ${p.state}, ${p.postalCode}, 'US', 'America/New_York')
+      values (${ORG_ID}, ${p.name}, ${p.addressLine1}, ${p.city}, ${p.state}, ${p.postalCode}, 'US', 'America/Denver')
       returning id
     `;
     propertyIds.push(row!.id);
@@ -1073,7 +1076,7 @@ async function main() {
         last_fired_at, next_fire_at, times_fired, created_by_user_id
       )
       values (
-        ${ORG_ID}, ${t.name}, ${t.description}, ${t.cron}, 'America/New_York', true,
+        ${ORG_ID}, ${t.name}, ${t.description}, ${t.cron}, 'America/Denver', true,
         ${t.defaultTitle}, ${t.description}, 'work_order', ${t.defaultPriority},
         ${propertyIds[t.pIdx]!}, ${unitIdsByProperty[t.pIdx]![t.uIdx]!}, 24,
         ${d(Math.max(1, -t.lastFiredDays))}, ${dFuture(t.nextFireDays)}, ${t.timesFired}, ${principalUserId}
