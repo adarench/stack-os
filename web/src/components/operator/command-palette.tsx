@@ -170,15 +170,16 @@ export function CommandPaletteProvider({
       },
       {
         id: "nav-work",
-        label: "Go to Work",
+        label: "Go to Work Orders",
         group: "Navigate",
         icon: ListTodo,
+        keywords: ["dispatch", "wo"],
         shortcut: "g w",
         run: () => go("/work"),
       },
       {
         id: "nav-work-overdue",
-        label: "Go to Work · Overdue",
+        label: "Go to Work Orders · Overdue",
         group: "Navigate",
         icon: ListTodo,
         keywords: ["overdue", "late"],
@@ -186,11 +187,11 @@ export function CommandPaletteProvider({
       },
       {
         id: "nav-work-dispatcher",
-        label: "Go to Work · Dispatcher",
+        label: "Go to Work Orders · Unassigned",
         group: "Navigate",
         icon: ListTodo,
-        keywords: ["unassigned", "queue"],
-        run: () => go("/work?view=dispatcher"),
+        keywords: ["unassigned", "queue", "dispatch"],
+        run: () => go("/work?type=wo&mine=unassigned"),
       },
       {
         id: "nav-compliance",

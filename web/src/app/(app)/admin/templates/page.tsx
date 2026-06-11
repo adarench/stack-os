@@ -10,6 +10,15 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/** Friendly names for the cadence-preset crons; unknown crons render raw. */
+const CRON_LABELS: Record<string, string> = {
+  "0 9 * * 1": "Weekly · Mondays 9am",
+  "0 9 * * 5": "Weekly · Fridays 9am",
+  "0 9 1 * *": "Monthly · 1st, 9am",
+  "0 9 1 1,4,7,10 *": "Quarterly · 1st, 9am",
+  "0 9 1 1 *": "Annually · Jan 1st, 9am",
+};
+
 export default async function AdminTemplatesPage() {
   const [templates, properties, units] = await Promise.all([
     listTemplates(),
@@ -26,7 +35,7 @@ export default async function AdminTemplatesPage() {
         <Link href="/work" className="text-sm text-neutral-500">
           ← Back
         </Link>
-        <h1 className="text-lg font-semibold">Recurring templates</h1>
+        <h1 className="text-lg font-semibold">Recurring tasks</h1>
       </header>
 
       <section className="mb-6 rounded border border-neutral-200 bg-white p-3">
@@ -52,16 +61,27 @@ export default async function AdminTemplatesPage() {
             rows={2}
             className="col-span-2 rounded border border-neutral-300 px-2 py-1.5"
           />
+          <select
+            name="cadence"
+            defaultValue="weekly_mon"
+            className="col-span-2 rounded border border-neutral-300 px-2 py-1.5"
+          >
+            <option value="weekly_mon">Weekly · Mondays 9am</option>
+            <option value="weekly_fri">Weekly · Fridays 9am</option>
+            <option value="monthly_first">Monthly · 1st, 9am</option>
+            <option value="quarterly">Quarterly · Jan/Apr/Jul/Oct 1st, 9am</option>
+            <option value="annual">Annually · Jan 1st, 9am</option>
+            <option value="custom">Custom schedule (cron below)</option>
+          </select>
           <input
-            required
             name="cron"
-            placeholder='Cron e.g. "0 9 * * 1" = Mondays 9am'
+            placeholder='Custom cron — only used with "Custom schedule", e.g. "0 9 * * 1"'
             className="col-span-2 rounded border border-neutral-300 px-2 py-1.5 font-mono"
           />
           <input
             name="timezone"
-            placeholder="Timezone (default America/New_York)"
-            defaultValue="America/New_York"
+            placeholder="Timezone (default America/Denver)"
+            defaultValue="America/Denver"
             className="rounded border border-neutral-300 px-2 py-1.5"
           />
           <input
@@ -145,8 +165,11 @@ export default async function AdminTemplatesPage() {
                   <p className="mt-1 text-sm text-neutral-700">{t.description}</p>
                 )}
                 <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-neutral-600">
-                  <dt>cron</dt>
-                  <dd className="font-mono">{t.cron} <span className="text-neutral-400">({t.timezone})</span></dd>
+                  <dt>schedule</dt>
+                  <dd className={CRON_LABELS[t.cron] ? "" : "font-mono"}>
+                    {CRON_LABELS[t.cron] ?? t.cron}{" "}
+                    <span className="text-neutral-400">({t.timezone})</span>
+                  </dd>
                   <dt>default title</dt>
                   <dd>{t.defaultTitle}</dd>
                   <dt>scope</dt>

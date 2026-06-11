@@ -80,6 +80,28 @@ export default async function ProjectDetailPage({
         <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">{project.description}</p>
       )}
 
+      {(project.budgetCents != null || project.targetCompletion) && (
+        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-neutral-600">
+          {project.budgetCents != null && (
+            <>
+              <dt className="font-medium uppercase tracking-wide text-neutral-500">Budget</dt>
+              <dd>
+                {(Number(project.budgetCents) / 100).toLocaleString("en-US", {
+                  style: "currency",
+                  currency: "USD",
+                })}
+              </dd>
+            </>
+          )}
+          {project.targetCompletion && (
+            <>
+              <dt className="font-medium uppercase tracking-wide text-neutral-500">Target</dt>
+              <dd>{new Date(project.targetCompletion).toLocaleDateString()}</dd>
+            </>
+          )}
+        </dl>
+      )}
+
       {next.length > 0 && (
         <section className="mt-5">
           <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">

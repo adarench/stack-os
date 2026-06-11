@@ -198,7 +198,7 @@ function ShortcutOverlay({
           <Section title="Navigate">
             <Row keys={["g", "m"]}>my work</Row>
             <Row keys={["g", "a"]}>calendar</Row>
-            <Row keys={["g", "w"]}>work</Row>
+            <Row keys={["g", "w"]}>work orders</Row>
             <Row keys={["g", "c"]}>compliance</Row>
             <Row keys={["g", "i"]}>inbox</Row>
           </Section>
