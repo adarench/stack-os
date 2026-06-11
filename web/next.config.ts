@@ -13,26 +13,19 @@ const newShellOn =
   process.env.NEXT_PUBLIC_NEW_SHELL === "1" ||
   process.env.NEXT_PUBLIC_NEW_SHELL === "true";
 
+/**
+ * Only routes with NO live page of their own belong here. /inspections,
+ * /projects, /admin/* are real destinations again (lists, record forms,
+ * recurring-task presets) — redirecting them away made them unreachable and
+ * the /admin/* → /settings entries looped (settings page-redirects back to
+ * /admin/properties).
+ */
 const REDIRECTS = [
-  { source: "/dashboard", destination: "/now" },
+  { source: "/dashboard", destination: "/my" },
   { source: "/board", destination: "/work?view=board&type=wo" },
   { source: "/dispatcher", destination: "/work?view=dispatcher" },
   { source: "/work-orders", destination: "/work?type=wo" },
-  { source: "/inspections", destination: "/work?type=ins" },
-  { source: "/projects", destination: "/work?type=prj" },
-  { source: "/admin/properties", destination: "/settings?section=properties" },
-  { source: "/admin/vendors", destination: "/settings?section=vendors" },
-  { source: "/admin/templates", destination: "/settings?section=templates" },
-  {
-    source: "/admin/compliance/cois",
-    destination: "/compliance?tab=cois",
-  },
-  {
-    source: "/admin/compliance/tenants",
-    destination: "/compliance?tab=tenants",
-  },
   { source: "/admin/approvals", destination: "/money?tab=approvals" },
-  { source: "/admin/financials", destination: "/money?tab=invoices" },
 ];
 
 const nextConfig: NextConfig = {
