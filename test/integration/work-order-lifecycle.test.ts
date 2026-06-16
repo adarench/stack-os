@@ -23,23 +23,14 @@ import {
 const TEST_ORG = `org_test_lifecycle_${Date.now()}`;
 const TEST_CLERK_USER_ID = `user_test_lifecycle_${Date.now()}`;
 
-vi.mock("@clerk/nextjs/server", () => ({
+vi.mock("@/lib/server/auth", () => ({
   auth: vi.fn(async () => ({
     userId: TEST_CLERK_USER_ID,
     orgId: TEST_ORG,
-    sessionClaims: {},
-    actor: null,
-    orgRole: "org:admin",
-    orgSlug: null,
-    has: () => false,
+    email: "test@stack-os.example",
+    name: "Test User",
   })),
-  currentUser: vi.fn(async () => ({
-    id: TEST_CLERK_USER_ID,
-    primaryEmailAddress: { emailAddress: "lifecycle-test@stack-os.example" },
-    emailAddresses: [{ emailAddress: "lifecycle-test@stack-os.example" }],
-    firstName: "Lifecycle",
-    lastName: "Test",
-  })),
+  isOperatorAllowed: vi.fn(async () => true),
 }));
 
 import postgres from "postgres";

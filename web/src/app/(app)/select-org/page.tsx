@@ -1,15 +1,7 @@
-import { OrganizationList } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+// Single-org pin: there is no org selection. Unreachable in practice (orgId is
+// always pinned); kept as a safe redirect rather than a Clerk component.
 export default function Page() {
-  return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <OrganizationList
-        hidePersonal
-        afterSelectOrganizationUrl="/"
-        afterCreateOrganizationUrl="/"
-      />
-    </main>
-  );
+  redirect("/");
 }

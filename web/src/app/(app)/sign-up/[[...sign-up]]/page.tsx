@@ -1,11 +1,6 @@
-import { SignUp } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+// Google sign-in is also sign-up (no separate flow). Send /sign-up → /sign-in.
 export default function Page() {
-  return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <SignUp />
-    </main>
-  );
+  redirect("/sign-in");
 }

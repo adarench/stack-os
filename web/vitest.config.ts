@@ -16,6 +16,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      // Must precede "@" — stub the Auth.js config so next-auth (which imports
+      // next/server) never loads in the node test env. Tests mock the wrapper.
+      "@/auth": path.resolve(__dirname, "../test/auth-stub.ts"),
       "@": path.resolve(__dirname, "src"),
       "@db": path.resolve(__dirname, "src/db"),
       "@contracts": path.resolve(__dirname, "src/contracts"),

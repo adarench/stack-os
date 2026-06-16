@@ -1,13 +1,12 @@
-import { ClerkProvider } from "@clerk/nextjs";
 import { auth } from "@/lib/server/auth";
 import { AppShell } from "@/components/operator/app-shell";
 import { NEW_SHELL } from "@/lib/feature-flags";
 import { loadShellSummary, type ShellSummary } from "@/lib/server/shell";
 
 /**
- * Wraps every staff page in <ClerkProvider>. Vendor portal pages live under
- * `(vendor)/` and intentionally bypass Clerk so vendors can sign in via
- * magic-link without a Clerk org.
+ * Staff/operator layout. Auth is Auth.js (Google) — no provider wrapper
+ * needed; the server reads the session directly. Vendor portal pages live
+ * under `(vendor)/` and use their own magic-link auth.
  *
  * The operator shell (when NEW_SHELL is on) needs a single org-scoped
  * summary to render the persistent status line and rail badges. We fetch
@@ -30,9 +29,9 @@ export default async function AppLayout({
       }
     }
   }
-  return (
-    <ClerkProvider>
-      {NEW_SHELL ? <AppShell summary={summary}>{children}</AppShell> : children}
-    </ClerkProvider>
+  return NEW_SHELL ? (
+    <AppShell summary={summary}>{children}</AppShell>
+  ) : (
+    <>{children}</>
   );
 }

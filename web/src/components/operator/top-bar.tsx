@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
-import { Plus, Search } from "lucide-react";
+import { signOut } from "next-auth/react";
+import { Plus, Search, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -33,9 +33,7 @@ export function TopBar({ summary }: { summary: ShellSummary | null }) {
   const openShortcuts = useShortcutHint();
   return (
     <header className="sticky top-0 z-30 flex h-11 items-center gap-3 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      {/* Brand anchor — quiet, fixed-width, persistent. When Clerk's
-          OrganizationSwitcher renders empty (single-org or dev bypass)
-          the left side still feels intentional. */}
+      {/* Brand anchor — single org, so no switcher. */}
       <div className="flex shrink-0 items-center gap-2">
         <span
           aria-hidden
@@ -43,18 +41,6 @@ export function TopBar({ summary }: { summary: ShellSummary | null }) {
         >
           STACK · OPS
         </span>
-        <OrganizationSwitcher
-          hidePersonal
-          appearance={{
-            elements: {
-              rootBox: "h-7",
-              organizationSwitcherTrigger:
-                "px-2 py-1 rounded-md hover:bg-accent text-sm",
-            },
-          }}
-          afterSelectOrganizationUrl="/my"
-          afterCreateOrganizationUrl="/my"
-        />
       </div>
 
       {summary && (
@@ -116,11 +102,19 @@ export function TopBar({ summary }: { summary: ShellSummary | null }) {
         </div>
 
         <div className="flex items-center pl-1">
-          <UserButton
-            appearance={{
-              elements: { avatarBox: "h-7 w-7" },
-            }}
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => signOut({ redirectTo: "/sign-in" })}
+                aria-label="Sign out"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Sign out</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </header>
