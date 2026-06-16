@@ -3,8 +3,6 @@ import {
   ListTodo,
   CalendarDays,
   ClipboardCheck,
-  ShieldCheck,
-  Wallet,
   Wrench,
 } from "lucide-react";
 
@@ -28,18 +26,19 @@ export type BadgeKey =
   | "unread";
 
 /**
- * The maintenance-execution loop. PRIMARY is the surfaces the team runs
+ * Work is the operating surface. PRIMARY is the work-lenses the team runs
  * their day from:
  *   /my          — the technician's own open work ("what's on me")
  *   /work        — every work order, org-wide (the manager's view)
  *   /calendar    — recurring walks + scheduled work (the Trello replacement)
  *   /inspections — the recurring inspection flow
  *
- * Compliance and Money are SECONDARY — reachable from the rail / More menu,
- * not daily destinations. The old /dispatcher label is gone: it was a
- * redirect shell into /work, and "Work Orders" is the team's own word for
- * that surface. The old abstract /now pressure console is intentionally
- * absent: it redirects to /my and stays off the nav.
+ * Property is the ontology (it powers routing/ownership/history) but is a
+ * drill-in, not a daily tab. Compliance and Money are NOT nav: they have no
+ * pull in this operation (zero mentions in the client review) and become
+ * derived facets of a property later. Their routes stay live; they're just
+ * not destinations. The old /dispatcher label and /now console are gone
+ * (both redirect).
  */
 export const PRIMARY_NAV: NavItem[] = [
   { href: "/my", label: "My Work", icon: ListTodo, mobile: true, badgeKey: "overdue" },
@@ -48,8 +47,5 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/inspections", label: "Inspections", icon: ClipboardCheck, mobile: true },
 ];
 
-export const SECONDARY_NAV: NavItem[] = [
-  { href: "/compliance", label: "Compliance", icon: ShieldCheck, badgeKey: "cois_30d" },
-  { href: "/money", label: "Money", icon: Wallet, badgeKey: "needs" },
-];
+export const SECONDARY_NAV: NavItem[] = [];
 export const FOOT_NAV: NavItem[] = [];

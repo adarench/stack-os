@@ -1,11 +1,19 @@
 import Link from "next/link";
-import { listProperties, listUnits } from "@/lib/server/properties";
-import { createPropertyAction, createUnitAction } from "../_actions";
+import { listProperties, listUnits, listStaffUsers } from "@/lib/server/properties";
+import {
+  createPropertyAction,
+  createUnitAction,
+  setPropertyAssigneeAction,
+} from "../_actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPropertiesPage() {
-  const [properties, units] = await Promise.all([listProperties(), listUnits()]);
+  const [properties, units, staff] = await Promise.all([
+    listProperties(),
+    listUnits(),
+    listStaffUsers(),
+  ]);
   const unitsByProperty = new Map<string, typeof units>();
   for (const u of units) {
     const arr = unitsByProperty.get(u.propertyId) ?? [];
@@ -66,6 +74,35 @@ export default async function AdminPropertiesPage() {
                   {p.city ?? ""} {p.state ?? ""}
                 </span>
               </div>
+
+              {/* Covered by: the tech this building's new work orders auto-route
+                  to. Submits on change so there's no extra save button. */}
+              <form
+                action={setPropertyAssigneeAction}
+                className="mt-2 flex items-center gap-2 text-xs"
+              >
+                <input type="hidden" name="propertyId" value={p.id} />
+                <label className="text-neutral-500">Covered by</label>
+                <select
+                  name="userId"
+                  defaultValue={p.defaultAssigneeUserId ?? ""}
+                  className="rounded border border-neutral-300 px-2 py-1"
+                >
+                  <option value="">— unassigned (no auto-route) —</option>
+                  {staff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name ?? s.email}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  className="rounded border border-neutral-300 px-2 py-1 text-neutral-700"
+                >
+                  Save
+                </button>
+              </form>
+
               <ul className="mt-2 space-y-1 text-sm">
                 {(unitsByProperty.get(p.id) ?? []).map((u) => (
                   <li key={u.id} className="text-neutral-700">

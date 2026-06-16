@@ -1,4 +1,4 @@
-import { pgTable, text, index } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, index } from "drizzle-orm/pg-core";
 import { id, orgId, timestamps } from "./_shared";
 
 export const properties = pgTable(
@@ -15,6 +15,10 @@ export const properties = pgTable(
     postalCode: text("postal_code"),
     country: text("country").default("US"),
     timezone: text("timezone").notNull().default("America/New_York"),
+    // The technician who covers this building. New work orders on this
+    // property auto-assign to this user — "assign it to who's over that
+    // building" — so nothing ever lands Unassigned. Nullable until set.
+    defaultAssigneeUserId: uuid("default_assignee_user_id"),
     ...timestamps,
   },
   (t) => ({

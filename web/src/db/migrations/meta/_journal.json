@@ -50,6 +50,13 @@
       "when": 1781046653262,
       "tag": "0006_loose_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781633855240,
+      "tag": "0007_pale_gorilla_man",
+      "breakpoints": true
     }
   ]
 }

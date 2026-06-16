@@ -1,7 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createProperty, createUnit } from "@/lib/server/properties";
+import {
+  createProperty,
+  createUnit,
+  setPropertyAssignee,
+} from "@/lib/server/properties";
 import { createVendor } from "@/lib/server/vendors";
 import { inviteVendorUser } from "@/lib/server/vendor-invite";
 
@@ -13,6 +17,15 @@ export async function createPropertyAction(formData: FormData) {
     state: String(formData.get("state") ?? "") || undefined,
     postalCode: String(formData.get("postalCode") ?? "") || undefined,
   });
+  revalidatePath("/admin/properties");
+}
+
+export async function setPropertyAssigneeAction(formData: FormData) {
+  const userId = String(formData.get("userId") ?? "");
+  await setPropertyAssignee(
+    String(formData.get("propertyId")),
+    userId || null,
+  );
   revalidatePath("/admin/properties");
 }
 

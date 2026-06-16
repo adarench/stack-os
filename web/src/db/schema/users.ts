@@ -10,6 +10,10 @@ export const users = pgTable(
     orgId: orgId(),
     clerkUserId: text("clerk_user_id").notNull(),
     email: text("email").notNull(),
+    // Mobile number for SMS dispatch — techs miss email, so a text on
+    // new-assignment is the reliable channel. Nullable; set in admin or
+    // synced from Clerk later.
+    phone: text("phone"),
     name: text("name"),
     role: text("role").notNull().default("staff"), // staff | dispatcher | manager | admin
     ...timestamps,

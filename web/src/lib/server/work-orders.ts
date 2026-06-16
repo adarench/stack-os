@@ -4,6 +4,8 @@ import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { workOrders } from "@db/schema/work-orders";
 import { assignments } from "@db/schema/assignments";
 import { vendorUsers } from "@db/schema/vendor-users";
+import { properties } from "@db/schema/properties";
+import { users } from "@db/schema/users";
 import {
   WORK_ORDER_KINDS,
   WORK_ORDER_PRIORITIES,
@@ -56,9 +58,17 @@ export type CreateWorkOrderInput = z.infer<typeof createWorkOrderInput>;
 
 export async function createWorkOrder(input: CreateWorkOrderInput) {
   const parsed = createWorkOrderInput.parse(input);
-  return withStaffScope(async (tx, ctx) => {
+  const result = await withStaffScope(async (tx, ctx) => {
     const userId = await ensureUserRow(tx, ctx.orgId, ctx.userId);
     const number = await nextWorkOrderNumber(tx, ctx.orgId);
+
+    // Route by property: "assign it to who's over that building." If the
+    // property has a covering tech, the WO is born assigned — nothing ever
+    // lands Unassigned.
+    const tech = parsed.propertyId
+      ? await resolvePropertyTech(tx, ctx.orgId, parsed.propertyId)
+      : null;
+
     const inserted = await tx
       .insert(workOrders)
       .values({
@@ -67,7 +77,7 @@ export async function createWorkOrder(input: CreateWorkOrderInput) {
         title: parsed.title,
         description: parsed.description ?? null,
         kind: parsed.kind,
-        status: "new",
+        status: tech ? "assigned" : "new",
         priority: parsed.priority,
         propertyId: parsed.propertyId ?? null,
         unitId: parsed.unitId ?? null,
@@ -84,10 +94,75 @@ export async function createWorkOrder(input: CreateWorkOrderInput) {
       targetId: row.id,
       action: "created",
       actorUserId: userId,
-      diff: { to: { status: "new", title: parsed.title } },
+      diff: { to: { status: row.status, title: parsed.title } },
     });
-    return row;
+
+    if (tech) {
+      await tx.insert(assignments).values({
+        orgId: ctx.orgId,
+        targetType: "work_order",
+        targetId: row.id,
+        assigneeType: "user",
+        assigneeId: tech.id,
+        assignedByUserId: userId,
+      });
+      await writeAudit(tx, {
+        orgId: ctx.orgId,
+        targetType: "work_order",
+        targetId: row.id,
+        action: "auto_assigned",
+        actorUserId: userId,
+        diff: { to: { assigneeUserId: tech.id }, reason: "property_routing" },
+      });
+    }
+
+    return { row, tech };
   });
+
+  // Notify the covering tech AFTER commit so the row they're pointed at
+  // exists. email + push fire by default for staff; SMS once a phone is set.
+  if (result.tech) {
+    const { row, tech } = result;
+    await emitNotification({
+      orgId: row.orgId,
+      recipientUserId: tech.id,
+      recipientEmail: tech.email,
+      recipientPhone: tech.phone,
+      kind: "wo_assigned",
+      subject: `New WO-${row.number}: ${row.title}`,
+      body: `Assigned to you on ${row.title}. Open My Work to view and respond.`,
+      targetType: "work_order",
+      targetId: row.id,
+      actor: { type: "system" },
+    });
+  }
+
+  return result.row;
+}
+
+/**
+ * The technician who covers a property (its `defaultAssigneeUserId`), with the
+ * contact fields the notifier needs. Returns null when the property has no
+ * covering tech set, so the WO falls back to status "new".
+ */
+async function resolvePropertyTech(
+  tx: ScopedDB,
+  orgId: string,
+  propertyId: string,
+): Promise<{ id: string; email: string; phone: string | null } | null> {
+  const prop = await tx
+    .select({ techId: properties.defaultAssigneeUserId })
+    .from(properties)
+    .where(and(eq(properties.orgId, orgId), eq(properties.id, propertyId)))
+    .limit(1);
+  const techId = prop[0]?.techId;
+  if (!techId) return null;
+  const tech = await tx
+    .select({ id: users.id, email: users.email, phone: users.phone })
+    .from(users)
+    .where(and(eq(users.orgId, orgId), eq(users.id, techId)))
+    .limit(1);
+  return tech[0] ?? null;
 }
 
 export const listFilter = z.object({

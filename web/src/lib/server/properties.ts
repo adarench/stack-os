@@ -3,6 +3,7 @@ import { z } from "zod";
 import { and, asc, eq } from "drizzle-orm";
 import { properties } from "@db/schema/properties";
 import { units } from "@db/schema/units";
+import { users } from "@db/schema/users";
 import { withStaffScope } from "./db";
 import { writeAudit } from "./audit";
 import { ensureUserRow } from "./sync-user";
@@ -53,6 +54,44 @@ export async function listProperties() {
       .where(eq(properties.orgId, ctx.orgId))
       .orderBy(asc(properties.name)),
   );
+}
+
+/** Staff users in the org — the pool a property can be "covered by". */
+export async function listStaffUsers() {
+  return withStaffScope(async (tx, ctx) =>
+    tx
+      .select({ id: users.id, name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.orgId, ctx.orgId))
+      .orderBy(asc(users.name)),
+  );
+}
+
+/**
+ * Set (or clear) the technician who covers a property. New work orders on this
+ * property auto-route to that user — this is what makes "nothing Unassigned"
+ * real. Pass null to clear.
+ */
+export async function setPropertyAssignee(propertyId: string, userId: string | null) {
+  return withStaffScope(async (tx, ctx) => {
+    const actorId = await ensureUserRow(tx, ctx.orgId, ctx.userId);
+    const updated = await tx
+      .update(properties)
+      .set({ defaultAssigneeUserId: userId, updatedAt: new Date() })
+      .where(and(eq(properties.orgId, ctx.orgId), eq(properties.id, propertyId)))
+      .returning();
+    if (updated[0]) {
+      await writeAudit(tx, {
+        orgId: ctx.orgId,
+        targetType: "property",
+        targetId: propertyId,
+        action: "assignee_set",
+        actorUserId: actorId,
+        diff: { to: { defaultAssigneeUserId: userId } },
+      });
+    }
+    return updated[0] ?? null;
+  });
 }
 
 export const createUnitInput = z.object({
