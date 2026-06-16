@@ -41,6 +41,8 @@ import {
   setPropertyAssignee,
 } from "@/lib/server/properties";
 import { createWorkOrder } from "@/lib/server/work-orders";
+import { loadEntityDetail } from "@/lib/server/entity-detail";
+import { createComment } from "@/lib/server/comments";
 
 const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
 const skip = !url;
@@ -59,6 +61,21 @@ async function activeAssignments(targetId: string) {
       where org_id = ${TEST_ORG} and target_id = ${targetId} and unassigned_at is null
     `;
   });
+}
+
+/** Read the operator-model WO columns under the org's RLS context. */
+async function woSignals(woId: string) {
+  if (!admin) return null;
+  const rows = await admin.begin(async (tx) => {
+    await tx`select set_config('app.actor_type', 'system', true)`;
+    await tx`select set_config('app.org_id', ${TEST_ORG}, true)`;
+    await tx`set local role app_user`;
+    return tx`
+      select acknowledged_at, acknowledged_by_user_id, tenant_updated_at
+      from work_orders where org_id = ${TEST_ORG} and id = ${woId}
+    `;
+  });
+  return rows[0] ?? null;
 }
 
 beforeAll(async () => {
@@ -124,4 +141,53 @@ describe.skipIf(skip)("auto-assign by property", () => {
     const rows = await activeAssignments(wo.id);
     expect(rows).toHaveLength(0);
   });
+
+  // #4 Seen: opening the WO as the assigned tech stamps acknowledged_at. The
+  // mocked viewer IS the covering tech (staff[0]), so loadEntityDetail acks.
+  it("marks the WO seen when the assigned tech opens it", async () => {
+    const prop = await createProperty({ name: "Seen Tower", city: "Provo", state: "UT" });
+    const techId = (await listStaffUsers())[0]!.id;
+    await setPropertyAssignee(prop.id, techId);
+    const wo = await createWorkOrder({ title: "AC out", propertyId: prop.id });
+
+    let sig = await woSignals(wo.id);
+    expect(sig?.acknowledged_at).toBeNull();
+
+    await loadEntityDetail(`WO-${wo.number}`);
+
+    sig = await woSignals(wo.id);
+    expect(sig?.acknowledged_at).not.toBeNull();
+    expect(sig?.acknowledged_by_user_id).toBe(techId);
+  }, 20_000);
+
+  // #5 Tenant updated: an external (tenant-visible) note stamps tenant_updated_at.
+  it("stamps tenant_updated_at on an external note", async () => {
+    const prop = await createProperty({ name: "Tenant Plaza", city: "Provo", state: "UT" });
+    const techId = (await listStaffUsers())[0]!.id;
+    await setPropertyAssignee(prop.id, techId);
+    const wo = await createWorkOrder({ title: "Leak under sink", propertyId: prop.id });
+
+    let sig = await woSignals(wo.id);
+    expect(sig?.tenant_updated_at).toBeNull();
+
+    // Internal note must NOT stamp it.
+    await createComment({
+      targetType: "work_order",
+      targetId: wo.id,
+      body: "checking with vendor",
+      visibility: "internal",
+    });
+    sig = await woSignals(wo.id);
+    expect(sig?.tenant_updated_at).toBeNull();
+
+    // External note stamps it.
+    await createComment({
+      targetType: "work_order",
+      targetId: wo.id,
+      body: "We'll have a tech out tomorrow.",
+      visibility: "external",
+    });
+    sig = await woSignals(wo.id);
+    expect(sig?.tenant_updated_at).not.toBeNull();
+  }, 20_000);
 });
