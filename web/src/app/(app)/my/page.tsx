@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
 import { loadWorkList, type WorkRow } from "@/lib/server/work-list";
-import { EntityRow, type TailMode } from "@/components/operator/entity-row";
+import { EntityRow } from "@/components/operator/entity-row";
 import { TimeSinceTicker } from "@/components/operator/time-since";
 import { AutoRefresh } from "@/components/operator/auto-refresh";
 import { LiveIndicator } from "@/components/operator/live-indicator";
@@ -75,48 +75,34 @@ export default async function MyWorkPage() {
 
 /* -------------------- band partitioning -------------------- */
 
-type Band = "overdue" | "blocked" | "today" | "open";
+type Band = "aging" | "waiting" | "open";
 
-const BAND_ORDER: Band[] = ["overdue", "blocked", "today", "open"];
+const BAND_ORDER: Band[] = ["aging", "waiting", "open"];
 
 const BAND_LABEL: Record<Band, string> = {
-  overdue: "Overdue",
-  blocked: "Blocked",
-  today: "Today",
+  aging: "Aging >7d",
+  waiting: "Waiting",
   open: "Open",
 };
 
-const BAND_TAIL: Record<Band, TailMode> = {
-  overdue: "overdue",
-  blocked: "blocked",
-  today: "today",
-  open: "default",
-};
-
 function partition(rows: WorkRow[]): Record<Band, WorkRow[]> {
-  const out: Record<Band, WorkRow[]> = {
-    overdue: [],
-    blocked: [],
-    today: [],
-    open: [],
-  };
+  const out: Record<Band, WorkRow[]> = { aging: [], waiting: [], open: [] };
   for (const r of rows) out[bandFor(r)].push(r);
   return out;
 }
 
 function bandFor(r: WorkRow): Band {
-  if (r.urgency === "overdue") return "overdue";
-  if (r.urgency === "blocked") return "blocked";
-  if (r.urgency === "today") return "today";
+  // Aging (open >7d) escalates above everything; then waiting; else open.
+  if (r.aged) return "aging";
+  if (r.urgency === "blocked") return "waiting";
   return "open";
 }
 
 function BandSection({ band, items }: { band: Band; items: WorkRow[] }) {
-  const isPressure = band === "overdue" || band === "blocked";
   const tone =
-    band === "overdue"
+    band === "aging"
       ? "text-urgency-overdue"
-      : band === "blocked"
+      : band === "waiting"
         ? "text-urgency-blocked"
         : "text-muted-foreground";
   return (
@@ -124,15 +110,15 @@ function BandSection({ band, items }: { band: Band; items: WorkRow[] }) {
       aria-label={BAND_LABEL[band]}
       className={cn(
         "border-t border-border first:border-t-0",
-        band === "overdue" && "border-urgency-overdue/30",
-        band === "blocked" && "border-urgency-blocked/30",
+        band === "aging" && "border-urgency-overdue/30",
+        band === "waiting" && "border-urgency-blocked/30",
       )}
     >
       <header className="flex items-baseline gap-2 px-2 pb-1 pt-3">
         <h2
           className={cn(
             "text-[11px] uppercase tracking-wider",
-            isPressure ? "font-bold" : "font-semibold",
+            band !== "open" ? "font-bold" : "font-semibold",
             tone,
           )}
         >
@@ -142,13 +128,10 @@ function BandSection({ band, items }: { band: Band; items: WorkRow[] }) {
           {items.length}
         </span>
       </header>
+      {/* Operator-model row (owner · seen · tenant · age), same as /work. */}
       <div className="space-y-0">
         {items.map((row) => (
-          <EntityRow
-            key={`${row.type}-${row.ref}`}
-            row={row}
-            tailMode={BAND_TAIL[band]}
-          />
+          <EntityRow key={`${row.type}-${row.ref}`} row={row} />
         ))}
       </div>
     </section>

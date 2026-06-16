@@ -311,51 +311,80 @@ function WorkOrderTail({ row }: { row: EntityRowData }) {
   const seen = !!row.acknowledgedAt;
   const tenantUpdated = !!row.tenantUpdatedAt;
   const ageDays = row.openedAt ? daysSince(row.openedAt) : null;
+  const aging = ageDays !== null && ageDays >= 7;
   return (
-    <span className="flex items-center gap-1.5 font-mono text-[10px] tabular-nums">
-      {/* Assigned tech — primary, always shown. */}
-      <span
-        className={cn(
-          "max-w-[120px] truncate",
-          row.ownerName ? "text-foreground" : "text-urgency-blocked",
-        )}
-      >
-        {row.ownerName ?? "unassigned"}
-      </span>
+    <span className="flex items-center gap-2 text-[11px]">
+      {/* Assigned tech — primary: avatar + name for legibility. */}
+      {row.ownerName ? (
+        <span className="flex items-center gap-1.5">
+          <OwnerChip name={row.ownerName} />
+          <span className="hidden max-w-[120px] truncate text-foreground sm:inline">
+            {row.ownerName}
+          </span>
+        </span>
+      ) : (
+        <Sig tone="amber">unassigned</Sig>
+      )}
 
       {open && (
         <>
-          <span aria-hidden className="text-muted-foreground/40">·</span>
           {seen ? (
-            <span className="hidden sm:inline text-muted-foreground">
+            <span className="hidden text-muted-foreground md:inline">
               seen {agoShort(row.acknowledgedAt!)}
             </span>
           ) : (
-            <span className="text-urgency-overdue">not seen</span>
+            <Sig tone="red">not seen</Sig>
           )}
 
-          <span aria-hidden className="hidden md:inline text-muted-foreground/40">·</span>
           {tenantUpdated ? (
-            <span className="hidden md:inline text-muted-foreground">
+            <span className="hidden text-muted-foreground lg:inline">
               tenant {agoShort(row.tenantUpdatedAt!)}
             </span>
           ) : (
-            <span className="hidden md:inline text-urgency-blocked">tenant not updated</span>
+            <Sig tone="amber" className="hidden md:inline-flex">
+              tenant not updated
+            </Sig>
           )}
 
-          {ageDays !== null && ageDays >= 7 && (
-            <>
-              <span aria-hidden className="text-muted-foreground/40">·</span>
-              <span
-                className="shrink-0 text-urgency-overdue"
-                title={`Open ${ageDays} days`}
-              >
-                ⚠ {ageDays}d
-              </span>
-            </>
+          {aging && (
+            <Sig tone="red" title={`Open ${ageDays} days`}>
+              ⚠ {ageDays}d
+            </Sig>
           )}
         </>
       )}
+    </span>
+  );
+}
+
+/**
+ * Small status chip for the operator row — faint tinted background so the
+ * alert states (not seen, tenant not updated, aging) catch the eye without
+ * shouting. Resolved states render as plain muted text instead.
+ */
+function Sig({
+  tone,
+  children,
+  className,
+  title,
+}: {
+  tone: "red" | "amber";
+  children: React.ReactNode;
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <span
+      title={title}
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center rounded px-1.5 text-[10px] font-medium lowercase",
+        tone === "red"
+          ? "bg-urgency-overdue/12 text-urgency-overdue"
+          : "bg-urgency-blocked/12 text-urgency-blocked",
+        className,
+      )}
+    >
+      {children}
     </span>
   );
 }
@@ -599,15 +628,8 @@ function PriorityChip({
       </span>
     );
   }
-  if (priority === "high") {
-    return (
-      <span
-        className="inline-flex h-4 shrink-0 items-center rounded-sm border border-urgency-blocked px-1 font-mono text-[9px] font-semibold uppercase tracking-wider text-urgency-blocked"
-        aria-label="High priority"
-      >
-        HIGH
-      </span>
-    );
-  }
+  // HIGH is intentionally not shown: this operation doesn't run priority
+  // tiers (the call's escalation signal is the >7d age flag). Only true
+  // emergencies (urgent) get a chip.
   return null;
 }

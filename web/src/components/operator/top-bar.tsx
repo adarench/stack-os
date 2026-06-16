@@ -132,23 +132,14 @@ export function TopBar({ summary }: { summary: ShellSummary | null }) {
  * loud where it counts. Zero-value segments collapse silently.
  */
 function StatusReadout({ summary }: { summary: ShellSummary }) {
+  // Maintenance-only header: open work, what's waiting, what's aging. Money
+  // (awaiting sign-offs) and Compliance (COIs) are not part of this operation's
+  // daily readout and are removed from the demo header.
   const segments: StatusSegment[] = [
     {
       label: "open",
       value: summary.open,
       href: "/work?status=open",
-    },
-    {
-      // Points at the Aging lens (open >7d). Note: the count still reflects the
-      // legacy due-date overdue metric until loadQueueSummary is reframed to
-      // open-age — tracked as a follow-up to the /work Gate-1 reframe.
-      label: "aging",
-      value: summary.overdue,
-      href: "/work?aging=1",
-      detail: summary.oldestOverdueMs
-        ? humanizeMs(summary.oldestOverdueMs)
-        : null,
-      alert: summary.overdue > 0,
     },
     {
       label: "waiting",
@@ -157,16 +148,16 @@ function StatusReadout({ summary }: { summary: ShellSummary }) {
       alert: summary.blocked > 0,
     },
     {
-      label: "awaiting",
-      value: summary.needs,
-      href: "/money?tab=approvals",
-      alert: summary.needs > 0,
-    },
-    {
-      label: "COIs ≤30d",
-      value: summary.cois30d,
-      href: "/compliance?tab=cois&filter=expiring",
-      alert: summary.cois30d > 0,
+      // Points at the Aging lens (open >7d). Note: the count still reflects the
+      // legacy due-date overdue metric until loadQueueSummary is reframed to
+      // open-age — tracked as a follow-up to the /work Gate-1 reframe.
+      label: "aging >7d",
+      value: summary.overdue,
+      href: "/work?aging=1",
+      detail: summary.oldestOverdueMs
+        ? humanizeMs(summary.oldestOverdueMs)
+        : null,
+      alert: summary.overdue > 0,
     },
   ];
   const visible = segments.filter((s) => s.value > 0 || s.alert);

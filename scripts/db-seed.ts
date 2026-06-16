@@ -71,6 +71,22 @@ interface StaffSeed {
 }
 
 const PHANTOM_STAFF: StaffSeed[] = [
+  // The maintenance team from the customer call. Fernando covers everything;
+  // Oscar covers Sojo North/South. New work orders auto-route to them.
+  {
+    clerkUserId: "seed_phantom_fernando_reyes",
+    email: "fernando@stackdemo.test",
+    name: "Fernando Reyes",
+    role: "manager",
+    initials: "FR",
+  },
+  {
+    clerkUserId: "seed_phantom_oscar_diaz",
+    email: "oscar@stackdemo.test",
+    name: "Oscar Diaz",
+    role: "staff",
+    initials: "OD",
+  },
   {
     clerkUserId: "seed_phantom_sara_yang",
     email: "sara.yang@stackdemo.test",
@@ -169,6 +185,24 @@ const PROPERTIES: PropertySeed[] = [
     state: "NY",
     postalCode: "11231",
     units: ["1", "2", "3"],
+  },
+  // Oscar's buildings (the last two). Coverage is name-based in the runner:
+  // anything starting "Sojo" routes to Oscar, everything else to Fernando.
+  {
+    name: "Sojo North",
+    addressLine1: "1200 N Sojo Parkway",
+    city: "Salt Lake City",
+    state: "UT",
+    postalCode: "84101",
+    units: ["201", "202", "203", "Lobby"],
+  },
+  {
+    name: "Sojo South",
+    addressLine1: "1400 S Sojo Parkway",
+    city: "Salt Lake City",
+    state: "UT",
+    postalCode: "84115",
+    units: ["A", "B", "C", "D"],
   },
 ];
 
@@ -347,6 +381,12 @@ interface WoSeed {
   updatedMinutes: number;
   /** Optional vendor index for the active assignment. -1 = none. */
   vendorIdx: number;
+  /** Force "seen" (acknowledged by the assigned tech). Status in_progress and
+   *  beyond are implicitly seen; this opts an earlier-stage WO in. */
+  seen?: boolean;
+  /** Force a tenant-visible note (sets tenant_updated_at + an external note).
+   *  Blocked WOs are implicitly tenant-noted ("waiting on vendor, told tenant"). */
+  tenantNote?: boolean;
 }
 
 const WORK_ORDERS: WoSeed[] = [
@@ -418,6 +458,20 @@ const WORK_ORDERS: WoSeed[] = [
 
   // ---- cancelled ----
   { title: "Doormat install (rescinded)", description: "Tenant rescinded request.", status: "cancelled", priority: "low", pIdx: 5, uIdx: 1, dueDays: 5, createdDays: -5, updatedMinutes: 1440, vendorIdx: -1 },
+
+  // ---- Sojo North/South — Oscar's buildings (pIdx 8, 9) ----
+  // A realistic spread: seen, tenant-updated, waiting, aging.
+  { title: "Suite 201 — AC not cooling", description: "Tenant reports office at 80°F. Oscar on site checking the rooftop unit.", status: "in_progress", priority: "high", pIdx: 8, uIdx: 0, dueDays: 0, createdDays: -1, updatedMinutes: 18, vendorIdx: -1, tenantNote: true },
+  { title: "Lobby door closer broken", description: "North lobby door slams. Closer arm bent. Waiting on replacement part.", status: "blocked", priority: "normal", pIdx: 8, uIdx: 3, dueDays: 1, createdDays: -4, updatedMinutes: 220, vendorIdx: -1 },
+  { title: "Parking lot light out — NE corner", description: "Tenant safety concern after dark. Submitted last week, not yet picked up.", status: "assigned", priority: "normal", pIdx: 8, uIdx: 1, dueDays: -2, createdDays: -11, updatedMinutes: 60, vendorIdx: -1 },
+  { title: "Restroom faucet won't shut off — Ste 203", description: "Constant trickle, hot side. Just came in.", status: "new", priority: "normal", pIdx: 8, uIdx: 2, dueDays: 2, createdDays: 0, updatedMinutes: 9, vendorIdx: -1 },
+  { title: "Suite B — thermostat unresponsive", description: "Tenant can't adjust temp. Oscar acknowledged, scheduling a visit.", status: "assigned", priority: "normal", pIdx: 9, uIdx: 1, dueDays: 1, createdDays: -2, updatedMinutes: 40, vendorIdx: -1, seen: true },
+  { title: "Exterior signage panel cracked", description: "South entrance monument sign cracked. Aesthetic, low urgency, but lingering.", status: "new", priority: "low", pIdx: 9, uIdx: 0, dueDays: 7, createdDays: -14, updatedMinutes: 300, vendorIdx: -1 },
+  { title: "Suite C — ceiling tile water stain", description: "Possible slow roof leak above Suite C. Waiting on roofer estimate.", status: "blocked", priority: "high", pIdx: 9, uIdx: 2, dueDays: 0, createdDays: -3, updatedMinutes: 120, vendorIdx: 8, tenantNote: true },
+
+  // ---- Fernando aging (existing buildings, open >7d) ----
+  { title: "Stairwell handrail loose — Elm 3A", description: "Wobbles, safety issue. Submitted over a week ago, still open.", status: "assigned", priority: "normal", pIdx: 2, uIdx: 4, dueDays: -3, createdDays: -9, updatedMinutes: 150, vendorIdx: -1 },
+  { title: "Basement storage door won't lock — Birch", description: "Filed 12 days ago. Keeps slipping down the list.", status: "triaged", priority: "low", pIdx: 4, uIdx: 2, dueDays: 4, createdDays: -12, updatedMinutes: 800, vendorIdx: -1 },
 ];
 
 /* -------------------- inspections + findings -------------------- */
@@ -691,15 +745,29 @@ async function main() {
 
   /* ---- properties + units ---- */
   console.log(`[db:seed] inserting ${PROPERTIES.length} properties + units...`);
+  // Coverage: Sojo → Oscar, everything else → Fernando. Sets the property's
+  // default_assignee_user_id so new WOs auto-route, and lets us assign the
+  // existing seeded WOs to the right tech.
+  const fernandoId = staffMap.get("FR")!.id;
+  const oscarId = staffMap.get("OD")!.id;
   const propertyIds: string[] = [];
+  const propertyTechIds: string[] = [];
   const unitIdsByProperty: string[][] = [];
   for (const p of PROPERTIES) {
+    const coveringTechId = p.name.startsWith("Sojo") ? oscarId : fernandoId;
     const [row] = await sql<{ id: string }[]>`
-      insert into properties (org_id, name, address_line1, city, state, postal_code, country, timezone)
-      values (${ORG_ID}, ${p.name}, ${p.addressLine1}, ${p.city}, ${p.state}, ${p.postalCode}, 'US', 'America/Denver')
+      insert into properties (
+        org_id, name, address_line1, city, state, postal_code, country,
+        timezone, default_assignee_user_id
+      )
+      values (
+        ${ORG_ID}, ${p.name}, ${p.addressLine1}, ${p.city}, ${p.state},
+        ${p.postalCode}, 'US', 'America/Denver', ${coveringTechId}
+      )
       returning id
     `;
     propertyIds.push(row!.id);
+    propertyTechIds.push(coveringTechId);
     const unitIds: string[] = [];
     for (const label of p.units) {
       const [u] = await sql<{ id: string }[]>`
@@ -826,67 +894,74 @@ async function main() {
         ? h(Math.max(2, Math.random() * 24))
         : null;
 
+    // Operator-model signals. "Seen" = the assigned tech opened it: implied
+    // for in_progress and beyond, opt-in earlier via w.seen. "Tenant updated"
+    // = a tenant-visible note went out: implied for blocked (waiting → told
+    // the tenant), opt-in via w.tenantNote. Both only on open WOs.
+    const isOpen = ["new", "triaged", "assigned", "scheduled", "in_progress", "blocked"].includes(w.status);
+    const seen = w.seen || ["in_progress", "resolved", "verified", "closed"].includes(w.status);
+    const tenantUpdated = isOpen && (w.tenantNote || w.status === "blocked");
+    const coveringTechId = propertyTechIds[w.pIdx]!;
+    const acknowledgedAt = isOpen && seen ? (startedAt ?? updatedAt) : null;
+    const tenantUpdatedAt = tenantUpdated ? m(Math.max(5, w.updatedMinutes - 20)) : null;
+
     const [row] = await sql<{ id: string }[]>`
       insert into work_orders (
         org_id, number, title, description, kind, status, priority,
         property_id, unit_id, due_at, started_at, completed_at,
-        created_at, updated_at, created_by_user_id
+        created_at, updated_at, created_by_user_id,
+        acknowledged_at, acknowledged_by_user_id, tenant_updated_at
       )
       values (
         ${ORG_ID}, ${number}, ${w.title}, ${w.description},
         'work_order', ${w.status}, ${w.priority},
         ${propertyId}, ${unitId}, ${dueAt}, ${startedAt}, ${completedAt},
-        ${createdAt}, ${updatedAt}, ${principalUserId}
+        ${createdAt}, ${updatedAt}, ${principalUserId},
+        ${acknowledgedAt}, ${acknowledgedAt ? coveringTechId : null}, ${tenantUpdatedAt}
       )
       returning id
     `;
     woIds.push(row!.id);
 
-    /* assignments — every non-new WO with a vendorIdx >= 0 gets one. */
+    /* Assignments. The covering tech owns the WO (most-recent active assignee
+     * → shown as the row owner). A dispatched vendor, if any, is an earlier
+     * assignment visible in the drawer but not the row owner. */
     if (w.vendorIdx >= 0) {
-      const vendorId = vendorIds[w.vendorIdx]!;
-      const vendorUserIds = vendorUserIdsByVendor[w.vendorIdx] ?? [];
-      // 60% vendor (company), 30% vendor_user (specific person), 10% staff (triage owner)
-      const dice = Math.random();
-      if (dice < 0.6 || vendorUserIds.length === 0) {
-        await sql`
-          insert into assignments (
-            org_id, target_type, target_id, assignee_type, assignee_id,
-            assigned_by_user_id, assigned_at
-          )
-          values (
-            ${ORG_ID}, 'work_order', ${row!.id}, 'vendor', ${vendorId},
-            ${principalUserId}, ${updatedAt}
-          )
-        `;
-      } else if (dice < 0.9) {
-        const vuId = vendorUserIds[Math.floor(Math.random() * vendorUserIds.length)]!;
-        await sql`
-          insert into assignments (
-            org_id, target_type, target_id, assignee_type, assignee_id,
-            assigned_by_user_id, assigned_at
-          )
-          values (
-            ${ORG_ID}, 'work_order', ${row!.id}, 'vendor_user', ${vuId},
-            ${principalUserId}, ${updatedAt}
-          )
-        `;
-      } else {
-        const initials = pick(["SY", "DM", "MP"]);
-        const staff = staffMap.get(initials);
-        if (staff) {
-          await sql`
-            insert into assignments (
-              org_id, target_type, target_id, assignee_type, assignee_id,
-              assigned_by_user_id, assigned_at
-            )
-            values (
-              ${ORG_ID}, 'work_order', ${row!.id}, 'user', ${staff.id},
-              ${principalUserId}, ${updatedAt}
-            )
-          `;
-        }
-      }
+      await sql`
+        insert into assignments (
+          org_id, target_type, target_id, assignee_type, assignee_id,
+          assigned_by_user_id, assigned_at
+        )
+        values (
+          ${ORG_ID}, 'work_order', ${row!.id}, 'vendor', ${vendorIds[w.vendorIdx]!},
+          ${principalUserId}, ${createdAt}
+        )
+      `;
+    }
+    await sql`
+      insert into assignments (
+        org_id, target_type, target_id, assignee_type, assignee_id,
+        assigned_by_user_id, assigned_at
+      )
+      values (
+        ${ORG_ID}, 'work_order', ${row!.id}, 'user', ${coveringTechId},
+        ${principalUserId}, ${updatedAt}
+      )
+    `;
+
+    /* Tenant-visible note backing the tenant_updated_at stamp. */
+    if (tenantUpdatedAt) {
+      await sql`
+        insert into comments (
+          org_id, target_type, target_id, body, actor_type, actor_user_id,
+          visibility, created_at, updated_at
+        )
+        values (
+          ${ORG_ID}, 'work_order', ${row!.id},
+          ${"Update for the tenant: we're on it — will follow up with next steps."},
+          'user', ${coveringTechId}, 'external', ${tenantUpdatedAt}, ${tenantUpdatedAt}
+        )
+      `;
     }
 
     /* costs — completed/in_progress WOs get a labor cost. */
