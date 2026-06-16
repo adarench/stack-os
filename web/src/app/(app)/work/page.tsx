@@ -178,9 +178,9 @@ export default async function WorkPage({
  * done. This is the spine of the operator console.
  */
 const ATTENTION_GROUPS = [
-  { key: "unseen", label: "Haven't looked yet", tone: "text-urgency-overdue" },
-  { key: "tenant", label: "Tenant's waiting to hear back", tone: "text-urgency-blocked" },
-  { key: "inhand", label: "In hand", tone: "text-muted-foreground" },
+  { key: "unseen", label: "Not seen", tone: "text-urgency-overdue" },
+  { key: "tenant", label: "Tenant waiting", tone: "text-urgency-blocked" },
+  { key: "inhand", label: "Active", tone: "text-muted-foreground" },
   { key: "done", label: "Done", tone: "text-muted-foreground" },
 ] as const;
 

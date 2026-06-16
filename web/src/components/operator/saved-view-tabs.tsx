@@ -22,20 +22,20 @@ export interface SavedView {
 }
 
 export const BUILTIN_VIEWS: SavedView[] = [
-  { slug: "all", label: "All open", params: { type: "wo", status: "open" } },
-  { slug: "mine", label: "On me", params: { type: "wo", mine: "mine" } },
+  { slug: "all", label: "All", params: { type: "wo", status: "open" } },
+  { slug: "mine", label: "Mine", params: { type: "wo", mine: "mine" } },
   {
     slug: "attention",
-    label: "Haven't looked yet",
+    label: "Needs attention",
     params: { type: "wo", attention: "1" },
   },
   {
     slug: "tenant",
-    label: "Tenant's waiting",
+    label: "Tenant waiting",
     params: { type: "wo", tenant: "not_updated" },
   },
-  { slug: "waiting", label: "Stuck on a part", params: { type: "wo", status: "blocked" } },
-  { slug: "aging", label: "Sitting too long", params: { type: "wo", aging: "1" } },
+  { slug: "waiting", label: "Waiting", params: { type: "wo", status: "blocked" } },
+  { slug: "aging", label: "Aging >7d", params: { type: "wo", aging: "1" } },
   // Moves (unit turns internally) are a first-class workflow — their own list.
   { slug: "turns", label: "Moves", params: { type: "prj", status: "open" } },
 ];
