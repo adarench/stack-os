@@ -22,20 +22,20 @@ export interface SavedView {
 }
 
 export const BUILTIN_VIEWS: SavedView[] = [
-  { slug: "all", label: "All", params: { type: "wo", status: "open" } },
-  { slug: "mine", label: "Mine", params: { type: "wo", mine: "mine" } },
+  { slug: "all", label: "All open", params: { type: "wo", status: "open" } },
+  { slug: "mine", label: "On me", params: { type: "wo", mine: "mine" } },
   {
     slug: "attention",
-    label: "Needs attention",
+    label: "Haven't looked yet",
     params: { type: "wo", attention: "1" },
   },
   {
     slug: "tenant",
-    label: "Tenant waiting",
+    label: "Tenant's waiting",
     params: { type: "wo", tenant: "not_updated" },
   },
-  { slug: "waiting", label: "Waiting", params: { type: "wo", status: "blocked" } },
-  { slug: "aging", label: "Aging >7d", params: { type: "wo", aging: "1" } },
+  { slug: "waiting", label: "Stuck on a part", params: { type: "wo", status: "blocked" } },
+  { slug: "aging", label: "Sitting too long", params: { type: "wo", aging: "1" } },
   // Moves (unit turns internally) are a first-class workflow — their own list.
   { slug: "turns", label: "Moves", params: { type: "prj", status: "open" } },
 ];
@@ -69,8 +69,8 @@ export function activeViewFor(
 export function SavedViewTabs({ active }: { active: string | null }) {
   return (
     <nav
-      aria-label="Saved views"
-      className="-mx-3 flex gap-1 overflow-x-auto border-b border-border px-3 py-1.5 md:-mx-4 md:px-4"
+      aria-label="Lenses"
+      className="-mx-3 flex gap-1.5 overflow-x-auto border-b border-border px-3 py-2 md:-mx-4 md:px-4"
     >
       {BUILTIN_VIEWS.map((view) => {
         const isActive = active === view.slug;
@@ -81,9 +81,9 @@ export function SavedViewTabs({ active }: { active: string | null }) {
             href={href}
             scroll={false}
             className={cn(
-              "shrink-0 rounded-md px-2.5 py-1 font-mono text-[11px] uppercase tracking-wider transition-colors",
+              "shrink-0 rounded-full px-3 py-1 text-[13px] transition-colors",
               isActive
-                ? "bg-foreground text-background"
+                ? "bg-foreground font-medium text-background"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >

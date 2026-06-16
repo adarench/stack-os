@@ -11,9 +11,11 @@ import { DEFAULT_BOARD_COLUMNS, loadBoard } from "@/lib/server/board";
 import { ViewModeToggle } from "@/components/operator/view-mode-toggle";
 import { SavedViewTabs, activeViewFor } from "@/components/operator/saved-view-tabs";
 import { EntityRow } from "@/components/operator/entity-row";
+import { WorkOrderRow } from "@/components/operator/work-order-row";
 import { TimeSinceTicker } from "@/components/operator/time-since";
 import { AutoRefresh } from "@/components/operator/auto-refresh";
 import { KanbanBoard } from "@/components/board/kanban-board";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -90,14 +92,24 @@ export default async function WorkPage({
     aging,
   });
 
-  // Operator scan order: longest-waiting on top. Completed/closed sink to the
-  // bottom; within the rest, oldest submission first. No urgency bands — the
-  // lens is the slice, and the row carries the call's fields.
-  const sorted = [...rows].sort((a, b) => {
+  // Within a group, the longest-waiting sits on top (oldest submission first).
+  const byAge = (a: WorkRow, b: WorkRow) =>
+    (a.openedAt ?? a.lastActionAt).localeCompare(b.openedAt ?? b.lastActionAt);
+
+  // Work orders are grouped by the operator's escalating question — "have they
+  // looked? have they told the tenant?" Moves/inspections stay a flat list.
+  const isWoView = type === "wo";
+  const groups = isWoView
+    ? ATTENTION_GROUPS.map((g) => ({
+        ...g,
+        items: rows.filter((r) => attentionBucket(r) === g.key).sort(byAge),
+      })).filter((g) => g.items.length > 0)
+    : [];
+  const flat = [...rows].sort((a, b) => {
     const ao = a.isOpen === false ? 1 : 0;
     const bo = b.isOpen === false ? 1 : 0;
     if (ao !== bo) return ao - bo;
-    return (a.openedAt ?? a.lastActionAt).localeCompare(b.openedAt ?? b.lastActionAt);
+    return byAge(a, b);
   });
 
   return (
@@ -106,28 +118,51 @@ export default async function WorkPage({
       <div className="mx-auto max-w-[1280px] px-3 md:px-4">
         <SavedViewTabs active={activeViewFor(sp)} />
         <div className="flex items-center gap-3 py-1.5">
-          <span className="font-mono text-[11px] tabular-nums uppercase tracking-wider text-muted-foreground">
-            {rows.length} {rows.length === 1 ? "item" : "items"}
+          <span className="text-[12px] text-muted-foreground">
+            {rows.length} {rows.length === 1 ? "work order" : "work orders"}
           </span>
           <span className="ml-auto shrink-0">
             <ViewModeToggle />
           </span>
         </div>
 
-        {sorted.length === 0 ? (
+        {rows.length === 0 ? (
           <div className="mx-auto mt-12 max-w-sm text-center">
-            <p className="text-sm font-medium">Nothing in this lens.</p>
+            <p className="text-sm font-medium">Nothing here right now.</p>
             <p className="text-xs text-muted-foreground">
-              Switch lenses above, or press{" "}
-              <kbd className="rounded border border-border bg-muted px-1 font-mono">
-                ⌘K
-              </kbd>{" "}
-              to jump elsewhere.
+              Try another lens above, or press{" "}
+              <kbd className="rounded border border-border bg-muted px-1">⌘K</kbd> to
+              jump elsewhere.
             </p>
+          </div>
+        ) : isWoView ? (
+          <div className="pb-16">
+            {groups.map((g) => (
+              <section key={g.key} aria-label={g.label} className="mt-4 first:mt-1">
+                <header className="flex items-baseline gap-2 px-2 pb-1">
+                  <h2
+                    className={cn(
+                      "text-[12px] font-semibold tracking-tight",
+                      g.tone,
+                    )}
+                  >
+                    {g.label}
+                  </h2>
+                  <span className="text-[12px] tabular-nums text-muted-foreground">
+                    {g.items.length}
+                  </span>
+                </header>
+                <div>
+                  {g.items.map((row) => (
+                    <WorkOrderRow key={row.ref} row={row} />
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
         ) : (
           <div className="space-y-0 pb-16">
-            {sorted.map((row: WorkRow) => (
+            {flat.map((row: WorkRow) => (
               <EntityRow key={`${row.type}-${row.ref}`} row={row} />
             ))}
           </div>
@@ -135,6 +170,25 @@ export default async function WorkPage({
       </div>
     </TimeSinceTicker>
   );
+}
+
+/**
+ * Attention buckets — the operator's escalating concern, derived from existing
+ * fields (no backend change): not seen → seen-but-tenant-uninformed → in hand →
+ * done. This is the spine of the operator console.
+ */
+const ATTENTION_GROUPS = [
+  { key: "unseen", label: "Haven't looked yet", tone: "text-urgency-overdue" },
+  { key: "tenant", label: "Tenant's waiting to hear back", tone: "text-urgency-blocked" },
+  { key: "inhand", label: "In hand", tone: "text-muted-foreground" },
+  { key: "done", label: "Done", tone: "text-muted-foreground" },
+] as const;
+
+function attentionBucket(r: WorkRow): (typeof ATTENTION_GROUPS)[number]["key"] {
+  if (r.isOpen === false) return "done";
+  if (!r.acknowledgedAt) return "unseen";
+  if (!r.tenantUpdatedAt) return "tenant";
+  return "inhand";
 }
 
 function strOrNull(v: string | string[] | undefined): string | null {

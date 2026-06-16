@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
 import { loadWorkList, type WorkRow } from "@/lib/server/work-list";
-import { EntityRow } from "@/components/operator/entity-row";
+import { WorkOrderRow } from "@/components/operator/work-order-row";
 import { TimeSinceTicker } from "@/components/operator/time-since";
 import { AutoRefresh } from "@/components/operator/auto-refresh";
 import { LiveIndicator } from "@/components/operator/live-indicator";
@@ -128,10 +128,10 @@ function BandSection({ band, items }: { band: Band; items: WorkRow[] }) {
           {items.length}
         </span>
       </header>
-      {/* Operator-model row (owner · seen · tenant · age), same as /work. */}
-      <div className="space-y-0">
+      {/* Operator-console row, same as /work. */}
+      <div>
         {items.map((row) => (
-          <EntityRow key={`${row.type}-${row.ref}`} row={row} />
+          <WorkOrderRow key={row.ref} row={row} />
         ))}
       </div>
     </section>
