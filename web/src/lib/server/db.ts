@@ -2,7 +2,7 @@ import "server-only";
 import { sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db, type DB } from "@db/client";
-import { auth } from "./auth";
+import { auth, isOperatorAllowed } from "./auth";
 
 export type ScopedDB = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
@@ -69,6 +69,11 @@ export async function withStaffScope<T>(
 ): Promise<T> {
   const { userId, orgId } = await auth();
   if (!userId) redirect("/sign-in");
+  // Access gate: with the org pinned, an authenticated account is only an
+  // operator if it's on the allow-list (or the gate is unconfigured).
+  if (!(await isOperatorAllowed())) redirect("/no-access");
+  // orgId is pinned to STACK_ORG_ID; this fallback only fires if that env is
+  // unset AND the user has no Clerk org (legacy multi-tenant path).
   if (!orgId) redirect("/select-org");
   return withScope({ orgId, actorType: "user" }, (tx) => fn(tx, { orgId, userId }));
 }

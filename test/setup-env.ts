@@ -24,3 +24,8 @@ delete process.env.RESEND_API_KEY; // email
 delete process.env.INNGEST_EVENT_KEY; // force inline dispatch, no event send
 delete process.env.TWILIO_ACCOUNT_SID; // SMS
 delete process.env.TWILIO_AUTH_TOKEN;
+// The single-org pin must NOT apply in tests — they mock Clerk to return
+// per-test org ids and assert RLS isolation across orgs. Strip it so the
+// auth() wrapper falls back to each test's mocked org.
+delete process.env.STACK_ORG_ID;
+delete process.env.ALLOWED_OPERATOR_EMAILS;

@@ -13,7 +13,7 @@ import { createComment } from "@/lib/server/comments";
 import { createAttachment } from "@/lib/server/attachments";
 import { signUploadUrl, storageConfigured } from "@/lib/server/storage";
 import { addCost } from "@/lib/server/costs";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/server/auth";
 import { COST_KINDS, type CostKind } from "@contracts/financials";
 
 export async function createWorkOrderAction(input: CreateWorkOrderInput) {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/server/auth";
 import { z } from "zod";
 import { signUploadUrl, storageConfigured } from "@/lib/server/storage";
 import { POLYMORPHIC_TARGETS } from "@contracts/polymorphic";
