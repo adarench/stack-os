@@ -6,6 +6,13 @@ export default defineConfig({
     include: ["../test/**/*.test.ts"],
     environment: "node",
     setupFiles: ["../test/setup-env.ts"],
+    // Integration tests share one Neon branch; each file opens its own
+    // connections. Unbounded file parallelism exhausts Neon's connection
+    // limit and the suite flakes with hook/test timeouts. Cap concurrent
+    // test files so the suite is deterministic (each file is still fast).
+    poolOptions: {
+      forks: { maxForks: 2, minForks: 1 },
+    },
   },
   resolve: {
     alias: {

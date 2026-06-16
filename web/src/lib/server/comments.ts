@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { and, asc, eq } from "drizzle-orm";
 import { comments } from "@db/schema/comments";
+import { workOrders } from "@db/schema/work-orders";
 import { POLYMORPHIC_TARGETS } from "@contracts/polymorphic";
 import { withStaffScope } from "./db";
 import { writeAudit } from "./audit";
@@ -31,6 +32,18 @@ export async function createComment(input: z.infer<typeof createCommentInput>) {
       })
       .returning();
     const row = inserted[0]!;
+
+    // An external note on a work order is a tenant-visible update — stamp the
+    // WO so /work can show "tenant updated Xh ago" vs "tenant not updated".
+    if (parsed.targetType === "work_order" && parsed.visibility === "external") {
+      await tx
+        .update(workOrders)
+        .set({ tenantUpdatedAt: new Date() })
+        .where(
+          and(eq(workOrders.orgId, ctx.orgId), eq(workOrders.id, parsed.targetId)),
+        );
+    }
+
     await writeAudit(tx, {
       orgId: ctx.orgId,
       targetType: parsed.targetType,

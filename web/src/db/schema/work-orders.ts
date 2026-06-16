@@ -52,6 +52,14 @@ export const workOrders = pgTable(
     checkInLat: doublePrecision("check_in_lat"),
     checkInLng: doublePrecision("check_in_lng"),
 
+    // Operator-model signals (from the customer call). The /work row foregrounds
+    // these instead of the old pressure/dev-board fields:
+    //   acknowledgedAt — when the *assigned tech* first opened it ("seen").
+    //   tenantUpdatedAt — when a tenant-visible note/update was last posted.
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    acknowledgedByUserId: uuid("acknowledged_by_user_id"),
+    tenantUpdatedAt: timestamp("tenant_updated_at", { withTimezone: true }),
+
     // Created-by audit (actor recorded in audit_log too).
     createdByUserId: uuid("created_by_user_id"),
     createdByActorType: text("created_by_actor_type").notNull().default("user"),

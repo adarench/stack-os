@@ -8,7 +8,7 @@ import { units } from "@db/schema/units";
 import { assignments } from "@db/schema/assignments";
 import { withStaffScope, type ScopedDB } from "./db";
 import { loadActiveOwners } from "./owners";
-import { loadWoRowHints, type RowHint } from "./row-hints";
+import { type RowHint } from "./row-hints";
 import { ensureUserRow } from "./sync-user";
 import type { Urgency } from "../../components/operator/urgency-dot";
 import { loadTurnStatuses, type TurnComputed } from "./turn-status";
@@ -25,16 +25,29 @@ export type WorkType = "wo" | "ins" | "prj" | "all";
 export type DueFilter = "overdue" | "today" | "week" | "later" | "none" | "all";
 export type StatusFilter = "open" | "blocked" | "in_progress" | "done" | "all";
 
-export type MineFilter = "all" | "mine" | "unassigned";
+export type MineFilter = "all" | "mine";
+
+/** Open-age threshold for the "Aging" lens / "⚠ Xd old" flag (the call's
+ *  "over seven days"). Based on submission age, not a due date. */
+export const AGING_DAYS = 7;
+const AGING_MS = AGING_DAYS * 24 * 60 * 60 * 1000;
+/** WO statuses that count as "still open" for seen/tenant/aging signals. */
+const OPEN_WO_STATUSES = ["new", "triaged", "assigned", "scheduled", "in_progress", "blocked"] as const;
 
 export interface WorkListFilters {
   type?: WorkType;
   status?: StatusFilter;
   due?: DueFilter;
   q?: string;
-  /** all (default) · mine (assigned to current user) · unassigned (no
-   *  active assignment). Filter is applied after the main fetch. */
+  /** all (default) · mine (assigned to current user). Applied post-fetch. */
   mine?: MineFilter;
+  /** Operator-model lenses (the call's surface), all WO-only:
+   *   attention — open + not yet seen by the assigned tech
+   *   tenant    — open + tenant not updated
+   *   aging     — open + submitted over AGING_DAYS ago */
+  attention?: boolean;
+  tenant?: "not_updated";
+  aging?: boolean;
   limit?: number;
 }
 
@@ -56,9 +69,17 @@ export interface WorkRow {
   lastActionAt: string;
   lastActionText: string | null;
   urgency: Urgency;
-  /** Open + untouched for 7d+. See queue.ts for definition. */
+  /** Open + over AGING_DAYS old by submission age (the "⚠ Xd old" flag). */
   aged: boolean;
-  /** Tier 3 row-level memory hints (max 2). */
+  /** Operator-model row fields (WOs). The /work row foregrounds these.
+   *  openedAt — submission time (drives age). acknowledgedAt — when the
+   *  assigned tech first opened it ("seen"). tenantUpdatedAt — last
+   *  tenant-visible note. isOpen — not completed/closed. */
+  openedAt?: string;
+  acknowledgedAt?: string | null;
+  tenantUpdatedAt?: string | null;
+  isOpen?: boolean;
+  /** Tier 3 row-level memory hints (max 2) — turns only now. */
   hints?: RowHint[];
   legacyHref: string;
 }
@@ -105,15 +126,13 @@ export async function loadWorkList(
       return b.lastActionAt.localeCompare(a.lastActionAt);
     });
 
-    // "Mine" / "Unassigned" filter — applied post-merge so all three
-    // entity types share the same toggle. The userId lookup uses the
-    // standard sync-user helper so phantom seed users map correctly.
+    // "Mine" filter — applied post-merge so all three entity types share the
+    // same toggle. ("Unassigned" is gone: auto-assign-by-property means work
+    // is never unassigned, so the lens would always be empty.)
     if (mine === "mine") {
       const userId = await ensureUserRow(tx, orgId, ctx.userId);
       const myTargetIds = await loadMyTargetIds(tx, orgId, userId);
       rows = rows.filter((r) => myTargetIds.has(r.id));
-    } else if (mine === "unassigned") {
-      rows = rows.filter((r) => r.ownerName === null);
     }
 
     return { rows: rows.slice(0, limit), total: rows.length };
@@ -168,20 +187,20 @@ async function queryWorkOrders(
     where.push(drizzleSql`${workOrders.status} IN ('closed', 'verified')`);
   }
 
-  const { start, end, weekEnd } = todayBounds(now);
-  if (f.due === "overdue") {
-    where.push(lt(workOrders.dueAt, now));
-    where.push(drizzleSql`${workOrders.status} NOT IN ('closed', 'cancelled')`);
-  } else if (f.due === "today") {
-    where.push(gte(workOrders.dueAt, start));
-    where.push(lt(workOrders.dueAt, end));
-  } else if (f.due === "week") {
-    where.push(gte(workOrders.dueAt, start));
-    where.push(lt(workOrders.dueAt, weekEnd));
-  } else if (f.due === "later") {
-    where.push(gte(workOrders.dueAt, weekEnd));
-  } else if (f.due === "none") {
-    where.push(drizzleSql`${workOrders.dueAt} IS NULL`);
+  // Operator-model lenses (the call's surface). Each implies "still open".
+  const openSql = drizzleSql`${workOrders.status} IN ('new','triaged','assigned','scheduled','in_progress','blocked')`;
+  if (f.attention) {
+    // New / not yet seen by the assigned tech.
+    where.push(openSql);
+    where.push(isNull(workOrders.acknowledgedAt));
+  }
+  if (f.tenant === "not_updated") {
+    where.push(openSql);
+    where.push(isNull(workOrders.tenantUpdatedAt));
+  }
+  if (f.aging) {
+    where.push(openSql);
+    where.push(lt(workOrders.createdAt, new Date(now.getTime() - AGING_MS)));
   }
 
   if (f.q) {
@@ -202,7 +221,10 @@ async function queryWorkOrders(
       status: workOrders.status,
       priority: workOrders.priority,
       dueAt: workOrders.dueAt,
+      createdAt: workOrders.createdAt,
       updatedAt: workOrders.updatedAt,
+      acknowledgedAt: workOrders.acknowledgedAt,
+      tenantUpdatedAt: workOrders.tenantUpdatedAt,
       unitId: workOrders.unitId,
       propertyId: workOrders.propertyId,
       spawnedFromInspectionId: workOrders.spawnedFromInspectionId,
@@ -216,14 +238,14 @@ async function queryWorkOrders(
     .orderBy(desc(workOrders.updatedAt))
     .limit(limit);
 
-  const [owners, hints] = await Promise.all([
-    loadActiveOwners(tx, orgId, "work_order", rows.map((r) => r.id)),
-    loadWoRowHints(tx, orgId, rows),
-  ]);
+  // Assigned tech (active 'user' assignee) — promoted to a primary row field.
+  // No row-hints here anymore: vendor-stress and "3rd at unit 90d" are gone
+  // from the operator surface (they told the pressure story, not the call's).
+  const owners = await loadActiveOwners(tx, orgId, "work_order", rows.map((r) => r.id));
 
   return rows.map((r): WorkRow => {
-    const urgency = woUrgency(r.status, r.dueAt, now);
-    const rowHints = hints.get(r.id) ?? [];
+    const open = (OPEN_WO_STATUSES as readonly string[]).includes(r.status);
+    const aged = open && now.getTime() - r.createdAt.getTime() > AGING_MS;
     return {
       id: r.id,
       ref: `WO-${r.number}`,
@@ -238,9 +260,12 @@ async function queryWorkOrders(
       dueAt: r.dueAt ? r.dueAt.toISOString() : null,
       lastActionAt: r.updatedAt.toISOString(),
       lastActionText: lastActionForWO(r.status),
-      urgency,
-      aged: isAged(urgency, r.updatedAt, now),
-      hints: rowHints.length > 0 ? rowHints : undefined,
+      urgency: woUrgency(r.status, r.dueAt, now),
+      aged,
+      openedAt: r.createdAt.toISOString(),
+      acknowledgedAt: r.acknowledgedAt ? r.acknowledgedAt.toISOString() : null,
+      tenantUpdatedAt: r.tenantUpdatedAt ? r.tenantUpdatedAt.toISOString() : null,
+      isOpen: open,
       legacyHref: `/work-orders/${r.id}`,
     };
   });

@@ -57,6 +57,13 @@
       "when": 1781633855240,
       "tag": "0007_pale_gorilla_man",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781635684794,
+      "tag": "0008_fluffy_viper",
+      "breakpoints": true
     }
   ]
 }

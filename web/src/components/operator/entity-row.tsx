@@ -10,11 +10,21 @@ import { workOrderStatusLabel } from "@/lib/labels";
 
 export interface EntityRowData {
   ref: string;
+  /** wo | ins | prj — drives the operator-model tail for work orders. */
+  type?: "wo" | "ins" | "prj";
   title: string;
   status: string;
   /** WO priority — drives the URG/HIGH chip + the left severity rail. */
   priority?: "low" | "normal" | "high" | "urgent" | null;
   ownerName: string | null;
+  /** #4 Seen: when the assigned tech first opened it (null = not seen). */
+  acknowledgedAt?: string | null;
+  /** #5 Tenant updated: last tenant-visible note (null = not updated). */
+  tenantUpdatedAt?: string | null;
+  /** Submission time — drives the "⚠ Xd old" age. */
+  openedAt?: string;
+  /** Not completed/closed. Seen/tenant/age signals only show while open. */
+  isOpen?: boolean;
   property: string | null;
   unit: string | null;
   /** Raw unit FK. When present, the property·unit subtitle pivots to the
@@ -278,8 +288,91 @@ function Tail({
       return <ChangedTail row={row} />;
     case "default":
     default:
-      return <DefaultTail row={row} showRelativeFuture={showRelativeFuture} />;
+      // Work orders get the operator-model tail (owner · seen · tenant · age);
+      // inspections/moves keep the simple owner+time tail.
+      return row.type === "wo" ? (
+        <WorkOrderTail row={row} />
+      ) : (
+        <DefaultTail row={row} showRelativeFuture={showRelativeFuture} />
+      );
   }
+}
+
+/**
+ * The /work operator-model tail — the fields from the customer call, in scan
+ * order: assigned tech · seen/not-seen · tenant updated/not · ⚠ age. Seen,
+ * tenant, and age only render while the WO is still open. Replaces the old
+ * pressure tail (vendor stress, consequence chips, due-date overdue).
+ *
+ *     Fernando · not seen · tenant not updated · ⚠ 9d
+ */
+function WorkOrderTail({ row }: { row: EntityRowData }) {
+  const open = row.isOpen !== false;
+  const seen = !!row.acknowledgedAt;
+  const tenantUpdated = !!row.tenantUpdatedAt;
+  const ageDays = row.openedAt ? daysSince(row.openedAt) : null;
+  return (
+    <span className="flex items-center gap-1.5 font-mono text-[10px] tabular-nums">
+      {/* Assigned tech — primary, always shown. */}
+      <span
+        className={cn(
+          "max-w-[120px] truncate",
+          row.ownerName ? "text-foreground" : "text-urgency-blocked",
+        )}
+      >
+        {row.ownerName ?? "unassigned"}
+      </span>
+
+      {open && (
+        <>
+          <span aria-hidden className="text-muted-foreground/40">·</span>
+          {seen ? (
+            <span className="hidden sm:inline text-muted-foreground">
+              seen {agoShort(row.acknowledgedAt!)}
+            </span>
+          ) : (
+            <span className="text-urgency-overdue">not seen</span>
+          )}
+
+          <span aria-hidden className="hidden md:inline text-muted-foreground/40">·</span>
+          {tenantUpdated ? (
+            <span className="hidden md:inline text-muted-foreground">
+              tenant {agoShort(row.tenantUpdatedAt!)}
+            </span>
+          ) : (
+            <span className="hidden md:inline text-urgency-blocked">tenant not updated</span>
+          )}
+
+          {ageDays !== null && ageDays >= 7 && (
+            <>
+              <span aria-hidden className="text-muted-foreground/40">·</span>
+              <span
+                className="shrink-0 text-urgency-overdue"
+                title={`Open ${ageDays} days`}
+              >
+                ⚠ {ageDays}d
+              </span>
+            </>
+          )}
+        </>
+      )}
+    </span>
+  );
+}
+
+/** Whole days since an ISO timestamp. */
+function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
+
+/** Compact "3h" / "2d" ago for an ISO timestamp. */
+function agoShort(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.round(ms / 60_000);
+  if (m < 60) return `${Math.max(1, m)}m`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.round(h / 24)}d`;
 }
 
 /** Time since the WO went overdue, in red. Owner shown small + muted. */

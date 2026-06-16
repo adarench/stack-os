@@ -139,16 +139,19 @@ function StatusReadout({ summary }: { summary: ShellSummary }) {
       href: "/work?status=open",
     },
     {
-      label: "overdue",
+      // Points at the Aging lens (open >7d). Note: the count still reflects the
+      // legacy due-date overdue metric until loadQueueSummary is reframed to
+      // open-age — tracked as a follow-up to the /work Gate-1 reframe.
+      label: "aging",
       value: summary.overdue,
-      href: "/work?due=overdue",
+      href: "/work?aging=1",
       detail: summary.oldestOverdueMs
         ? humanizeMs(summary.oldestOverdueMs)
         : null,
       alert: summary.overdue > 0,
     },
     {
-      label: "blocked",
+      label: "waiting",
       value: summary.blocked,
       href: "/work?status=blocked",
       alert: summary.blocked > 0,

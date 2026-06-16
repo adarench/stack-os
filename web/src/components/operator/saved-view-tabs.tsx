@@ -2,17 +2,18 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Built-in saved views for /work. Per docs/design/p9_cockpit_strategy.md
- * the /work surface is a power-lens: the dispatcher slices the corpus by
- * saved view, not by free-form filter sprawl. Phase 1 ships built-ins
- * with URL-encoded filter spec; Phase 2 adds user-saved persistent views.
+ * Built-in lenses for /work — the operator-model surface from the customer
+ * call. The lens IS the view: you slice by what needs attention, not by a
+ * status/board taxonomy. Each lens foregrounds one of the fields they
+ * actually named: owner, seen, tenant update, waiting, age.
  *
- * Order matches the operator's most-likely scans, top to bottom:
- *   All           — landing tab
- *   Mine          — "what's on my plate"
- *   Mine, overdue — "what's on my plate that's late"
- *   Unassigned    — dispatcher reach-for
- *   Backlog       — everything quiet, intentional drill-down
+ *   All             — every open work order
+ *   Mine            — assigned to me
+ *   Needs attention — open + not yet seen by the assigned tech
+ *   Tenant waiting  — open + tenant not updated
+ *   Waiting         — parked on a vendor / part / tenant
+ *   Aging >7d       — open over seven days (submission age, not a due date)
+ *   Moves           — unit turns
  */
 export interface SavedView {
   slug: string;
@@ -24,22 +25,18 @@ export const BUILTIN_VIEWS: SavedView[] = [
   { slug: "all", label: "All", params: { type: "wo", status: "open" } },
   { slug: "mine", label: "Mine", params: { type: "wo", mine: "mine" } },
   {
-    slug: "mine-overdue",
-    label: "Mine, overdue",
-    params: { type: "wo", mine: "mine", due: "overdue" },
+    slug: "attention",
+    label: "Needs attention",
+    params: { type: "wo", attention: "1" },
   },
   {
-    slug: "unassigned",
-    label: "Unassigned",
-    params: { type: "wo", mine: "unassigned" },
+    slug: "tenant",
+    label: "Tenant waiting",
+    params: { type: "wo", tenant: "not_updated" },
   },
-  {
-    slug: "backlog",
-    label: "Backlog",
-    params: { type: "wo", status: "open", backlog: "open" },
-  },
-  // Moves (unit turns internally) are a first-class workflow — scan them as
-  // their own list, ranked by move-in risk (urgency derives from child state).
+  { slug: "waiting", label: "Waiting", params: { type: "wo", status: "blocked" } },
+  { slug: "aging", label: "Aging >7d", params: { type: "wo", aging: "1" } },
+  // Moves (unit turns internally) are a first-class workflow — their own list.
   { slug: "turns", label: "Moves", params: { type: "prj", status: "open" } },
 ];
 

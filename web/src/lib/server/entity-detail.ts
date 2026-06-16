@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, sql as drizzleSql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql as drizzleSql } from "drizzle-orm";
 import { workOrders } from "@db/schema/work-orders";
 import { inspections } from "@db/schema/inspections";
 import { projects } from "@db/schema/projects";
@@ -30,6 +30,7 @@ import {
   type InspectionLineage,
   type DispatchEvent,
 } from "./memory";
+import { ensureUserRow } from "./sync-user";
 
 export interface EntityDetail {
   ref: string;
@@ -160,7 +161,7 @@ export async function loadEntityDetail(
 
   return withStaffScope(async (tx, ctx) => {
     if (woMatch) {
-      return loadWO(tx, ctx.orgId, Number(woMatch[1]));
+      return loadWO(tx, ctx.orgId, Number(woMatch[1]), ctx.userId);
     }
     if (insMatch) {
       return loadIns(tx, ctx.orgId, insMatch[1]!.toLowerCase());
@@ -182,6 +183,7 @@ async function loadWO(
   tx: ScopedDB,
   orgId: string,
   number: number,
+  viewerClerkId: string,
 ): Promise<EntityDetail | null> {
   const rows = await tx
     .select({
@@ -194,6 +196,7 @@ async function loadWO(
       dueAt: workOrders.dueAt,
       createdAt: workOrders.createdAt,
       updatedAt: workOrders.updatedAt,
+      acknowledgedAt: workOrders.acknowledgedAt,
       propertyId: workOrders.propertyId,
       unitId: workOrders.unitId,
       spawnedFromInspectionId: workOrders.spawnedFromInspectionId,
@@ -207,6 +210,22 @@ async function loadWO(
     .limit(1);
   const r = rows[0];
   if (!r) return null;
+
+  // "Seen" receipt: the first time the *assigned tech* opens the WO, stamp it
+  // acknowledged. Managers viewing it don't count — the question is whether
+  // the person responsible has laid eyes on it (the June-1 blind spot).
+  if (!r.acknowledgedAt) {
+    const assignedUserId = await loadActiveAssignedUserId(tx, orgId, r.id);
+    if (assignedUserId) {
+      const viewerId = await ensureUserRow(tx, orgId, viewerClerkId);
+      if (viewerId === assignedUserId) {
+        await tx
+          .update(workOrders)
+          .set({ acknowledgedAt: new Date(), acknowledgedByUserId: viewerId })
+          .where(eq(workOrders.id, r.id));
+      }
+    }
+  }
 
   // Resolve the active assigned vendor (assignee_type='vendor'). Drawer
   // memory needs the vendor's id for the reliability stats; the row's
@@ -274,6 +293,28 @@ async function loadWO(
     inspectionLineage,
     dispatchTimeline,
   };
+}
+
+/** The internal staff user (tech) currently assigned to a WO, if any. */
+async function loadActiveAssignedUserId(
+  tx: ScopedDB,
+  orgId: string,
+  woId: string,
+): Promise<string | null> {
+  const rows = await tx
+    .select({ assigneeId: assignments.assigneeId })
+    .from(assignments)
+    .where(
+      and(
+        eq(assignments.orgId, orgId),
+        eq(assignments.targetType, "work_order"),
+        eq(assignments.targetId, woId),
+        eq(assignments.assigneeType, "user"),
+        isNull(assignments.unassignedAt),
+      ),
+    )
+    .limit(1);
+  return rows[0]?.assigneeId ?? null;
 }
 
 async function loadActiveAssignedVendorId(
