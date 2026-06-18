@@ -306,9 +306,11 @@ export async function dispatchInline(args: {
         } else if (channel === "sms" && args.recipientPhone) {
           // Real Twilio send when configured; stubs (id=null) otherwise. A
           // real-send error throws → the outer catch marks this failed.
+          // Brand the body so the text self-identifies as Stack — US 10DLC
+          // can't set a sender name, so this is the only place to brand it.
           const r = await sendSms({
             to: args.recipientPhone,
-            body: `${args.subject} — ${args.body}`,
+            body: `Stack OS · ${args.subject} — ${args.body}`,
           });
           await markNotificationStatus(tx, id, {
             status: "sent",
