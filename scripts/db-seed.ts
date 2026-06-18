@@ -68,6 +68,8 @@ interface StaffSeed {
   role: string;
   /** Initials for the activity feed actor tag. */
   initials: string;
+  /** Mobile for SMS dispatch (techs). */
+  phone?: string;
 }
 
 const PHANTOM_STAFF: StaffSeed[] = [
@@ -79,6 +81,7 @@ const PHANTOM_STAFF: StaffSeed[] = [
     name: "Fernando Reyes",
     role: "manager",
     initials: "FR",
+    phone: "+13855550142",
   },
   {
     clerkUserId: "seed_phantom_oscar_diaz",
@@ -86,6 +89,7 @@ const PHANTOM_STAFF: StaffSeed[] = [
     name: "Oscar Diaz",
     role: "staff",
     initials: "OD",
+    phone: "+13855550178",
   },
   {
     clerkUserId: "seed_phantom_sara_yang",
@@ -716,10 +720,11 @@ async function main() {
 
   for (const s of PHANTOM_STAFF) {
     const [row] = await sql<{ id: string }[]>`
-      insert into users (org_id, clerk_user_id, email, name, role)
-      values (${ORG_ID}, ${s.clerkUserId}, ${s.email}, ${s.name}, ${s.role})
+      insert into users (org_id, clerk_user_id, email, name, role, phone)
+      values (${ORG_ID}, ${s.clerkUserId}, ${s.email}, ${s.name}, ${s.role}, ${s.phone ?? null})
       on conflict (clerk_user_id, org_id) do update set
-        name = excluded.name, email = excluded.email, role = excluded.role
+        name = excluded.name, email = excluded.email, role = excluded.role,
+        phone = excluded.phone
       returning id
     `;
     staffMap.set(s.initials, { id: row!.id, name: s.name, initials: s.initials });

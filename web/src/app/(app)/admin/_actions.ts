@@ -5,9 +5,18 @@ import {
   createProperty,
   createUnit,
   setPropertyAssignee,
+  setUserPhone,
 } from "@/lib/server/properties";
 import { createVendor } from "@/lib/server/vendors";
 import { inviteVendorUser } from "@/lib/server/vendor-invite";
+
+export async function setUserPhoneAction(formData: FormData) {
+  await setUserPhone(
+    String(formData.get("userId")),
+    String(formData.get("phone") ?? "") || null,
+  );
+  revalidatePath("/admin/team");
+}
 
 export async function createPropertyAction(formData: FormData) {
   await createProperty({

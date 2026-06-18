@@ -60,11 +60,27 @@ export async function listProperties() {
 export async function listStaffUsers() {
   return withStaffScope(async (tx, ctx) =>
     tx
-      .select({ id: users.id, name: users.name, email: users.email })
+      .select({ id: users.id, name: users.name, email: users.email, phone: users.phone })
       .from(users)
       .where(eq(users.orgId, ctx.orgId))
       .orderBy(asc(users.name)),
   );
+}
+
+/**
+ * Set (or clear) a staff user's mobile number for SMS dispatch. New-assignment
+ * texts only fire for techs with a number on file.
+ */
+export async function setUserPhone(userId: string, phone: string | null) {
+  return withStaffScope(async (tx, ctx) => {
+    const normalized = phone?.trim() || null;
+    const updated = await tx
+      .update(users)
+      .set({ phone: normalized, updatedAt: new Date() })
+      .where(and(eq(users.orgId, ctx.orgId), eq(users.id, userId)))
+      .returning({ id: users.id });
+    return updated[0] ?? null;
+  });
 }
 
 /**

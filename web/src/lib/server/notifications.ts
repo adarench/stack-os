@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { notifications, notificationPreferences } from "@db/schema/notifications";
 import { sendEmail } from "./email";
+import { sendSms } from "./sms";
 import {
   loadPushSubscriptions,
   prunePushSubscription,
@@ -86,11 +87,11 @@ export async function markNotificationStatus(
 /**
  * Read prefs for a recipient. Returns the set of enabled channels.
  *
- * Default when no prefs row exists for a channel: email + in_app on, sms off.
- * Push defaults ON for staff users (internal techs — reliable phone awareness
- * is the whole point) and OFF for vendor users (no push subscriptions yet).
- * Either way, push only actually sends if the recipient has a registered
- * subscription, so a default-on with no device is a harmless no-op.
+ * Default when no prefs row exists: email + in_app on for everyone; SMS + push
+ * default ON for staff (internal techs — reliable phone awareness is the whole
+ * point) and OFF for vendors. SMS only fires with a phone on file and push only
+ * with a registered subscription, so default-on with neither is a harmless
+ * no-op. Any recipient can override via notification_preferences.
  */
 export async function enabledChannels(
   tx: ScopedDB,
@@ -99,9 +100,13 @@ export async function enabledChannels(
 ): Promise<NotificationChannel[]> {
   const channels: NotificationChannel[] = ["email", "sms", "push", "in_app"];
   const isStaff = !!recipient.userId;
+  // Staff techs get SMS by default — they miss email, and a text on a new
+  // assignment is the reliable alert (the customer's #1 ask). Gated on a phone
+  // being on file, so default-on with no number is a harmless no-op. Vendors
+  // default SMS off. Either side can override via notification_preferences.
   const defaults: Record<NotificationChannel, boolean> = {
     email: true,
-    sms: false,
+    sms: isStaff,
     push: isStaff,
     in_app: true,
   };
@@ -299,13 +304,15 @@ export async function dispatchInline(args: {
           });
           sent.push("email");
         } else if (channel === "sms" && args.recipientPhone) {
-          // Twilio is deferred (A2P 10DLC). Log + mark as sent for now so
-          // notification rows are visible; production path replaces this.
-          // eslint-disable-next-line no-console
-          console.log("[sms:stub]", args.recipientPhone, args.subject);
+          // Real Twilio send when configured; stubs (id=null) otherwise. A
+          // real-send error throws → the outer catch marks this failed.
+          const r = await sendSms({
+            to: args.recipientPhone,
+            body: `${args.subject} — ${args.body}`,
+          });
           await markNotificationStatus(tx, id, {
             status: "sent",
-            providerMessageId: "stub",
+            providerMessageId: r.id ?? "stub",
           });
           sent.push("sms");
         }
