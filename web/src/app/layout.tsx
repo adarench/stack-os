@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://stack-os-six.vercel.app"),
   title: "Stack OS",
   description: "Maintenance + Compliance Operating System",
   manifest: "/manifest.webmanifest",
