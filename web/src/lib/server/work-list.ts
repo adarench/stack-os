@@ -48,6 +48,13 @@ export interface WorkListFilters {
   attention?: boolean;
   tenant?: "not_updated";
   aging?: boolean;
+  /** Structured filters (WO-only). assigneeId matches an active 'user' or
+   *  'vendor'/'vendor_user' assignment; created range is on submission date. */
+  propertyId?: string;
+  unitId?: string;
+  assigneeId?: string;
+  createdFrom?: Date;
+  createdTo?: Date;
   limit?: number;
 }
 
@@ -201,6 +208,23 @@ async function queryWorkOrders(
   if (f.aging) {
     where.push(openSql);
     where.push(lt(workOrders.createdAt, new Date(now.getTime() - AGING_MS)));
+  }
+
+  // Structured filters (property / unit / created-date range / assignee).
+  if (f.propertyId) where.push(eq(workOrders.propertyId, f.propertyId));
+  if (f.unitId) where.push(eq(workOrders.unitId, f.unitId));
+  if (f.createdFrom) where.push(gte(workOrders.createdAt, f.createdFrom));
+  if (f.createdTo) where.push(lt(workOrders.createdAt, f.createdTo));
+  if (f.assigneeId) {
+    // WO has an active assignment to this person (staff user or vendor user).
+    where.push(drizzleSql`EXISTS (
+      SELECT 1 FROM ${assignments} a
+      WHERE a.org_id = ${orgId}
+        AND a.target_type = 'work_order'
+        AND a.target_id = ${workOrders.id}
+        AND a.assignee_id = ${f.assigneeId}
+        AND a.unassigned_at IS NULL
+    )`);
   }
 
   if (f.q) {

@@ -8,8 +8,10 @@ import {
   type WorkType,
 } from "@/lib/server/work-list";
 import { DEFAULT_BOARD_COLUMNS, loadBoard } from "@/lib/server/board";
+import { listProperties, listStaffUsers } from "@/lib/server/properties";
 import { ViewModeToggle } from "@/components/operator/view-mode-toggle";
 import { SavedViewTabs, activeViewFor } from "@/components/operator/saved-view-tabs";
+import { WorkFilters } from "@/components/operator/work-filters";
 import { EntityRow } from "@/components/operator/entity-row";
 import { WorkOrderRow } from "@/components/operator/work-order-row";
 import { TimeSinceTicker } from "@/components/operator/time-since";
@@ -56,6 +58,16 @@ export default async function WorkPage({
   const attention = strOrNull(sp.attention) === "1";
   const tenant = strOrNull(sp.tenant) === "not_updated" ? ("not_updated" as const) : undefined;
   const aging = strOrNull(sp.aging) === "1";
+  // Structured filters.
+  const propertyId = strOrNull(sp.propertyId) ?? undefined;
+  const assigneeId = strOrNull(sp.assigneeId) ?? undefined;
+  const fromStr = strOrNull(sp.from);
+  const toStr = strOrNull(sp.to);
+  const createdFrom = fromStr ? new Date(`${fromStr}T00:00:00`) : undefined;
+  // `to` is inclusive of that whole day → use the next day with `lt`.
+  const createdTo = toStr
+    ? new Date(new Date(`${toStr}T00:00:00`).getTime() + 86_400_000)
+    : undefined;
 
   if (view === "board") {
     const board = await loadBoard({ view: "all" });
@@ -82,15 +94,23 @@ export default async function WorkPage({
     );
   }
 
-  const { rows } = await loadWorkList({
-    type,
-    status,
-    mine,
-    q: q ?? undefined,
-    attention,
-    tenant,
-    aging,
-  });
+  const [{ rows }, properties, staff] = await Promise.all([
+    loadWorkList({
+      type,
+      status,
+      mine,
+      q: q ?? undefined,
+      attention,
+      tenant,
+      aging,
+      propertyId,
+      assigneeId,
+      createdFrom,
+      createdTo,
+    }),
+    listProperties(),
+    listStaffUsers(),
+  ]);
 
   // Within a group, the longest-waiting sits on top (oldest submission first).
   const byAge = (a: WorkRow, b: WorkRow) =>
@@ -117,6 +137,11 @@ export default async function WorkPage({
       <AutoRefresh intervalMs={30_000} />
       <div className="mx-auto max-w-[1280px] px-3 md:px-4">
         <SavedViewTabs active={activeViewFor(sp)} />
+        <WorkFilters
+          sp={sp}
+          properties={properties.map((p) => ({ id: p.id, name: p.name }))}
+          staff={staff}
+        />
         <div className="flex items-center gap-3 py-1.5">
           <span className="text-[12px] text-muted-foreground">
             {rows.length} {rows.length === 1 ? "work order" : "work orders"}

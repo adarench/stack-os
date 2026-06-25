@@ -2,9 +2,22 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OwnerChip } from "./owner-chip";
 import type { WorkRow } from "@/lib/server/work-list";
+import { setStatusAction } from "@/app/(app)/_drawer/actions";
+import {
+  allowedNext,
+  type WorkOrderStatus,
+} from "@contracts/state-machines/work-order";
+import { workOrderTransitionLabel } from "@/lib/labels";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 /**
  * Operator-console work-order row. Two lines, sentence case, no monospace.
@@ -67,6 +80,7 @@ export function WorkOrderRow({ row }: { row: WorkRow }) {
           {urgent && <Badge tone="red">urgent</Badge>}
           {aging && <Badge tone="red">⚠ sitting {ageDays}d</Badge>}
           {!aging && waiting && isOpen && <Badge tone="amber">waiting</Badge>}
+          <RowStatusAction woRef={row.ref} status={row.status} />
         </span>
       </div>
 
@@ -99,6 +113,76 @@ export function WorkOrderRow({ row }: { row: WorkRow }) {
         </span>
       </div>
     </div>
+  );
+}
+
+/**
+ * One-tap status action on the row: the primary forward step (Mark done →
+ * Verify → Close, contextual to status) plus an overflow menu with the rest
+ * (incl. Cancel / backtrack). Reuses the same setStatusAction the drawer uses.
+ * Stops propagation so it never opens the drawer.
+ */
+const PRIMARY_FORWARD: Partial<Record<WorkOrderStatus, WorkOrderStatus>> = {
+  assigned: "in_progress",
+  scheduled: "in_progress",
+  blocked: "in_progress",
+  in_progress: "resolved",
+  resolved: "verified",
+  verified: "closed",
+};
+
+function RowStatusAction({ woRef, status }: { woRef: string; status: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = React.useTransition();
+  const s = status as WorkOrderStatus;
+  const nexts = allowedNext(s);
+  if (nexts.length === 0) return null; // terminal (closed/cancelled)
+
+  const primary = PRIMARY_FORWARD[s];
+  const run = (to: WorkOrderStatus) =>
+    startTransition(async () => {
+      const r = await setStatusAction({ ref: woRef, to });
+      if (r.ok) router.refresh();
+    });
+
+  return (
+    <span
+      className="flex items-center gap-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {primary && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => run(primary)}
+          className="inline-flex h-6 shrink-0 items-center rounded-md border border-border bg-background px-2 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+        >
+          {workOrderTransitionLabel(primary)}
+        </button>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label="More actions"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {nexts.map((to) => (
+            <DropdownMenuItem
+              key={to}
+              disabled={pending}
+              onSelect={() => run(to)}
+            >
+              {workOrderTransitionLabel(to)}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }
 
