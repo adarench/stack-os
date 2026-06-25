@@ -1,7 +1,9 @@
-import Link from "next/link";
 import { listProperties, listUnits } from "@/lib/server/properties";
 import { createWorkOrderAction } from "@/lib/actions/work-orders";
 import { WORK_ORDER_PRIORITIES } from "@contracts/state-machines/work-order";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Field, Input, Textarea, Select } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -23,86 +25,48 @@ export default async function NewWorkOrderPage() {
   const [properties, units] = await Promise.all([listProperties(), listUnits()]);
 
   return (
-    <main className="mx-auto max-w-md p-4 pb-24">
-      <header className="mb-4 flex items-center gap-3">
-        <Link href="/work" className="text-sm text-neutral-500">
-          ← Back
-        </Link>
-        <h1 className="text-lg font-semibold">New work order</h1>
-      </header>
+    <Page width="narrow">
+      <PageHeader title="New work order" backHref="/work" />
       <form action={action} className="space-y-3">
-        <Field label="Title">
-          <input
-            required
-            name="title"
-            maxLength={200}
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          />
+        <Field label="Title" htmlFor="title">
+          <Input required id="title" name="title" maxLength={200} />
         </Field>
-        <Field label="Description">
-          <textarea
-            name="description"
-            rows={4}
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          />
+        <Field label="Description" htmlFor="description">
+          <Textarea id="description" name="description" rows={4} />
         </Field>
-        <Field label="Priority">
-          <select
-            name="priority"
-            defaultValue="normal"
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
+        <Field label="Priority" htmlFor="priority">
+          <Select id="priority" name="priority" defaultValue="normal">
             {WORK_ORDER_PRIORITIES.map((p) => (
               <option key={p} value={p}>
-                {p}
+                {p.replace(/_/g, " ")}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
-        <Field label="Property">
-          <select
-            name="propertyId"
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
+        <Field label="Property" htmlFor="propertyId">
+          <Select id="propertyId" name="propertyId">
             <option value="">— none —</option>
             {properties.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
-        <Field label="Unit">
-          <select
-            name="unitId"
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
+        <Field label="Unit" htmlFor="unitId">
+          <Select id="unitId" name="unitId">
             <option value="">— none —</option>
             {units.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.label}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
-        <button
-          type="submit"
-          className="w-full rounded bg-neutral-900 px-3 py-3 text-sm font-medium text-white"
-        >
+        <Button type="submit" className="w-full">
           Create
-        </button>
+        </Button>
       </form>
-    </main>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-        {label}
-      </span>
-      {children}
-    </label>
+    </Page>
   );
 }

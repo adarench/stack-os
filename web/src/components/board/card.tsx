@@ -1,18 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import {
   allowedNext,
   type WorkOrderStatus,
   type WorkOrderPriority,
 } from "@contracts/state-machines/work-order";
 import type { BoardWorkOrder } from "@/lib/server/board";
+import { Button } from "@/components/ui/button";
 
 const PRIORITY_DOT: Record<WorkOrderPriority, string> = {
-  low: "bg-neutral-300",
-  normal: "bg-sky-400",
-  high: "bg-amber-500",
-  urgent: "bg-rose-600",
+  low: "bg-muted-foreground/40",
+  normal: "bg-urgency-inflow",
+  high: "bg-urgency-blocked",
+  urgent: "bg-urgency-overdue",
 };
 
 /**
@@ -38,10 +40,10 @@ export function Card({
       data-card="true"
       data-card-id={wo.id}
       onClick={(e) => onSelect(wo.id, e.shiftKey)}
-      className={`cursor-default rounded border bg-white p-2 text-sm shadow-sm transition-colors ${
+      className={`cursor-default rounded-md border bg-card p-2 text-body shadow-sm transition-colors ${
         selected
           ? "border-urgency-brand ring-2 ring-urgency-brand/30"
-          : "border-neutral-200 hover:border-neutral-300"
+          : "border-border hover:border-border"
       }`}
     >
       <div className="flex items-center gap-2">
@@ -49,12 +51,12 @@ export function Card({
           className={`inline-block h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[wo.priority as WorkOrderPriority]}`}
           aria-label={`priority ${wo.priority}`}
         />
-        <span className="font-mono text-[11px] tabular-nums text-neutral-500">
+        <span className="font-mono text-meta tabular-nums text-muted-foreground">
           WO-{wo.number}
         </span>
         {selected && (
-          <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-urgency-brand">
-            selected
+          <span className="ml-auto font-mono text-meta text-urgency-brand">
+            Selected
           </span>
         )}
       </div>
@@ -62,33 +64,35 @@ export function Card({
         href={`/work?d=WO-${wo.number}`}
         scroll={false}
         onClick={(e) => e.stopPropagation()}
-        className="mt-1 block text-sm leading-snug text-neutral-900 hover:underline"
+        className="mt-1 block text-body leading-snug text-foreground hover:underline"
       >
         {wo.title}
       </Link>
       {wo.dueAt && (
-        <div className="mt-1 text-xs text-neutral-500">
+        <div className="mt-1 text-label text-muted-foreground">
           Due {new Date(wo.dueAt).toLocaleDateString()}
         </div>
       )}
       {next.length > 0 && (
         <details className="mt-2" onClick={(e) => e.stopPropagation()}>
-          <summary className="cursor-pointer select-none text-xs text-neutral-500">
+          <summary className="cursor-pointer select-none text-label text-muted-foreground">
             Move…
           </summary>
           <div className="mt-1 flex flex-wrap gap-1">
             {next.map((to) => (
-              <button
+              <Button
                 key={to}
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   onMove(to);
                 }}
-                className="rounded-full border border-neutral-300 bg-white px-2 py-0.5 text-xs text-neutral-700 active:bg-neutral-100"
               >
-                → {to.replace(/_/g, " ")}
-              </button>
+                <ChevronRight />
+                {to.replace(/_/g, " ")}
+              </Button>
             ))}
           </div>
         </details>

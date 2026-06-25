@@ -1,7 +1,9 @@
-import Link from "next/link";
 import { listProperties, listUnits } from "@/lib/server/properties";
 import { listChecklistTemplates } from "@/lib/server/checklists";
 import { INSPECTION_KINDS } from "@contracts/state-machines/inspection";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Field, Select, Textarea } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
 import { createInspectionAction } from "../_actions";
 
 export const dynamic = "force-dynamic";
@@ -14,94 +16,57 @@ export default async function NewInspectionPage() {
   ]);
 
   return (
-    <main className="mx-auto max-w-md p-4 pb-24">
-      <header className="mb-4 flex items-center gap-3">
-        <Link href="/inspections" className="text-sm text-neutral-500">
-          ← Back
-        </Link>
-        <h1 className="text-lg font-semibold">New inspection</h1>
-      </header>
+    <Page width="narrow">
+      <PageHeader title="New inspection" backHref="/inspections" />
       <form action={createInspectionAction} className="space-y-3">
-        <Field label="Kind">
-          <select
-            name="kind"
-            defaultValue="ad_hoc"
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
+        <Field label="Kind" htmlFor="kind">
+          <Select id="kind" name="kind" defaultValue="ad_hoc">
             {INSPECTION_KINDS.map((k) => (
               <option key={k} value={k}>
                 {k.replace(/_/g, " ")}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
-        <Field label="Property">
-          <select
-            name="propertyId"
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
+        <Field label="Property" htmlFor="propertyId">
+          <Select id="propertyId" name="propertyId">
             <option value="">— none —</option>
             {properties.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
-        <Field label="Unit">
-          <select
-            name="unitId"
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
+        <Field label="Unit" htmlFor="unitId">
+          <Select id="unitId" name="unitId">
             <option value="">— none —</option>
             {units.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.label}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         {templates.length > 0 && (
-          <Field label="Start from checklist">
-            <select
-              name="checklistTemplateId"
-              defaultValue=""
-              className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-            >
+          <Field label="Start from checklist" htmlFor="checklistTemplateId">
+            <Select id="checklistTemplateId" name="checklistTemplateId" defaultValue="">
               <option value="">— none —</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name} ({t.items.length} items)
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
         )}
-        <Field label="Notes">
-          <textarea
-            name="notes"
-            rows={3}
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          />
+        <Field label="Notes" htmlFor="notes">
+          <Textarea id="notes" name="notes" rows={3} />
         </Field>
-        <button
-          type="submit"
-          className="w-full rounded bg-neutral-900 px-3 py-3 text-sm font-medium text-white"
-        >
+        <Button type="submit" className="w-full">
           Start inspection
-        </button>
+        </Button>
       </form>
-    </main>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-        {label}
-      </span>
-      {children}
-    </label>
+    </Page>
   );
 }

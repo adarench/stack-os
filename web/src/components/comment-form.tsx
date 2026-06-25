@@ -2,6 +2,8 @@
 
 import { useRef, useTransition } from "react";
 import { addCommentAction } from "@/lib/actions/work-orders";
+import { Input } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
 
 export function CommentForm({ targetId }: { targetId: string }) {
   const ref = useRef<HTMLFormElement | null>(null);
@@ -18,19 +20,15 @@ export function CommentForm({ targetId }: { targetId: string }) {
       className="mt-2 flex gap-2"
     >
       <input type="hidden" name="targetId" value={targetId} />
-      <input
+      <Input
         name="body"
         placeholder="Add a comment…"
         autoComplete="off"
-        className="flex-1 rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
+        className="flex-1"
       />
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-      >
+      <Button type="submit" size="sm" disabled={pending}>
         Post
-      </button>
+      </Button>
     </form>
   );
 }

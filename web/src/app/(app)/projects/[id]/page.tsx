@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { getProject, listProjectWorkOrders } from "@/lib/server/projects";
 import { listProperties, listUnits } from "@/lib/server/properties";
 import { StatusPill } from "@/components/status-pill";
+import { Page, PageHeader } from "@/components/ui/page";
+import { SectionHeading } from "@/components/ui/panel";
+import { Badge, toneForStatus } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   PROJECT_STATUSES,
   canTransition as canProjectTransition,
@@ -12,15 +17,6 @@ import type { WorkOrderStatus } from "@contracts/state-machines/work-order";
 import { transitionProjectStatusAction } from "../_actions";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_PILL: Record<ProjectStatus, string> = {
-  planning: "bg-neutral-100 text-neutral-700",
-  active: "bg-amber-100 text-amber-800",
-  punch_list: "bg-sky-100 text-sky-800",
-  closing: "bg-emerald-100 text-emerald-800",
-  closed: "bg-emerald-200 text-emerald-900",
-  cancelled: "bg-neutral-200 text-neutral-500 line-through",
-};
 
 export default async function ProjectDetailPage({
   params,
@@ -53,38 +49,38 @@ export default async function ProjectDetailPage({
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-24">
-      <header className="mb-4 flex items-center gap-3">
-        <Link href="/projects" className="text-sm text-neutral-500">
-          ← Back
-        </Link>
-        <span className="text-xs text-neutral-500">{project.kind.replace(/_/g, " ")}</span>
-        <span className="ml-auto">
-          <span
-            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${STATUS_PILL[status]}`}
-          >
+    <Page width="default">
+      <PageHeader
+        title={project.name}
+        backHref="/projects"
+        eyebrow={project.kind.replace(/_/g, " ")}
+        description={
+          property || unit ? (
+            <>
+              {property?.name}
+              {property && unit ? " · " : ""}
+              {unit?.label}
+            </>
+          ) : undefined
+        }
+        actions={
+          <Badge tone={toneForStatus(status)} size="md">
             {status.replace(/_/g, " ")}
-          </span>
-        </span>
-      </header>
+          </Badge>
+        }
+      />
 
-      <h1 className="text-lg font-semibold">{project.name}</h1>
-      {(property || unit) && (
-        <div className="mt-1 text-xs text-neutral-500">
-          {property?.name}
-          {property && unit ? " · " : ""}
-          {unit?.label}
-        </div>
-      )}
       {project.description && (
-        <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">{project.description}</p>
+        <p className="whitespace-pre-wrap text-body text-foreground">
+          {project.description}
+        </p>
       )}
 
       {(project.budgetCents != null || project.targetCompletion) && (
-        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-neutral-600">
+        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-label text-muted-foreground">
           {project.budgetCents != null && (
             <>
-              <dt className="font-medium uppercase tracking-wide text-neutral-500">Budget</dt>
+              <dt className="font-medium text-muted-foreground">Budget</dt>
               <dd>
                 {(Number(project.budgetCents) / 100).toLocaleString("en-US", {
                   style: "currency",
@@ -95,7 +91,7 @@ export default async function ProjectDetailPage({
           )}
           {project.targetCompletion && (
             <>
-              <dt className="font-medium uppercase tracking-wide text-neutral-500">Target</dt>
+              <dt className="font-medium text-muted-foreground">Target</dt>
               <dd>{new Date(project.targetCompletion).toLocaleDateString()}</dd>
             </>
           )}
@@ -104,20 +100,16 @@ export default async function ProjectDetailPage({
 
       {next.length > 0 && (
         <section className="mt-5">
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Move project
-          </h2>
+          <SectionHeading>Move project</SectionHeading>
           <div className="flex flex-wrap gap-2">
             {next.map((to) => (
               <form key={to} action={transitionProjectStatusAction}>
                 <input type="hidden" name="id" value={project.id} />
                 <input type="hidden" name="to" value={to} />
-                <button
-                  type="submit"
-                  className="rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-neutral-700 active:bg-neutral-100"
-                >
-                  → {to.replace(/_/g, " ")}
-                </button>
+                <Button type="submit" variant="outline" size="sm">
+                  <ChevronRight className="size-3.5" />
+                  {to.replace(/_/g, " ")}
+                </Button>
               </form>
             ))}
           </div>
@@ -125,38 +117,36 @@ export default async function ProjectDetailPage({
       )}
 
       <section className="mt-6">
-        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-          Work orders ({wos.length})
-        </h2>
+        <SectionHeading>Work orders ({wos.length})</SectionHeading>
         {wos.length === 0 ? (
-          <p className="text-xs text-neutral-500">
+          <p className="text-label text-muted-foreground">
             No WOs attached yet. Open a WO and link it to this project from its detail page.
           </p>
         ) : (
           <div className="space-y-3">
             {Array.from(grouped.entries()).map(([s, arr]) => (
               <div key={s}>
-                <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                <h3 className="mb-1 text-meta font-medium uppercase tracking-wider text-muted-foreground">
                   {s.replace(/_/g, " ")} ({arr.length})
                 </h3>
-                <ul className="space-y-1">
+                <ul className="divide-y divide-border/50">
                   {arr.map((w) => (
                     <li
                       key={w.id}
-                      className="rounded border border-neutral-200 bg-white p-2 text-sm"
+                      className="flex items-baseline gap-2 px-2 py-2.5 text-body hover:bg-muted/40"
                     >
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xs text-neutral-500">WO-{w.number}</span>
-                        <span className="ml-auto">
-                          <StatusPill status={w.status as WorkOrderStatus} />
-                        </span>
-                      </div>
+                      <span className="text-label text-muted-foreground">
+                        WO-{w.number}
+                      </span>
                       <Link
                         href={`/work-orders/${w.id}`}
-                        className="mt-1 block text-sm hover:underline"
+                        className="min-w-0 truncate hover:underline"
                       >
                         {w.title}
                       </Link>
+                      <span className="ml-auto">
+                        <StatusPill status={w.status as WorkOrderStatus} />
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -165,6 +155,6 @@ export default async function ProjectDetailPage({
           </div>
         )}
       </section>
-    </main>
+    </Page>
   );
 }

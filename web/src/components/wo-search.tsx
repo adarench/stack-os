@@ -2,6 +2,9 @@
 
 import { useRef } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/form";
+
 /**
  * Small client wrapper that submits the surrounding GET form on
  * input "Enter" or after a 500ms idle. Other filter values are passed
@@ -26,14 +29,14 @@ export function WoSearch({
       {preserve.map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
-      <input
+      <Input
         type="search"
         name="q"
         defaultValue={defaultValue}
         placeholder="Search title, description, or WO-#"
         autoComplete="off"
         enterKeyHint="search"
-        className="flex-1 rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
+        className="flex-1"
         onChange={(e) => {
           if (timer.current) clearTimeout(timer.current);
           const value = e.currentTarget.value;
@@ -46,12 +49,9 @@ export function WoSearch({
           }, 450);
         }}
       />
-      <button
-        type="submit"
-        className="rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white"
-      >
+      <Button type="submit" size="sm">
         Search
-      </button>
+      </Button>
     </form>
   );
 }

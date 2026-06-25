@@ -1,10 +1,16 @@
 import Link from "next/link";
+import { X } from "lucide-react";
 import { listChecklistTemplates } from "@/lib/server/checklists";
 import {
   createChecklistTemplateAction,
   addChecklistTemplateItemAction,
   removeChecklistTemplateItemAction,
 } from "./_actions";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Panel, SectionHeading } from "@/components/ui/panel";
+import { Input } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -12,71 +18,63 @@ export default async function AdminChecklistsPage() {
   const templates = await listChecklistTemplates();
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-24">
-      <header className="mb-4 flex items-center gap-3">
-        <Link href="/inspections" className="text-sm text-neutral-500">
-          ← Back
-        </Link>
-        <h1 className="text-lg font-semibold">Inspection checklists</h1>
-      </header>
+    <Page width="default">
+      <PageHeader
+        title="Inspection checklists"
+        backHref="/inspections"
+        description="Reusable checklists pre-fill an inspection's check-off items. Start an inspection “from a checklist” on the new-inspection screen."
+      />
 
-      <p className="mb-4 text-sm text-neutral-600">
-        Reusable checklists pre-fill an inspection&apos;s check-off items. Start an
-        inspection &ldquo;from a checklist&rdquo; on the new-inspection screen.
-      </p>
-
-      <section className="mb-6 rounded border border-neutral-200 bg-white p-3">
-        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-          New checklist
-        </h2>
-        <form action={createChecklistTemplateAction} className="flex gap-2 text-sm">
-          <input
+      <Panel className="mb-6">
+        <SectionHeading>New checklist</SectionHeading>
+        <form action={createChecklistTemplateAction} className="flex gap-2">
+          <Input
             required
             name="name"
             placeholder="Checklist name (e.g. Weekly property walk)"
-            className="flex-1 rounded border border-neutral-300 px-2 py-1.5"
+            className="flex-1"
           />
-          <button
-            type="submit"
-            className="rounded bg-neutral-900 px-3 py-1.5 font-medium text-white"
-          >
+          <Button type="submit" size="sm">
             Create
-          </button>
+          </Button>
         </form>
-      </section>
+      </Panel>
 
       {templates.length === 0 ? (
-        <p className="text-sm text-neutral-500">
-          No checklists yet. Create one above, then add steps to it.
-        </p>
+        <EmptyState
+          title="No checklists yet."
+          description="Create one above, then add steps to it."
+        />
       ) : (
-        <ul className="space-y-3">
+        <div className="space-y-3">
           {templates.map((t) => (
-            <li key={t.id} className="rounded border border-neutral-200 bg-white p-3">
+            <Panel key={t.id}>
               <div className="flex items-baseline justify-between gap-2">
-                <h3 className="font-medium">{t.name}</h3>
-                <span className="text-xs text-neutral-500">
+                <h3 className="text-title font-medium text-foreground">{t.name}</h3>
+                <span className="text-label text-muted-foreground">
                   {t.items.length} {t.items.length === 1 ? "item" : "items"}
                 </span>
               </div>
 
               {t.items.length > 0 && (
-                <ul className="mt-2 space-y-1">
+                <ul className="mt-2 divide-y divide-border/50">
                   {t.items.map((it) => (
                     <li
                       key={it.id}
-                      className="flex items-center gap-2 rounded border border-neutral-100 bg-neutral-50 px-2 py-1 text-sm"
+                      className="flex items-center gap-2 px-2 py-2.5 text-body hover:bg-muted/40"
                     >
-                      <span className="flex-1 text-neutral-800">{it.title}</span>
+                      <span className="flex-1 text-foreground">{it.title}</span>
                       <form action={removeChecklistTemplateItemAction}>
                         <input type="hidden" name="id" value={it.id} />
-                        <button
+                        <Button
                           type="submit"
+                          variant="ghost"
+                          size="icon-sm"
                           aria-label="Remove item"
-                          className="text-xs text-neutral-400 hover:text-rose-600"
+                          className="text-muted-foreground hover:text-destructive"
                         >
-                          ✕
-                        </button>
+                          <X className="size-3.5" />
+                        </Button>
                       </form>
                     </li>
                   ))}
@@ -88,23 +86,20 @@ export default async function AdminChecklistsPage() {
                 className="mt-2 flex gap-2"
               >
                 <input type="hidden" name="templateId" value={t.id} />
-                <input
+                <Input
                   required
                   name="title"
                   placeholder="Add a step…"
-                  className="flex-1 rounded border border-neutral-300 px-2 py-1.5 text-xs"
+                  className="flex-1"
                 />
-                <button
-                  type="submit"
-                  className="rounded border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700"
-                >
+                <Button type="submit" variant="outline" size="sm">
                   Add step
-                </button>
+                </Button>
               </form>
-            </li>
+            </Panel>
           ))}
-        </ul>
+        </div>
       )}
-    </main>
+    </Page>
   );
 }

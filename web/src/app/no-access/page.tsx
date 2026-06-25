@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { Page } from "@/components/ui/page";
+
 /**
  * Shown when an authenticated user is not on the operator allow-list
  * (ALLOWED_OPERATOR_EMAILS). Lives outside the (app) route group so it never
@@ -8,18 +10,23 @@ import Link from "next/link";
  */
 export default function NoAccessPage() {
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <div className="max-w-sm text-center">
-        <h1 className="text-base font-semibold">No access yet</h1>
-        <p className="mt-2 text-sm text-neutral-500">
+    <Page as="main" width="narrow" className="flex min-h-dvh items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-lg font-semibold tracking-tight text-foreground">
+          No access yet
+        </h1>
+        <p className="mt-2 text-body text-muted-foreground">
           Your account isn&rsquo;t set up for this workspace. Ask your operator
           to add your email, then{" "}
-          <Link href="/sign-in" className="underline hover:text-neutral-800">
+          <Link
+            href="/sign-in"
+            className="underline transition-colors hover:text-foreground"
+          >
             sign in again
           </Link>
           .
         </p>
       </div>
-    </main>
+    </Page>
   );
 }

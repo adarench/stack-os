@@ -6,6 +6,10 @@ import { vendors } from "@db/schema/vendors";
 import { workOrders } from "@db/schema/work-orders";
 import { assignments } from "@db/schema/assignments";
 import { and, desc, eq, isNull } from "drizzle-orm";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Badge, toneForStatus } from "@/components/ui/badge";
+import { SectionHeading } from "@/components/ui/panel";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -53,34 +57,35 @@ export default async function VendorHome() {
   });
 
   return (
-    <main className="mx-auto max-w-md p-4 pb-24">
-      <header className="mb-4">
-        <h1 className="text-xl font-semibold">{data.me?.vendorName ?? "Vendor"}</h1>
-        <p className="text-sm text-neutral-500">
-          {data.me?.name ?? data.me?.email ?? "Signed in"}
-        </p>
-      </header>
+    <Page as="main" width="narrow">
+      <PageHeader
+        title={data.me?.vendorName ?? "Vendor"}
+        description={data.me?.name ?? data.me?.email ?? "Signed in"}
+      />
 
-      <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">
-        Assigned to you
-      </h2>
+      <SectionHeading>Assigned to you</SectionHeading>
 
       {data.workOrders.length === 0 ? (
-        <p className="text-sm text-neutral-500">Nothing assigned right now.</p>
+        <EmptyState
+          title="Nothing assigned right now."
+          description="New work orders assigned to you will appear here."
+        />
       ) : (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border/50">
           {data.workOrders.map((w) => (
             <li
               key={w.id}
-              className="rounded border border-neutral-200 bg-white p-3 active:bg-neutral-50"
+              className="flex flex-col gap-1 px-2 py-2.5 text-body hover:bg-muted/40"
             >
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-xs text-neutral-500">WO-{w.number}</span>
-                <span className="text-xs font-medium uppercase">{w.status}</span>
+                <span className="text-meta text-muted-foreground">WO-{w.number}</span>
+                <Badge tone={toneForStatus(w.status)}>
+                  {w.status.replace(/_/g, " ")}
+                </Badge>
               </div>
-              <div className="mt-1 text-sm">{w.title}</div>
+              <div className="text-foreground">{w.title}</div>
               {w.dueAt && (
-                <div className="mt-1 text-xs text-neutral-500">
+                <div className="text-meta text-muted-foreground">
                   Due {new Date(w.dueAt).toLocaleDateString()}
                 </div>
               )}
@@ -88,6 +93,6 @@ export default async function VendorHome() {
           ))}
         </ul>
       )}
-    </main>
+    </Page>
   );
 }

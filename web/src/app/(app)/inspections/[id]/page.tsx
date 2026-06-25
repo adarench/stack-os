@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Check, ChevronRight, X } from "lucide-react";
 import {
   getInspection,
   listFindings,
@@ -9,6 +10,12 @@ import { listInspectionItems } from "@/lib/server/checklists";
 import { listProperties, listUnits } from "@/lib/server/properties";
 import { FINDING_SEVERITIES, type FindingSeverity } from "@contracts/finding-severity";
 import type { InspectionStatus } from "@contracts/state-machines/inspection";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Panel, SectionHeading } from "@/components/ui/panel";
+import { Badge, toneForStatus, type BadgeTone } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input, Textarea, Select } from "@/components/ui/form";
 import {
   addFindingAction,
   completeInspectionAction,
@@ -22,19 +29,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const STATUS_PILL: Record<InspectionStatus, string> = {
-  scheduled: "bg-neutral-100 text-neutral-700",
-  in_progress: "bg-amber-100 text-amber-800",
-  completed: "bg-emerald-100 text-emerald-800",
-  reviewed: "bg-emerald-200 text-emerald-900",
-  cancelled: "bg-neutral-200 text-neutral-500 line-through",
-};
-
-const SEVERITY_BADGE: Record<FindingSeverity, string> = {
-  info: "bg-neutral-100 text-neutral-700",
-  observation: "bg-sky-100 text-sky-800",
-  actionable: "bg-amber-100 text-amber-800",
-  critical: "bg-rose-100 text-rose-800",
+const SEVERITY_TONE: Record<FindingSeverity, BadgeTone> = {
+  info: "muted",
+  observation: "inflow",
+  actionable: "blocked",
+  critical: "overdue",
 };
 
 export default async function InspectionDetailPage({
@@ -66,59 +65,49 @@ export default async function InspectionDetailPage({
   );
 
   return (
-    <main className="mx-auto max-w-md p-4 pb-24">
-      <header className="mb-4 flex items-center gap-3">
-        <Link href="/inspections" className="text-sm text-neutral-500">
-          ← Back
-        </Link>
-        <span className="text-xs text-neutral-500">{inspection.kind.replace(/_/g, " ")}</span>
-        <span className="ml-auto">
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${STATUS_PILL[status]}`}
-          >
-            {status.replace(/_/g, " ")}
-          </span>
-        </span>
-      </header>
-
-      <h1 className="text-lg font-semibold">
-        {property?.name ?? "Inspection"}
-        {unit && (
-          <span className="text-base font-normal text-neutral-600"> · {unit.label}</span>
-        )}
-      </h1>
+    <Page width="narrow">
+      <PageHeader
+        backHref="/inspections"
+        eyebrow={inspection.kind.replace(/_/g, " ")}
+        title={
+          <>
+            {property?.name ?? "Inspection"}
+            {unit && (
+              <span className="font-normal text-muted-foreground"> · {unit.label}</span>
+            )}
+          </>
+        }
+        actions={
+          <Badge tone={toneForStatus(status)}>{status.replace(/_/g, " ")}</Badge>
+        }
+      />
       {inspection.notes && (
-        <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">{inspection.notes}</p>
+        <p className="whitespace-pre-wrap text-body text-foreground">{inspection.notes}</p>
       )}
 
       <section className="mt-5">
-        <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+        <SectionHeading className="flex items-center gap-2">
           Checklist
           {items.length > 0 && (
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                doneCount === items.length
-                  ? "bg-emerald-100 text-emerald-800"
-                  : "bg-neutral-100 text-neutral-700"
-              }`}
-            >
+            <Badge tone={doneCount === items.length ? "done" : "muted"}>
               {doneCount}/{items.length} done
-            </span>
+            </Badge>
           )}
-        </h2>
+        </SectionHeading>
 
         {items.length === 0 ? (
-          <p className="text-xs text-neutral-500">
-            No checklist items. Add steps below, or start an inspection from a template.
-          </p>
+          <EmptyState
+            title="No checklist items."
+            description="Add steps below, or start an inspection from a template."
+          />
         ) : (
-          <ul className="space-y-1">
+          <ul className="divide-y divide-border/50">
             {items.map((it) => {
               const done = it.completedAt !== null;
               return (
                 <li
                   key={it.id}
-                  className="flex items-center gap-2 rounded border border-neutral-200 bg-white p-2 text-sm"
+                  className="flex items-center gap-2 px-2 py-2.5 text-body hover:bg-muted/40"
                 >
                   <form action={toggleInspectionItemAction} className="flex">
                     <input type="hidden" name="id" value={it.id} />
@@ -127,17 +116,17 @@ export default async function InspectionDetailPage({
                       type="submit"
                       disabled={isLocked}
                       aria-label={done ? "Mark not done" : "Mark done"}
-                      className={`flex h-5 w-5 items-center justify-center rounded border text-xs ${
+                      className={`flex size-5 items-center justify-center rounded border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
                         done
-                          ? "border-emerald-600 bg-emerald-600 text-white"
-                          : "border-neutral-300 bg-white text-transparent"
+                          ? "border-urgency-done bg-urgency-done text-white"
+                          : "border-input bg-card text-transparent"
                       } ${isLocked ? "opacity-60" : ""}`}
                     >
-                      ✓
+                      <Check className="size-3.5" />
                     </button>
                   </form>
                   <span
-                    className={`flex-1 ${done ? "text-neutral-400 line-through" : "text-neutral-800"}`}
+                    className={`flex-1 ${done ? "text-muted-foreground line-through" : "text-foreground"}`}
                   >
                     {it.title}
                   </span>
@@ -145,13 +134,15 @@ export default async function InspectionDetailPage({
                     <form action={removeInspectionItemAction}>
                       <input type="hidden" name="id" value={it.id} />
                       <input type="hidden" name="inspectionId" value={inspection.id} />
-                      <button
+                      <Button
                         type="submit"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="Remove item"
-                        className="text-xs text-neutral-400 hover:text-rose-600"
+                        className="text-muted-foreground hover:text-foreground"
                       >
-                        ✕
-                      </button>
+                        <X className="size-3.5" />
+                      </Button>
                     </form>
                   )}
                 </li>
@@ -163,83 +154,68 @@ export default async function InspectionDetailPage({
         {!isLocked && (
           <form action={addInspectionItemAction} className="mt-2 flex gap-2">
             <input type="hidden" name="inspectionId" value={inspection.id} />
-            <input
+            <Input
               required
               name="title"
               placeholder="Add a checklist step…"
-              className="flex-1 rounded border border-neutral-300 px-2 py-1.5 text-xs"
+              className="flex-1"
             />
-            <button
-              type="submit"
-              className="rounded bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
-            >
+            <Button type="submit" size="sm">
               Add
-            </button>
+            </Button>
           </form>
         )}
       </section>
 
       <section className="mt-5">
-        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-          Findings ({findings.length})
-        </h2>
+        <SectionHeading>Findings ({findings.length})</SectionHeading>
 
         {findings.length === 0 ? (
-          <p className="text-xs text-neutral-500">
-            No findings yet. Add the first one below as you walk the property.
-          </p>
+          <EmptyState
+            title="No findings yet."
+            description="Add the first one below as you walk the property."
+          />
         ) : (
-          <ul className="space-y-2">
+          <ul className="divide-y divide-border/50">
             {findings.map((f) => (
-              <li key={f.id} className="rounded border border-neutral-200 bg-white p-2 text-sm">
+              <li key={f.id} className="px-2 py-2.5 text-body hover:bg-muted/40">
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${SEVERITY_BADGE[f.severity as FindingSeverity]}`}
-                  >
+                  <Badge tone={SEVERITY_TONE[f.severity as FindingSeverity]}>
                     {f.severity}
-                  </span>
+                  </Badge>
                   {f.area && (
-                    <span className="text-xs text-neutral-500">{f.area}</span>
+                    <span className="text-label text-muted-foreground">{f.area}</span>
                   )}
-                  <span
-                    className={`ml-auto text-xs font-medium uppercase ${
-                      f.pass ? "text-emerald-700" : "text-rose-700"
-                    }`}
-                  >
-                    {f.pass ? "PASS" : "FAIL"}
-                  </span>
+                  <Badge tone={f.pass ? "done" : "overdue"} className="ml-auto">
+                    {f.pass ? "Pass" : "Fail"}
+                  </Badge>
                 </div>
                 <p className="mt-1 whitespace-pre-wrap">{f.description}</p>
                 {f.spawnedWorkOrderId && (
                   <Link
                     href={`/work-orders/${f.spawnedWorkOrderId}`}
-                    className="mt-1 block text-xs text-blue-700 underline"
+                    className="mt-1 inline-flex items-center gap-1 text-label text-foreground underline"
                   >
-                    → Spawned WO
+                    <ChevronRight className="size-3.5" />
+                    Spawned WO
                   </Link>
                 )}
                 {!isLocked && (
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <div className="mt-2 flex flex-wrap gap-2">
                     <form action={updateFindingAction} className="flex gap-1">
                       <input type="hidden" name="id" value={f.id} />
                       <input type="hidden" name="inspectionId" value={inspection.id} />
                       <input type="hidden" name="pass" value={String(!f.pass)} />
-                      <button
-                        type="submit"
-                        className="rounded border border-neutral-300 bg-white px-2 py-0.5 text-neutral-700"
-                      >
+                      <Button type="submit" variant="outline" size="sm">
                         Mark {f.pass ? "fail" : "pass"}
-                      </button>
+                      </Button>
                     </form>
                     <form action={removeFindingAction}>
                       <input type="hidden" name="id" value={f.id} />
                       <input type="hidden" name="inspectionId" value={inspection.id} />
-                      <button
-                        type="submit"
-                        className="rounded border border-neutral-300 bg-white px-2 py-0.5 text-neutral-500"
-                      >
+                      <Button type="submit" variant="ghost" size="sm">
                         Remove
-                      </button>
+                      </Button>
                     </form>
                   </div>
                 )}
@@ -249,63 +225,51 @@ export default async function InspectionDetailPage({
         )}
 
         {!isLocked && (
-          <form action={addFindingAction} className="mt-3 space-y-2 rounded border border-dashed border-neutral-300 bg-white p-3 text-sm">
-            <input type="hidden" name="inspectionId" value={inspection.id} />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                name="area"
-                placeholder='Area (e.g. "kitchen")'
-                className="rounded border border-neutral-300 px-2 py-1.5 text-xs"
+          <Panel className="mt-3">
+            <form action={addFindingAction} className="space-y-2 text-body">
+              <input type="hidden" name="inspectionId" value={inspection.id} />
+              <div className="grid grid-cols-2 gap-2">
+                <Input name="area" placeholder='Area (e.g. "kitchen")' />
+                <Select name="severity" defaultValue="observation">
+                  {FINDING_SEVERITIES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <Textarea
+                required
+                name="description"
+                rows={2}
+                placeholder="What did you find? (Description spawns a WO if severity ≥ actionable AND pass is unchecked.)"
               />
-              <select
-                name="severity"
-                defaultValue="observation"
-                className="rounded border border-neutral-300 px-2 py-1.5 text-xs"
-              >
-                {FINDING_SEVERITIES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <textarea
-              required
-              name="description"
-              rows={2}
-              placeholder="What did you find? (Description spawns a WO if severity ≥ actionable AND pass is unchecked.)"
-              className="w-full rounded border border-neutral-300 px-2 py-1.5 text-xs"
-            />
-            <label className="flex items-center gap-2 text-xs text-neutral-700">
-              <input type="checkbox" name="pass" value="true" defaultChecked />
-              Pass (uncheck to fail; failed actionable/critical findings spawn a WO at completion)
-            </label>
-            <button
-              type="submit"
-              className="w-full rounded bg-neutral-900 px-3 py-2 text-xs font-medium text-white"
-            >
-              Add finding
-            </button>
-          </form>
+              <label className="flex items-center gap-2 text-label text-foreground">
+                <input type="checkbox" name="pass" value="true" defaultChecked />
+                Pass (uncheck to fail; failed actionable/critical findings spawn a WO at completion)
+              </label>
+              <Button type="submit" className="w-full">
+                Add finding
+              </Button>
+            </form>
+          </Panel>
         )}
       </section>
 
       {spawned.length > 0 && (
         <section className="mt-5">
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Spawned WOs ({spawned.length})
-          </h2>
-          <ul className="space-y-1">
+          <SectionHeading>Spawned WOs ({spawned.length})</SectionHeading>
+          <ul className="divide-y divide-border/50">
             {spawned.map((w) => (
-              <li key={w.id} className="text-sm">
+              <li key={w.id} className="px-2 py-2.5 text-body hover:bg-muted/40">
                 <Link
                   href={`/work-orders/${w.id}`}
-                  className="text-blue-700 underline"
+                  className="text-foreground underline"
                 >
                   WO-{w.number}
                 </Link>{" "}
-                <span className="text-neutral-700">{w.title}</span>{" "}
-                <span className="text-xs text-neutral-500">[{w.status}]</span>
+                <span className="text-foreground">{w.title}</span>{" "}
+                <span className="text-label text-muted-foreground">[{w.status}]</span>
               </li>
             ))}
           </ul>
@@ -316,34 +280,28 @@ export default async function InspectionDetailPage({
         {status === "scheduled" || status === "in_progress" ? (
           <form action={completeInspectionAction}>
             <input type="hidden" name="inspectionId" value={inspection.id} />
-            <button
-              type="submit"
-              className="w-full rounded bg-emerald-700 px-3 py-3 text-sm font-medium text-white"
-            >
+            <Button type="submit" size="lg" className="w-full">
               Complete inspection
               {failedActionable.length > 0 && (
-                <span className="ml-2 text-xs opacity-90">
+                <span className="ml-2 text-label opacity-90">
                   ({failedActionable.length} WO{failedActionable.length === 1 ? "" : "s"} will spawn)
                 </span>
               )}
-            </button>
+            </Button>
           </form>
         ) : status === "completed" ? (
           <form action={reviewInspectionAction}>
             <input type="hidden" name="inspectionId" value={inspection.id} />
-            <button
-              type="submit"
-              className="w-full rounded bg-neutral-900 px-3 py-3 text-sm font-medium text-white"
-            >
+            <Button type="submit" size="lg" className="w-full">
               Mark reviewed
-            </button>
+            </Button>
           </form>
         ) : (
-          <p className="text-center text-xs text-neutral-500">
+          <p className="text-center text-label text-muted-foreground">
             Terminal state. Inspection is locked.
           </p>
         )}
       </section>
-    </main>
+    </Page>
   );
 }

@@ -16,19 +16,19 @@ interface Props {
  */
 export function Column({ status, count, selectedCount = 0, children }: Props) {
   return (
-    <section className="flex w-72 shrink-0 snap-start flex-col rounded-lg border border-neutral-200 bg-neutral-50">
-      <header className="flex items-baseline justify-between border-b border-neutral-200 px-3 py-2">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-neutral-700">
+    <section className="flex w-72 shrink-0 snap-start flex-col rounded-lg border border-border bg-muted/50">
+      <header className="flex items-baseline justify-between border-b border-border px-3 py-2">
+        <h3 className="text-meta font-medium uppercase tracking-wider text-foreground">
           {status.replace(/_/g, " ")}
         </h3>
-        <span className="font-mono text-xs tabular-nums text-neutral-500">
+        <span className="font-mono text-meta tabular-nums text-muted-foreground">
           {selectedCount > 0 ? `${selectedCount}/${count}` : count}
         </span>
       </header>
       <div className="flex flex-1 flex-col gap-2 p-2">
         {children}
         {count === 0 && (
-          <div className="rounded border border-dashed border-neutral-200 p-3 text-center text-xs text-neutral-400">
+          <div className="rounded border border-dashed border-border p-3 text-center text-meta text-muted-foreground">
             Empty
           </div>
         )}

@@ -1,6 +1,9 @@
-import Link from "next/link";
 import { listStaffUsers } from "@/lib/server/properties";
 import { smsConfigured } from "@/lib/server/sms";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Input } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { setUserPhoneAction } from "../_actions";
 
 export const dynamic = "force-dynamic";
@@ -17,19 +20,14 @@ export default async function AdminTeamPage() {
   ]);
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-24">
-      <header className="mb-4 flex items-center gap-3">
-        <Link href="/work" className="text-sm text-neutral-500">
-          ← Back
-        </Link>
-        <h1 className="text-lg font-semibold">Team</h1>
-      </header>
+    <Page width="default">
+      <PageHeader title="Team" backHref="/work" />
 
       <div
-        className={`mb-4 rounded-md border px-3 py-2 text-xs ${
+        className={`mb-4 rounded-md border px-3 py-2 text-label ${
           smsOn
-            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-            : "border-amber-200 bg-amber-50 text-amber-800"
+            ? "border-urgency-done/30 bg-urgency-done/5 text-foreground"
+            : "border-urgency-blocked/30 bg-urgency-blocked/5 text-foreground"
         }`}
       >
         {smsOn ? (
@@ -45,44 +43,41 @@ export default async function AdminTeamPage() {
       </div>
 
       {staff.length === 0 ? (
-        <p className="text-sm text-neutral-500">
-          No staff yet — they appear here after their first sign-in.
-        </p>
+        <EmptyState
+          title="No staff yet."
+          description="They appear here after their first sign-in."
+        />
       ) : (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border/50">
           {staff.map((u) => (
-            <li
-              key={u.id}
-              className="rounded border border-neutral-200 bg-white p-3"
-            >
+            <li key={u.id} className="px-2 py-2.5 text-body">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="font-medium">{u.name ?? u.email}</span>
-                <span className="text-xs text-neutral-500">{u.email}</span>
+                <span className="font-medium text-foreground">
+                  {u.name ?? u.email}
+                </span>
+                <span className="text-label text-muted-foreground">{u.email}</span>
               </div>
               <form
                 action={setUserPhoneAction}
-                className="mt-2 flex items-center gap-2 text-sm"
+                className="mt-2 flex items-center gap-2"
               >
                 <input type="hidden" name="userId" value={u.id} />
-                <label className="text-xs text-neutral-500">Mobile</label>
-                <input
+                <label className="text-label text-muted-foreground">Mobile</label>
+                <Input
                   name="phone"
                   type="tel"
                   defaultValue={u.phone ?? ""}
                   placeholder="+1 555 555 0123"
-                  className="flex-1 rounded border border-neutral-300 px-2 py-1 font-mono text-[13px]"
+                  className="flex-1 font-mono"
                 />
-                <button
-                  type="submit"
-                  className="rounded border border-neutral-300 px-2 py-1 text-neutral-700 hover:bg-neutral-100"
-                >
+                <Button type="submit" variant="outline" size="sm">
                   Save
-                </button>
+                </Button>
               </form>
             </li>
           ))}
         </ul>
       )}
-    </main>
+    </Page>
   );
 }

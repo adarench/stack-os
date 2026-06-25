@@ -5,6 +5,8 @@ import {
   attachUploadedFileAction,
   requestUploadUrl,
 } from "@/lib/actions/work-orders";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 
@@ -140,44 +142,45 @@ export function PhotoCapture({
           e.target.value = "";
         }}
       />
-      <button
+      <Button
         type="button"
+        variant="outline"
         onClick={() => inputRef.current?.click()}
         disabled={isUploading}
-        className="w-full rounded border border-dashed border-neutral-400 bg-white px-3 py-3 text-sm font-medium text-neutral-700 active:bg-neutral-50 disabled:opacity-50"
+        className="h-auto w-full border-dashed py-3"
       >
         {isUploading ? "Uploading…" : label}
-      </button>
+      </Button>
 
       {items.length > 0 && (
-        <ul className="mt-2 space-y-1">
+        <ul className="mt-2 divide-y divide-border/50">
           {items.map((it) => (
             <li
               key={it.id}
-              className="flex items-center gap-2 rounded border border-neutral-200 bg-white px-2 py-1 text-xs"
+              className="flex items-center gap-2 px-2 py-2.5 text-body hover:bg-muted/40"
             >
-              <span className="flex-1 truncate" title={it.filename}>
+              <span className="flex-1 truncate text-foreground" title={it.filename}>
                 {it.filename}
               </span>
-              {it.status === "queued" && <span className="text-neutral-500">queued</span>}
+              {it.status === "queued" && <Badge tone="muted">queued</Badge>}
               {it.status === "uploading" && (
                 <span className="flex items-center gap-1.5">
-                  <span className="h-1 w-12 overflow-hidden rounded bg-neutral-200">
+                  <span className="h-1 w-12 overflow-hidden rounded bg-muted">
                     <span
-                      className="block h-full bg-neutral-700 transition-[width]"
+                      className="block h-full bg-foreground transition-[width]"
                       style={{ width: `${Math.round(it.progress * 100)}%` }}
                     />
                   </span>
-                  <span className="tabular-nums text-neutral-500">
+                  <span className="tabular-nums text-muted-foreground">
                     {Math.round(it.progress * 100)}%
                   </span>
                 </span>
               )}
-              {it.status === "done" && <span className="text-emerald-700">done</span>}
+              {it.status === "done" && <Badge tone="done">done</Badge>}
               {it.status === "error" && (
-                <span className="text-rose-700" title={it.error}>
+                <Badge tone="overdue" title={it.error}>
                   error: {it.error}
-                </span>
+                </Badge>
               )}
             </li>
           ))}

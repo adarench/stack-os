@@ -2,6 +2,8 @@
 
 import { useRef } from "react";
 
+import { Select } from "@/components/ui/form";
+
 export function FilterSelect({
   name,
   value,
@@ -21,18 +23,18 @@ export function FilterSelect({
       {preserve.map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
-      <select
+      <Select
         name={name}
         defaultValue={value}
         onChange={() => formRef.current?.submit()}
-        className="rounded border border-neutral-300 bg-white px-2 py-1 text-xs"
+        className="w-auto"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
         ))}
-      </select>
+      </Select>
     </form>
   );
 }

@@ -5,6 +5,11 @@ import {
   createUnitAction,
   setPropertyAssigneeAction,
 } from "../_actions";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Panel, SectionHeading } from "@/components/ui/panel";
+import { Input, Select } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -22,55 +27,32 @@ export default async function AdminPropertiesPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-24">
-      <header className="mb-4 flex items-center gap-3">
-        <Link href="/work" className="text-sm text-neutral-500">
-          ← Back
-        </Link>
-        <h1 className="text-lg font-semibold">Properties &amp; units</h1>
-      </header>
+    <Page width="default">
+      <PageHeader title="Properties & units" backHref="/work" />
 
-      <section className="mb-6 rounded border border-neutral-200 bg-white p-3">
-        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-          Add property
-        </h2>
-        <form action={createPropertyAction} className="grid grid-cols-2 gap-2 text-sm">
-          <input
-            required
-            name="name"
-            placeholder="Name"
-            className="col-span-2 rounded border border-neutral-300 px-2 py-1.5"
-          />
-          <input
-            name="addressLine1"
-            placeholder="Address"
-            className="col-span-2 rounded border border-neutral-300 px-2 py-1.5"
-          />
-          <input name="city" placeholder="City" className="rounded border border-neutral-300 px-2 py-1.5" />
-          <input name="state" placeholder="State" className="rounded border border-neutral-300 px-2 py-1.5" />
-          <input
-            name="postalCode"
-            placeholder="ZIP"
-            className="rounded border border-neutral-300 px-2 py-1.5"
-          />
-          <button
-            type="submit"
-            className="col-span-2 mt-1 rounded bg-neutral-900 px-3 py-2 text-white"
-          >
+      <Panel className="mb-6">
+        <SectionHeading>Add property</SectionHeading>
+        <form action={createPropertyAction} className="grid grid-cols-2 gap-2">
+          <Input required name="name" placeholder="Name" className="col-span-2" />
+          <Input name="addressLine1" placeholder="Address" className="col-span-2" />
+          <Input name="city" placeholder="City" />
+          <Input name="state" placeholder="State" />
+          <Input name="postalCode" placeholder="ZIP" />
+          <Button type="submit" size="sm" className="col-span-2 mt-1">
             Add property
-          </button>
+          </Button>
         </form>
-      </section>
+      </Panel>
 
       {properties.length === 0 ? (
-        <p className="text-sm text-neutral-500">No properties yet.</p>
+        <EmptyState title="No properties yet." />
       ) : (
-        <ul className="space-y-3">
+        <ul className="divide-y divide-border/50">
           {properties.map((p) => (
-            <li key={p.id} className="rounded border border-neutral-200 bg-white p-3">
+            <li key={p.id} className="px-2 py-2.5">
               <div className="flex items-baseline justify-between">
-                <h3 className="font-medium">{p.name}</h3>
-                <span className="text-xs text-neutral-500">
+                <h3 className="text-title font-medium text-foreground">{p.name}</h3>
+                <span className="text-label text-muted-foreground">
                   {p.city ?? ""} {p.state ?? ""}
                 </span>
               </div>
@@ -79,14 +61,14 @@ export default async function AdminPropertiesPage() {
                   to. Submits on change so there's no extra save button. */}
               <form
                 action={setPropertyAssigneeAction}
-                className="mt-2 flex items-center gap-2 text-xs"
+                className="mt-2 flex items-center gap-2 text-label"
               >
                 <input type="hidden" name="propertyId" value={p.id} />
-                <label className="text-neutral-500">Covered by</label>
-                <select
+                <label className="text-muted-foreground">Covered by</label>
+                <Select
                   name="userId"
                   defaultValue={p.defaultAssigneeUserId ?? ""}
-                  className="rounded border border-neutral-300 px-2 py-1"
+                  className="w-auto"
                 >
                   <option value="">— unassigned (no auto-route) —</option>
                   {staff.map((s) => (
@@ -94,54 +76,37 @@ export default async function AdminPropertiesPage() {
                       {s.name ?? s.email}
                     </option>
                   ))}
-                </select>
-                <button
-                  type="submit"
-                  className="rounded border border-neutral-300 px-2 py-1 text-neutral-700"
-                >
+                </Select>
+                <Button type="submit" variant="outline" size="sm">
                   Save
-                </button>
+                </Button>
               </form>
 
-              <ul className="mt-2 space-y-1 text-sm">
+              <ul className="mt-2 space-y-1 text-body">
                 {(unitsByProperty.get(p.id) ?? []).map((u) => (
-                  <li key={u.id} className="text-neutral-700">
+                  <li key={u.id} className="text-foreground">
                     · {u.label}
                   </li>
                 ))}
               </ul>
               <details className="mt-2">
-                <summary className="cursor-pointer text-xs text-neutral-500">+ add unit</summary>
-                <form action={createUnitAction} className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                <summary className="cursor-pointer text-label text-muted-foreground">
+                  + add unit
+                </summary>
+                <form action={createUnitAction} className="mt-2 grid grid-cols-2 gap-2">
                   <input type="hidden" name="propertyId" value={p.id} />
-                  <input
-                    required
-                    name="label"
-                    placeholder="Unit label"
-                    className="col-span-2 rounded border border-neutral-300 px-2 py-1.5"
-                  />
-                  <input
-                    name="bedrooms"
-                    placeholder="BR"
-                    className="rounded border border-neutral-300 px-2 py-1.5"
-                  />
-                  <input
-                    name="bathrooms"
-                    placeholder="BA"
-                    className="rounded border border-neutral-300 px-2 py-1.5"
-                  />
-                  <button
-                    type="submit"
-                    className="col-span-2 rounded bg-neutral-900 px-2 py-1.5 text-white"
-                  >
+                  <Input required name="label" placeholder="Unit label" className="col-span-2" />
+                  <Input name="bedrooms" placeholder="BR" />
+                  <Input name="bathrooms" placeholder="BA" />
+                  <Button type="submit" size="sm" className="col-span-2">
                     Add unit
-                  </button>
+                  </Button>
                 </form>
               </details>
             </li>
           ))}
         </ul>
       )}
-    </main>
+    </Page>
   );
 }

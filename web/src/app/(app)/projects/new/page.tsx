@@ -1,102 +1,66 @@
-import Link from "next/link";
 import { listProperties, listUnits } from "@/lib/server/properties";
 import { PROJECT_KINDS } from "@contracts/state-machines/project";
 import { createProjectAction } from "../_actions";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Button } from "@/components/ui/button";
+import { Input, Textarea, Select, Field } from "@/components/ui/form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewProjectPage() {
   const [properties, units] = await Promise.all([listProperties(), listUnits()]);
   return (
-    <main className="mx-auto max-w-md p-4 pb-24">
-      <header className="mb-4 flex items-center gap-3">
-        <Link href="/projects" className="text-sm text-neutral-500">
-          ← Back
-        </Link>
-        <h1 className="text-lg font-semibold">New project</h1>
-      </header>
+    <Page width="narrow">
+      <PageHeader title="New project" backHref="/projects" />
       <form action={createProjectAction} className="space-y-3">
-        <Field label="Name">
-          <input
-            required
-            name="name"
-            maxLength={200}
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          />
+        <Field label="Name" htmlFor="name">
+          <Input required id="name" name="name" maxLength={200} />
         </Field>
-        <Field label="Description">
-          <textarea
-            name="description"
-            rows={3}
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          />
+        <Field label="Description" htmlFor="description">
+          <Textarea id="description" name="description" rows={3} />
         </Field>
-        <Field label="Kind">
-          <select
-            name="kind"
-            defaultValue="general"
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
+        <Field label="Kind" htmlFor="kind">
+          <Select id="kind" name="kind" defaultValue="general">
             {PROJECT_KINDS.map((k) => (
               <option key={k} value={k}>
                 {k.replace(/_/g, " ")}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
-        <Field label="Property">
-          <select
-            name="propertyId"
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
+        <Field label="Property" htmlFor="propertyId">
+          <Select id="propertyId" name="propertyId">
             <option value="">— none —</option>
             {properties.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
-        <Field label="Unit">
-          <select
-            name="unitId"
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
+        <Field label="Unit" htmlFor="unitId">
+          <Select id="unitId" name="unitId">
             <option value="">— none —</option>
             {units.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.label}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
-        <Field label="Budget (cents)">
-          <input
+        <Field label="Budget (cents)" htmlFor="budgetCents">
+          <Input
+            id="budgetCents"
             name="budgetCents"
             type="number"
             min={0}
             placeholder="optional"
-            className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
           />
         </Field>
-        <button
-          type="submit"
-          className="w-full rounded bg-neutral-900 px-3 py-3 text-sm font-medium text-white"
-        >
+        <Button type="submit" className="w-full">
           Create project
-        </button>
+        </Button>
       </form>
-    </main>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-        {label}
-      </span>
-      {children}
-    </label>
+    </Page>
   );
 }
