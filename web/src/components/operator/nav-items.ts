@@ -4,6 +4,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   Wrench,
+  Building2,
 } from "lucide-react";
 
 export interface NavItem {
@@ -47,5 +48,9 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/inspections", label: "Inspections", icon: ClipboardCheck, mobile: true },
 ];
 
-export const SECONDARY_NAV: NavItem[] = [];
+export const SECONDARY_NAV: NavItem[] = [
+  // Property is the ontology / a drill-in (history + reporting), not a daily
+  // work-lens — so it lives in the secondary rail, not the primary tabs.
+  { href: "/properties", label: "Properties", icon: Building2 },
+];
 export const FOOT_NAV: NavItem[] = [];
