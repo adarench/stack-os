@@ -1114,6 +1114,48 @@ async function main() {
     `;
   }
 
+  /* ---- checklist template + live inspection items ---- */
+  const WALK_STEPS = [
+    "Exterior walk — roof, gutters, siding",
+    "Common areas — lobby, stairs, hallways",
+    "Lighting — replace any out bulbs",
+    "Landscaping / parking lot",
+    "Trash + recycling enclosure",
+    "Fire extinguishers tagged + charged",
+    "Vacant units — flush, check HVAC",
+    "Mechanical / boiler room",
+  ];
+  console.log(`[db:seed] inserting "Weekly property walk" checklist template...`);
+  const [tmpl] = await sql<{ id: string }[]>`
+    insert into checklist_templates (org_id, name)
+    values (${ORG_ID}, 'Weekly property walk')
+    returning id
+  `;
+  for (let i = 0; i < WALK_STEPS.length; i++) {
+    await sql`
+      insert into checklist_template_items (org_id, template_id, title, ordering)
+      values (${ORG_ID}, ${tmpl!.id}, ${WALK_STEPS[i]}, ${i})
+    `;
+  }
+  // Pre-fill the live in_progress ad-hoc inspection so the demo shows a
+  // half-checked Trello-style list (3/8 done).
+  const liveInspectionId = inspectionIds[4];
+  if (liveInspectionId) {
+    const inspector = staffMap.get(pick(["DM", "MP", "SY"]));
+    for (let i = 0; i < WALK_STEPS.length; i++) {
+      const done = i < 3;
+      await sql`
+        insert into inspection_items (
+          org_id, inspection_id, title, ordering, completed_at, completed_by_user_id
+        )
+        values (
+          ${ORG_ID}, ${liveInspectionId}, ${WALK_STEPS[i]}, ${i},
+          ${done ? h(2) : null}, ${done ? (inspector?.id ?? null) : null}
+        )
+      `;
+    }
+  }
+
   /* ---- projects ---- */
   console.log(`[db:seed] inserting ${PROJECTS.length} projects...`);
   for (const p of PROJECTS) {
@@ -1310,8 +1352,11 @@ async function wipeOrg(orgId: string) {
   await sql`delete from invoices where org_id = ${orgId}`;
   await sql`delete from attachments where org_id = ${orgId}`;
   await sql`delete from comments where org_id = ${orgId}`;
+  await sql`delete from inspection_items where org_id = ${orgId}`;
   await sql`delete from inspection_findings where org_id = ${orgId}`;
   await sql`delete from inspections where org_id = ${orgId}`;
+  await sql`delete from checklist_template_items where org_id = ${orgId}`;
+  await sql`delete from checklist_templates where org_id = ${orgId}`;
   await sql`delete from assignments where org_id = ${orgId}`;
   await sql`delete from work_orders where org_id = ${orgId}`;
   await sql`delete from task_template_fires where org_id = ${orgId}`;

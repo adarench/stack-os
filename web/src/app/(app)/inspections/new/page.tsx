@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { listProperties, listUnits } from "@/lib/server/properties";
+import { listChecklistTemplates } from "@/lib/server/checklists";
 import { INSPECTION_KINDS } from "@contracts/state-machines/inspection";
 import { createInspectionAction } from "../_actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewInspectionPage() {
-  const [properties, units] = await Promise.all([listProperties(), listUnits()]);
+  const [properties, units, templates] = await Promise.all([
+    listProperties(),
+    listUnits(),
+    listChecklistTemplates(),
+  ]);
 
   return (
     <main className="mx-auto max-w-md p-4 pb-24">
@@ -56,6 +61,22 @@ export default async function NewInspectionPage() {
             ))}
           </select>
         </Field>
+        {templates.length > 0 && (
+          <Field label="Start from checklist">
+            <select
+              name="checklistTemplateId"
+              defaultValue=""
+              className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">— none —</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.items.length} items)
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Notes">
           <textarea
             name="notes"

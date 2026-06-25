@@ -15,6 +15,7 @@ export * from "./task-templates";
 export * from "./notifications";
 export * from "./push-subscriptions";
 export * from "./inspections";
+export * from "./checklists";
 export * from "./projects";
 export * from "./compliance";
 export * from "./financials";

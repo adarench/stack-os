@@ -30,12 +30,20 @@ export default async function InspectionsPage({
     <main className="mx-auto max-w-md p-4 pb-24">
       <header className="mb-3 flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Inspections</h1>
-        <Link
-          href="/inspections/new"
-          className="rounded-full bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
-        >
-          + New
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/checklists"
+            className="rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700"
+          >
+            Checklists
+          </Link>
+          <Link
+            href="/inspections/new"
+            className="rounded-full bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
+          >
+            + New
+          </Link>
+        </div>
       </header>
 
       <nav className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-2 text-xs">

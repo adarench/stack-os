@@ -5,6 +5,7 @@ import {
   listFindings,
   listSpawnedWorkOrders,
 } from "@/lib/server/inspections";
+import { listInspectionItems } from "@/lib/server/checklists";
 import { listProperties, listUnits } from "@/lib/server/properties";
 import { FINDING_SEVERITIES, type FindingSeverity } from "@contracts/finding-severity";
 import type { InspectionStatus } from "@contracts/state-machines/inspection";
@@ -14,6 +15,9 @@ import {
   removeFindingAction,
   reviewInspectionAction,
   updateFindingAction,
+  addInspectionItemAction,
+  toggleInspectionItemAction,
+  removeInspectionItemAction,
 } from "../_actions";
 
 export const dynamic = "force-dynamic";
@@ -42,12 +46,14 @@ export default async function InspectionDetailPage({
   const inspection = await getInspection(id);
   if (!inspection) notFound();
 
-  const [findings, spawned, properties, units] = await Promise.all([
+  const [findings, spawned, properties, units, items] = await Promise.all([
     listFindings(id),
     listSpawnedWorkOrders(id),
     listProperties(),
     listUnits(),
+    listInspectionItems(id),
   ]);
+  const doneCount = items.filter((i) => i.completedAt !== null).length;
 
   const property = inspection.propertyId
     ? properties.find((p) => p.id === inspection.propertyId)
@@ -84,6 +90,94 @@ export default async function InspectionDetailPage({
       {inspection.notes && (
         <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">{inspection.notes}</p>
       )}
+
+      <section className="mt-5">
+        <h2 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+          Checklist
+          {items.length > 0 && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                doneCount === items.length
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-neutral-100 text-neutral-700"
+              }`}
+            >
+              {doneCount}/{items.length} done
+            </span>
+          )}
+        </h2>
+
+        {items.length === 0 ? (
+          <p className="text-xs text-neutral-500">
+            No checklist items. Add steps below, or start an inspection from a template.
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {items.map((it) => {
+              const done = it.completedAt !== null;
+              return (
+                <li
+                  key={it.id}
+                  className="flex items-center gap-2 rounded border border-neutral-200 bg-white p-2 text-sm"
+                >
+                  <form action={toggleInspectionItemAction} className="flex">
+                    <input type="hidden" name="id" value={it.id} />
+                    <input type="hidden" name="inspectionId" value={inspection.id} />
+                    <button
+                      type="submit"
+                      disabled={isLocked}
+                      aria-label={done ? "Mark not done" : "Mark done"}
+                      className={`flex h-5 w-5 items-center justify-center rounded border text-xs ${
+                        done
+                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          : "border-neutral-300 bg-white text-transparent"
+                      } ${isLocked ? "opacity-60" : ""}`}
+                    >
+                      ✓
+                    </button>
+                  </form>
+                  <span
+                    className={`flex-1 ${done ? "text-neutral-400 line-through" : "text-neutral-800"}`}
+                  >
+                    {it.title}
+                  </span>
+                  {!isLocked && (
+                    <form action={removeInspectionItemAction}>
+                      <input type="hidden" name="id" value={it.id} />
+                      <input type="hidden" name="inspectionId" value={inspection.id} />
+                      <button
+                        type="submit"
+                        aria-label="Remove item"
+                        className="text-xs text-neutral-400 hover:text-rose-600"
+                      >
+                        ✕
+                      </button>
+                    </form>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {!isLocked && (
+          <form action={addInspectionItemAction} className="mt-2 flex gap-2">
+            <input type="hidden" name="inspectionId" value={inspection.id} />
+            <input
+              required
+              name="title"
+              placeholder="Add a checklist step…"
+              className="flex-1 rounded border border-neutral-300 px-2 py-1.5 text-xs"
+            />
+            <button
+              type="submit"
+              className="rounded bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
+            >
+              Add
+            </button>
+          </form>
+        )}
+      </section>
 
       <section className="mt-5">
         <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">

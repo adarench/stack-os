@@ -75,6 +75,9 @@ ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_subscriptions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspections              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspection_findings      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inspection_items         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checklist_templates      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checklist_template_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vendor_cois              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_users             ENABLE ROW LEVEL SECURITY;
@@ -104,6 +107,9 @@ ALTER TABLE notification_preferences FORCE ROW LEVEL SECURITY;
 ALTER TABLE push_subscriptions       FORCE ROW LEVEL SECURITY;
 ALTER TABLE inspections              FORCE ROW LEVEL SECURITY;
 ALTER TABLE inspection_findings      FORCE ROW LEVEL SECURITY;
+ALTER TABLE inspection_items         FORCE ROW LEVEL SECURITY;
+ALTER TABLE checklist_templates      FORCE ROW LEVEL SECURITY;
+ALTER TABLE checklist_template_items FORCE ROW LEVEL SECURITY;
 ALTER TABLE projects                 FORCE ROW LEVEL SECURITY;
 ALTER TABLE vendor_cois              FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_users             FORCE ROW LEVEL SECURITY;
@@ -149,6 +155,7 @@ DECLARE
     'task_templates', 'task_template_fires',
     'notifications', 'notification_preferences', 'push_subscriptions',
     'inspections', 'inspection_findings', 'projects',
+    'inspection_items', 'checklist_templates', 'checklist_template_items',
     'vendor_cois', 'tenant_users', 'tenant_insurance_policies',
     'task_costs', 'task_time_entries', 'invoices', 'follow_ups'
   ];

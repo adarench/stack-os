@@ -10,20 +10,51 @@ import {
   reviewInspection,
   updateFinding,
 } from "@/lib/server/inspections";
+import {
+  addInspectionItem,
+  toggleInspectionItem,
+  removeInspectionItem,
+  applyChecklistTemplate,
+} from "@/lib/server/checklists";
 import { INSPECTION_KINDS } from "@contracts/state-machines/inspection";
 import { FINDING_SEVERITIES } from "@contracts/finding-severity";
 
 export async function createInspectionAction(formData: FormData): Promise<void> {
   const propertyId = String(formData.get("propertyId") ?? "");
   const unitId = String(formData.get("unitId") ?? "");
+  const checklistTemplateId = String(formData.get("checklistTemplateId") ?? "");
   const ins = await createInspection({
     kind: (formData.get("kind") as never) ?? "ad_hoc",
     propertyId: propertyId || undefined,
     unitId: unitId || undefined,
     notes: String(formData.get("notes") ?? "") || undefined,
   });
+  // Optional: start from a reusable checklist (copies its items onto the inspection).
+  if (checklistTemplateId) {
+    await applyChecklistTemplate(ins.id, checklistTemplateId);
+  }
   revalidatePath("/inspections");
   redirect(`/inspections/${ins.id}`);
+}
+
+/* -------------------- checklist items -------------------- */
+
+export async function addInspectionItemAction(formData: FormData): Promise<void> {
+  const inspectionId = String(formData.get("inspectionId"));
+  await addInspectionItem({ inspectionId, title: String(formData.get("title")) });
+  revalidatePath(`/inspections/${inspectionId}`);
+}
+
+export async function toggleInspectionItemAction(formData: FormData): Promise<void> {
+  const inspectionId = String(formData.get("inspectionId"));
+  await toggleInspectionItem(String(formData.get("id")));
+  revalidatePath(`/inspections/${inspectionId}`);
+}
+
+export async function removeInspectionItemAction(formData: FormData): Promise<void> {
+  const inspectionId = String(formData.get("inspectionId"));
+  await removeInspectionItem(String(formData.get("id")));
+  revalidatePath(`/inspections/${inspectionId}`);
 }
 
 export async function addFindingAction(formData: FormData): Promise<void> {
