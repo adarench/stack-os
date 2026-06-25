@@ -37,7 +37,7 @@ export function BottomTabBar({
             key={item.href}
             href={item.href}
             className={cn(
-              "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium uppercase tracking-wide",
+              "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium",
               active ? "text-foreground" : "text-muted-foreground",
             )}
             aria-current={active ? "page" : undefined}
@@ -56,7 +56,7 @@ export function BottomTabBar({
       <button
         type="button"
         onClick={onOpenMore}
-        className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+        className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-muted-foreground"
         aria-label="More"
       >
         <MoreHorizontal className="size-5" />

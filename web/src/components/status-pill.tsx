@@ -1,24 +1,12 @@
 import type { WorkOrderStatus } from "@contracts/state-machines/work-order";
+import { Badge, toneForStatus } from "@/components/ui/badge";
+import { workOrderStatusLabel } from "@/lib/labels";
 
-const STYLES: Record<WorkOrderStatus, string> = {
-  new: "bg-neutral-100 text-neutral-700",
-  triaged: "bg-sky-100 text-sky-800",
-  assigned: "bg-blue-100 text-blue-800",
-  scheduled: "bg-indigo-100 text-indigo-800",
-  in_progress: "bg-amber-100 text-amber-800",
-  blocked: "bg-rose-100 text-rose-800",
-  resolved: "bg-emerald-100 text-emerald-800",
-  verified: "bg-emerald-200 text-emerald-900",
-  closed: "bg-neutral-200 text-neutral-700",
-  cancelled: "bg-neutral-200 text-neutral-500 line-through",
-};
-
+/**
+ * Shared work-order status chip. Routes through the one Badge recipe + the
+ * central status→tone mapper, so it speaks the same rationed urgency language
+ * as the operator shell instead of a hand-rolled 10-color rainbow.
+ */
 export function StatusPill({ status }: { status: WorkOrderStatus }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${STYLES[status]}`}
-    >
-      {status.replace(/_/g, " ")}
-    </span>
-  );
+  return <Badge tone={toneForStatus(status)}>{workOrderStatusLabel(status)}</Badge>;
 }

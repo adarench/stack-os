@@ -161,12 +161,12 @@ function SourceChip({ channel }: { channel: FollowUpItem["sourceChannel"] }) {
   return (
     <span
       className={cn(
-        "shrink-0 rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wider",
+        "shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
         channel === "trello"
-          ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+          ? "bg-urgency-inflow/12 text-urgency-inflow"
           : channel === "manual"
             ? "bg-muted text-muted-foreground"
-            : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+            : "bg-urgency-blocked/12 text-urgency-blocked",
       )}
     >
       {channel}

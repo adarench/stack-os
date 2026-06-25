@@ -81,7 +81,7 @@ export function SavedViewTabs({ active }: { active: string | null }) {
             href={href}
             scroll={false}
             className={cn(
-              "shrink-0 rounded-full px-3 py-1 text-[13px] transition-colors",
+              "shrink-0 rounded-md px-3 py-1 text-body transition-colors",
               isActive
                 ? "bg-foreground font-medium text-background"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",

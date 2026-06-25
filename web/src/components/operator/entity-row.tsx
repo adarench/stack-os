@@ -621,7 +621,7 @@ function PriorityChip({
   if (priority === "urgent") {
     return (
       <span
-        className="inline-flex h-4 shrink-0 items-center rounded-sm bg-urgency-overdue px-1 font-mono text-[9px] font-bold uppercase tracking-wider text-white"
+        className="inline-flex h-5 shrink-0 items-center rounded bg-urgency-overdue/12 px-1.5 font-mono text-meta font-semibold uppercase tracking-wider text-urgency-overdue"
         aria-label="Urgent priority"
       >
         URG
