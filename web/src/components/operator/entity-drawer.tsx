@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { X } from "lucide-react";
+import { X, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TimeSince } from "./time-since";
@@ -1161,7 +1161,7 @@ function CommentComposer({
         value={body}
         onChange={(e) => setBody(e.target.value)}
         placeholder="Add a note for the team…"
-        className="w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+        className="w-full resize-none rounded-md border border-input bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
@@ -1434,9 +1434,7 @@ function DispatchTimelineBlock({
                 className="text-muted-foreground/70"
               />
               {i < events.length - 1 && (
-                <span className="text-muted-foreground/40" aria-hidden>
-                  →
-                </span>
+                <ChevronRight className="size-3 text-muted-foreground/40" aria-hidden />
               )}
             </li>
           );

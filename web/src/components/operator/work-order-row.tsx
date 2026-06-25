@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OwnerChip } from "./owner-chip";
 import type { WorkRow } from "@/lib/server/work-list";
@@ -69,23 +69,27 @@ export function WorkOrderRow({ row }: { row: WorkRow }) {
       {/* Line 1 — who + what (the anchors) · loudest state on the right */}
       <div className="flex items-center gap-2.5">
         <OwnerChip name={row.ownerName} />
-        <span className="shrink-0 truncate text-[13px] font-medium text-foreground max-w-[140px]">
+        <span className="shrink-0 truncate text-body font-medium text-foreground max-w-[140px]">
           {row.ownerName ?? "Unassigned"}
         </span>
         <span aria-hidden className="text-muted-foreground/40">·</span>
-        <span className="min-w-0 flex-1 truncate text-[14px] text-foreground">
+        <span className="min-w-0 flex-1 truncate text-title text-foreground">
           {row.title}
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
           {urgent && <Badge tone="red">urgent</Badge>}
-          {aging && <Badge tone="red">⚠ sitting {ageDays}d</Badge>}
+          {aging && (
+            <Badge tone="red">
+              <TriangleAlert className="size-3" /> sitting {ageDays}d
+            </Badge>
+          )}
           {!aging && waiting && isOpen && <Badge tone="amber">waiting</Badge>}
           <RowStatusAction woRef={row.ref} status={row.status} />
         </span>
       </div>
 
       {/* Line 2 — where (secondary) · seen/tenant words · id (quietest) */}
-      <div className="mt-0.5 flex items-center gap-2 pl-[34px] text-[12px]">
+      <div className="mt-0.5 flex items-center gap-2 pl-[34px] text-label">
         <span className="min-w-0 flex-1 truncate text-muted-foreground">
           {where || "—"}
         </span>
@@ -108,7 +112,7 @@ export function WorkOrderRow({ row }: { row: WorkRow }) {
         ) : (
           <span className="shrink-0 text-muted-foreground">done</span>
         )}
-        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/45">
+        <span className="shrink-0 text-meta tabular-nums text-muted-foreground/45">
           {row.ref}
         </span>
       </div>
@@ -155,7 +159,7 @@ function RowStatusAction({ woRef, status }: { woRef: string; status: string }) {
           type="button"
           disabled={pending}
           onClick={() => run(primary)}
-          className="inline-flex h-6 shrink-0 items-center rounded-md border border-border bg-background px-2 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+          className="inline-flex h-6 shrink-0 items-center rounded-md border border-border bg-background px-2 text-meta font-medium text-foreground hover:bg-muted disabled:opacity-50"
         >
           {workOrderTransitionLabel(primary)}
         </button>
@@ -197,7 +201,7 @@ function Badge({
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center rounded px-1.5 text-[11px] font-semibold",
+        "inline-flex h-5 items-center gap-1 rounded px-1.5 text-meta font-semibold",
         tone === "red"
           ? "bg-urgency-overdue/12 text-urgency-overdue"
           : "bg-urgency-blocked/12 text-urgency-blocked",

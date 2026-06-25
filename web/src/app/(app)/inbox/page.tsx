@@ -6,6 +6,8 @@ import { loadInbox } from "@/lib/server/inbox";
 import { TimeSince, TimeSinceTicker } from "@/components/operator/time-since";
 import { UrgencyDot } from "@/components/operator/urgency-dot";
 import { notificationKindLabel, notificationKindPriority } from "@/lib/labels";
+import { Page } from "@/components/ui/page";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -28,26 +30,28 @@ export default async function InboxPage() {
 
   return (
     <TimeSinceTicker>
-      <div className="mx-auto max-w-[720px] px-3 py-3 md:px-4">
+      <Page width="default">
         <header className="mb-3 flex items-center gap-2">
           <InboxIcon className="size-5 text-muted-foreground" />
-          <h1 className="text-lg font-semibold">Inbox</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Inbox</h1>
           {unread > 0 && (
-            <span className="font-mono text-xs tabular-nums text-urgency-overdue">
+            <span className="font-mono text-meta tabular-nums text-urgency-overdue">
               {unread} new
             </span>
           )}
-          <span className="ml-auto text-[11px] uppercase tracking-wider text-muted-foreground">
+          <span className="ml-auto font-mono text-meta tabular-nums text-muted-foreground">
             {items.length} total
           </span>
         </header>
 
         {items.length === 0 ? (
-          <p className="mt-12 text-center text-sm text-muted-foreground">
-            Quiet. Mentions, assignments, and approvals land here as they happen.
-          </p>
+          <EmptyState
+            eyebrow="Inbox"
+            title="Quiet."
+            description="Mentions, assignments, and approvals land here as they happen."
+          />
         ) : (
-          <ul className="space-y-0">
+          <ul className="divide-y divide-border/50">
             {threaded.map(({ n, threadChild }) => {
               const prio = notificationKindPriority(n.kind);
               const isHigh = prio === "high";
@@ -56,12 +60,12 @@ export default async function InboxPage() {
                 <li
                   key={n.id}
                   className={cn(
-                    "flex items-start gap-2 rounded-md px-2 py-2 text-sm",
-                    n.unread ? "bg-card" : "opacity-70",
-                    threadChild && "pl-6 -mt-1",
-                    // Quiet events recede further so high-priority ones
-                    // pop without the loud ones needing extra paint.
-                    isQuiet && !n.unread && "opacity-50",
+                    // Hairline-separated (ul divides); unread rows stay full
+                    // strength while read rows recede — the dot carries the
+                    // colour cue. (Old bg-card was invisible on bg-background.)
+                    "flex items-start gap-2 px-2 py-2.5 text-sm transition-colors hover:bg-muted/40",
+                    threadChild && "pl-6",
+                    !n.unread && "opacity-55",
                     isQuiet && n.unread && "opacity-80",
                   )}
                 >
@@ -124,8 +128,7 @@ export default async function InboxPage() {
             })}
           </ul>
         )}
-
-      </div>
+      </Page>
     </TimeSinceTicker>
   );
 }
