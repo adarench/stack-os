@@ -67,10 +67,25 @@
 }
 
 @theme inline {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
+  /* Geist is wired on <html> via next/font (.variable). System stacks remain
+     as graceful fallbacks if the variable is ever absent. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, "SF Mono",
+    Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Named type scale — the cockpit ladder. Components compose these instead
+     of arbitrary text-[Npx], so the scale stays disciplined. line-heights are
+     tuned tight for the dense instrument-panel rhythm. text-lg (PageTitle) and
+     text-base (money cap) stay on the default Tailwind scale. */
+  --text-meta: 0.6875rem; /* 11px — readouts, ids, badges, kbd */
+  --text-meta--line-height: 1rem;
+  --text-label: 0.75rem; /* 12px — secondary lines, eyebrow labels */
+  --text-label--line-height: 1.05rem;
+  --text-body: 0.8125rem; /* 13px — primary body / owner names */
+  --text-body--line-height: 1.15rem;
+  --text-title: 0.875rem; /* 14px — row titles, the loudest list text */
+  --text-title--line-height: 1.25rem;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
