@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
-import { ClipboardCheck, RefreshCw, Wrench } from "lucide-react";
+import { ArrowRight, ClipboardCheck, RefreshCw, Wrench } from "lucide-react";
 import { loadCalendar, type CalendarKind } from "@/lib/server/calendar";
 import { cn } from "@/lib/utils";
 
@@ -23,14 +23,15 @@ export default async function CalendarPage() {
   return (
     <div className="mx-auto max-w-[840px] px-3 py-4 md:px-4">
       <header className="mb-3 flex items-baseline justify-between">
-        <h1 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <h1 className="text-lg font-semibold tracking-tight text-foreground">
           Calendar
         </h1>
         <Link
           href="/admin/templates"
-          className="text-[11px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1 text-label text-muted-foreground hover:text-foreground"
         >
-          Manage recurring →
+          Manage recurring
+          <ArrowRight className="size-3.5" />
         </Link>
       </header>
 

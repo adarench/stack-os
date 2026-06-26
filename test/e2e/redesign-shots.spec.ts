@@ -22,6 +22,8 @@ const SURFACES: [string, string][] = [
   ["/projects", "projects"],
   ["/compliance", "compliance"],
   ["/work?d=WO-1051", "drawer"],
+  ["/work?view=board&type=wo", "board"],
+  ["/calendar", "calendar"],
 ];
 
 for (const [path, name] of SURFACES) {
