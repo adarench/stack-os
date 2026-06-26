@@ -44,7 +44,6 @@ export function ApprovalButtons({
         size="sm"
         disabled={pending}
         onClick={() => decide("approved")}
-        className="bg-urgency-done text-white hover:bg-urgency-done/90"
       >
         Approve
       </Button>

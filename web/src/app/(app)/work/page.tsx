@@ -164,16 +164,19 @@ export default async function WorkPage({
           <div className="pb-16">
             {groups.map((g) => (
               <section key={g.key} aria-label={g.label} className="mt-4 first:mt-1">
-                <header className="flex items-baseline gap-2 px-2 pb-1">
+                <header className="flex items-center gap-2 px-4 pb-1.5">
+                  {g.dot && (
+                    <span aria-hidden className={cn("size-1.5 rounded-full", g.dot)} />
+                  )}
                   <h2
                     className={cn(
-                      "text-[12px] font-semibold tracking-tight",
+                      "text-label font-medium uppercase tracking-wider",
                       g.tone,
                     )}
                   >
                     {g.label}
                   </h2>
-                  <span className="text-[12px] tabular-nums text-muted-foreground">
+                  <span className="text-label tabular-nums text-muted-foreground/50">
                     {g.items.length}
                   </span>
                 </header>
@@ -202,11 +205,14 @@ export default async function WorkPage({
  * fields (no backend change): not seen → seen-but-tenant-uninformed → in hand →
  * done. This is the spine of the operator console.
  */
+// Section headers stay quiet — the per-row left bar already carries urgency
+// and the bucket order itself conveys the escalation. A small tone dot marks
+// the urgent buckets without colouring the whole label.
 const ATTENTION_GROUPS = [
-  { key: "unseen", label: "Not seen", tone: "text-urgency-overdue" },
-  { key: "tenant", label: "Tenant waiting", tone: "text-urgency-blocked" },
-  { key: "inhand", label: "Active", tone: "text-muted-foreground" },
-  { key: "done", label: "Done", tone: "text-muted-foreground" },
+  { key: "unseen", label: "Not seen", tone: "text-muted-foreground", dot: "bg-urgency-overdue" },
+  { key: "tenant", label: "Tenant waiting", tone: "text-muted-foreground", dot: "bg-urgency-blocked" },
+  { key: "inhand", label: "Active", tone: "text-muted-foreground", dot: "" },
+  { key: "done", label: "Done", tone: "text-muted-foreground", dot: "" },
 ] as const;
 
 function attentionBucket(r: WorkRow): (typeof ATTENTION_GROUPS)[number]["key"] {

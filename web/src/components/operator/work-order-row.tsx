@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MoreHorizontal, TriangleAlert } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OwnerChip } from "./owner-chip";
 import type { WorkRow } from "@/lib/server/work-list";
@@ -47,6 +47,12 @@ export function WorkOrderRow({ row }: { row: WorkRow }) {
 
   const where = [row.property, row.unit].filter(Boolean).join(" · ");
 
+  // One calm urgency signal: the row's top priority paints a single left
+  // accent bar. The operator vocabulary stays on line 2 but reads quietly —
+  // muted and monochrome, with only a long age carrying colour. This replaces
+  // the old pile of red/amber badges that made every row shout.
+  const barTone = urgent || aging ? "overdue" : waiting ? "blocked" : null;
+
   return (
     <div
       role="button"
@@ -61,58 +67,69 @@ export function WorkOrderRow({ row }: { row: WorkRow }) {
         }
       }}
       className={cn(
-        "group cursor-default select-none border-b border-border/50 px-2 py-2.5",
+        "group relative cursor-default select-none border-b border-border/50 py-2.5 pl-4 pr-2",
         "hover:bg-muted/40 focus:bg-muted/40 focus:outline-none",
-        !isOpen && "opacity-60",
+        !isOpen && "opacity-50",
       )}
     >
-      {/* Line 1 — who + what (the anchors) · loudest state on the right */}
+      {barTone && (
+        <span
+          aria-hidden
+          className={cn(
+            "absolute inset-y-1.5 left-0 w-[3px] rounded-full",
+            barTone === "overdue" ? "bg-urgency-overdue" : "bg-urgency-blocked",
+          )}
+        />
+      )}
+
+      {/* Line 1 — the work: who + what. Title fills the line; action at the edge. */}
       <div className="flex items-center gap-2.5">
         <OwnerChip name={row.ownerName} />
-        <span className="shrink-0 truncate text-body font-medium text-foreground max-w-[140px]">
+        <span className="shrink-0 truncate text-body font-medium text-foreground max-w-[150px]">
           {row.ownerName ?? "Unassigned"}
         </span>
-        <span aria-hidden className="text-muted-foreground/40">·</span>
         <span className="min-w-0 flex-1 truncate text-title text-foreground">
           {row.title}
         </span>
-        <span className="flex shrink-0 items-center gap-1.5">
-          {urgent && <Badge tone="red">urgent</Badge>}
-          {aging && (
-            <Badge tone="red">
-              <TriangleAlert className="size-3" /> sitting {ageDays}d
-            </Badge>
-          )}
-          {!aging && waiting && isOpen && <Badge tone="amber">waiting</Badge>}
-          <RowStatusAction woRef={row.ref} status={row.status} />
-        </span>
+        <RowStatusAction woRef={row.ref} status={row.status} />
       </div>
 
-      {/* Line 2 — where (secondary) · seen/tenant words · id (quietest) */}
-      <div className="mt-0.5 flex items-center gap-2 pl-[34px] text-label">
-        <span className="min-w-0 flex-1 truncate text-muted-foreground">
-          {where || "—"}
-        </span>
+      {/* Line 2 — quiet metadata. Monochrome; only a long age gets colour. */}
+      <div className="mt-1 flex items-center gap-1.5 pl-[34px] text-label text-muted-foreground">
+        <span className="min-w-0 truncate">{where || "—"}</span>
         {isOpen ? (
-          <span className="flex shrink-0 items-center gap-2">
-            {seen ? (
-              <span className="text-muted-foreground">seen {agoShort(row.acknowledgedAt!)}</span>
-            ) : (
-              <span className="font-medium text-urgency-overdue">not seen</span>
+          <>
+            <Dot />
+            <span className={cn("shrink-0", !seen && "text-foreground/70")}>
+              {seen ? `seen ${agoShort(row.acknowledgedAt!)}` : "not seen"}
+            </span>
+            <Dot className="hidden sm:inline" />
+            <span className="hidden shrink-0 sm:inline">
+              {tenantUpdated
+                ? `tenant told ${agoShort(row.tenantUpdatedAt!)}`
+                : "tenant waiting"}
+            </span>
+            {ageDays !== null && ageDays >= 7 && (
+              <>
+                <Dot />
+                <span
+                  className={cn(
+                    "shrink-0 tabular-nums",
+                    ageDays >= 14 && "font-medium text-urgency-overdue",
+                  )}
+                >
+                  {ageDays}d
+                </span>
+              </>
             )}
-            <span aria-hidden className="text-muted-foreground/30">·</span>
-            {tenantUpdated ? (
-              <span className="hidden text-muted-foreground sm:inline">
-                tenant told {agoShort(row.tenantUpdatedAt!)}
-              </span>
-            ) : (
-              <span className="font-medium text-urgency-blocked">tenant waiting</span>
-            )}
-          </span>
+          </>
         ) : (
-          <span className="shrink-0 text-muted-foreground">done</span>
+          <>
+            <Dot />
+            <span className="shrink-0">done</span>
+          </>
         )}
-        <span className="shrink-0 text-meta tabular-nums text-muted-foreground/45">
+        <span className="ml-auto shrink-0 font-mono text-meta tabular-nums text-muted-foreground/45">
           {row.ref}
         </span>
       </div>
@@ -190,24 +207,11 @@ function RowStatusAction({ woRef, status }: { woRef: string; status: string }) {
   );
 }
 
-/** Loud, human state chip — tinted background so the eye lands on it. */
-function Badge({
-  tone,
-  children,
-}: {
-  tone: "red" | "amber";
-  children: React.ReactNode;
-}) {
+/** Hairline middot separator for the quiet metadata line. */
+function Dot({ className }: { className?: string }) {
   return (
-    <span
-      className={cn(
-        "inline-flex h-5 items-center gap-1 rounded px-1.5 text-meta font-semibold",
-        tone === "red"
-          ? "bg-urgency-overdue/12 text-urgency-overdue"
-          : "bg-urgency-blocked/12 text-urgency-blocked",
-      )}
-    >
-      {children}
+    <span aria-hidden className={cn("text-muted-foreground/30", className)}>
+      ·
     </span>
   );
 }

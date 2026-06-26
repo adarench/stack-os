@@ -37,7 +37,7 @@ export default async function MyWorkPage() {
       <AutoRefresh intervalMs={20_000} />
       <div className="mx-auto max-w-[840px] px-3 py-4 md:px-4">
         <header className="mb-2 flex items-baseline justify-between">
-          <h1 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h1 className="text-lg font-semibold tracking-tight text-foreground">
             My Work
           </h1>
           <LiveIndicator />

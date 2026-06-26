@@ -113,11 +113,11 @@ function ApprovalsTab({ rows }: { rows: Approval[] }) {
           </span>
         )}
       </div>
-      <ul className="space-y-2">
+      <ul className="divide-y divide-border/50">
         {rows.map((a) => (
           <li
             key={a.id}
-            className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2.5 text-sm"
+            className="flex items-start gap-2.5 px-2 py-3 text-sm transition-colors hover:bg-muted/40"
           >
             <UrgencyDot
               urgency={approvalUrgency(a.createdAt, Number(a.amountCents ?? 0))}
@@ -161,14 +161,7 @@ function ApprovalsTab({ rows }: { rows: Approval[] }) {
                   amountCents={Number(a.amountCents ?? 0)}
                 />
                 {a.vendorStressed !== null && a.vendorStressed >= 2 && (
-                  <span
-                    className={cn(
-                      "ml-auto font-mono text-[10px] uppercase tracking-wider",
-                      a.vendorStressed >= 4
-                        ? "text-urgency-overdue"
-                        : "text-urgency-blocked",
-                    )}
-                  >
+                  <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
                     vendor: {a.vendorStressed} stressed
                   </span>
                 )}
