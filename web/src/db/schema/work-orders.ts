@@ -63,6 +63,11 @@ export const workOrders = pgTable(
     // Created-by audit (actor recorded in audit_log too).
     createdByUserId: uuid("created_by_user_id"),
     createdByActorType: text("created_by_actor_type").notNull().default("user"),
+    // Set when a resident submits via the tenant app (createdByActorType='tenant').
+    createdByTenantUserId: uuid("created_by_tenant_user_id"),
+
+    // Optional issue category from tenant submission (see contracts/work-order-category).
+    category: text("category"),
 
     ...timestamps,
   },

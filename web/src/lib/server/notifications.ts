@@ -18,6 +18,7 @@ export type NotificationKind =
   | "wo_blocked"
   | "wo_resolved"
   | "wo_verified"
+  | "wo_submitted"
   | "template_spawned";
 
 export interface DispatchInput {

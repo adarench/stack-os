@@ -33,7 +33,7 @@ export const ATTACHMENT_KINDS = [
 ] as const;
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
 
-export const ACTOR_TYPES = ["user", "system", "inngest", "vendor"] as const;
+export const ACTOR_TYPES = ["user", "system", "inngest", "vendor", "tenant"] as const;
 export type ActorType = (typeof ACTOR_TYPES)[number];
 
 export const ASSIGNEE_TYPES = ["user", "vendor", "vendor_user"] as const;
