@@ -109,11 +109,13 @@ export async function consumeTenantMagicLink(rawToken: string): Promise<TenantSe
   if (!result) return null;
 
   await withScope({ orgId: result.orgId, actorType: "system" }, async (tx) => {
+    // Keep the token valid until its expiry instead of single-use. SMS/email
+    // link-preview bots prefetch the URL (a GET) and would otherwise consume
+    // the token before the resident taps it. The expiry remains the security
+    // boundary; a fresh invite supersedes by overwriting the hash.
     await tx
       .update(tenantUsers)
       .set({
-        magicLinkTokenHash: null,
-        magicLinkExpiresAt: null,
         lastSignedInAt: new Date(),
         status: "active",
         updatedAt: new Date(),
