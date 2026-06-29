@@ -3,9 +3,12 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { readTenantSession } from "@/lib/server/tenant-auth";
 import { loadTenantRequest } from "@/lib/server/tenant-requests";
+import { loadTenantMessages } from "@/lib/server/tenant-work-orders";
 import { Badge } from "@/components/ui/badge";
 import { SectionHeading } from "@/components/ui/panel";
 import { Timeline } from "@/components/tenant/timeline";
+import { MessageThread } from "@/components/tenant/message-thread";
+import { MessageComposer } from "@/components/tenant/message-composer";
 import { toneForTenantStatus } from "@/components/tenant/request-card";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +24,7 @@ export default async function TenantRequestDetailPage({
 
   const req = await loadTenantRequest(session, ref);
   if (!req) notFound();
+  const messages = await loadTenantMessages(session, ref);
 
   return (
     <div className="space-y-6">
@@ -90,6 +94,12 @@ export default async function TenantRequestDetailPage({
           </div>
         </div>
       )}
+
+      <div>
+        <SectionHeading>Messages</SectionHeading>
+        <MessageThread messages={messages} />
+        {req.isOpen && <MessageComposer workOrderId={req.id} refId={req.ref} />}
+      </div>
 
       <div>
         <SectionHeading>Activity</SectionHeading>

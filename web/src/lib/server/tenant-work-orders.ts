@@ -1,13 +1,15 @@
 import "server-only";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { withTenantScope, withScope } from "./db";
 import { workOrders } from "@db/schema/work-orders";
+import { comments } from "@db/schema/comments";
 import { tenantUsers } from "@db/schema/compliance";
 import { units } from "@db/schema/units";
 import { properties } from "@db/schema/properties";
 import { attachments } from "@db/schema/attachments";
 import { users } from "@db/schema/users";
+import { parseWoNumber } from "./work-orders";
 import { ATTACHMENT_KINDS } from "@contracts/polymorphic";
 import { WORK_ORDER_CATEGORIES } from "@contracts/work-order-category";
 import { WORK_ORDER_PRIORITIES } from "@contracts/state-machines/work-order";
@@ -171,4 +173,137 @@ export async function attachTenantUpload(
     });
     return row!;
   });
+}
+
+/* -------------------- messaging (tenant ↔ ops) -------------------- */
+
+export interface TenantMessage {
+  id: string;
+  body: string;
+  fromTenant: boolean;
+  at: string;
+}
+
+/** External comment thread on the resident's own-unit WO (RLS-guarded). */
+export async function loadTenantMessages(
+  session: TenantSession,
+  ref: string,
+): Promise<TenantMessage[]> {
+  const number = parseWoNumber(ref);
+  if (number === null) return [];
+  return withTenantScope(session, async (tx) => {
+    const [wo] = await tx
+      .select({ id: workOrders.id })
+      .from(workOrders)
+      .where(and(eq(workOrders.orgId, session.orgId), eq(workOrders.number, number)))
+      .limit(1);
+    if (!wo) return [];
+    const rows = await tx
+      .select({
+        id: comments.id,
+        body: comments.body,
+        actorType: comments.actorType,
+        createdAt: comments.createdAt,
+      })
+      .from(comments)
+      .where(
+        and(
+          eq(comments.orgId, session.orgId),
+          eq(comments.targetType, "work_order"),
+          eq(comments.targetId, wo.id),
+          eq(comments.visibility, "external"),
+        ),
+      )
+      .orderBy(asc(comments.createdAt));
+    return rows.map((r) => ({
+      id: r.id,
+      body: r.body,
+      fromTenant: r.actorType === "tenant",
+      at: r.createdAt.toISOString(),
+    }));
+  });
+}
+
+export const tenantCommentInput = z.object({
+  workOrderId: z.string().uuid(),
+  body: z.string().min(1).max(5000),
+});
+
+/** Tenant posts a message (external comment) on their own WO. */
+export async function createTenantComment(
+  session: TenantSession,
+  input: z.input<typeof tenantCommentInput>,
+) {
+  const parsed = tenantCommentInput.parse(input);
+  if (!(await tenantOwnsWorkOrder(session, parsed.workOrderId))) {
+    throw new Error("not_found");
+  }
+  const result = await withScope(
+    { orgId: session.orgId, actorType: "system" },
+    async (tx) => {
+      const [row] = await tx
+        .insert(comments)
+        .values({
+          orgId: session.orgId,
+          targetType: "work_order",
+          targetId: parsed.workOrderId,
+          body: parsed.body,
+          actorType: "tenant",
+          actorUserId: session.tenantUserId,
+          visibility: "external",
+        })
+        .returning();
+      await writeAudit(tx, {
+        orgId: session.orgId,
+        targetType: "work_order",
+        targetId: parsed.workOrderId,
+        action: "tenant_commented",
+        actorType: "tenant",
+        diff: { commentId: row!.id },
+      });
+
+      const [wo] = await tx
+        .select({
+          number: workOrders.number,
+          title: workOrders.title,
+          propertyId: workOrders.propertyId,
+        })
+        .from(workOrders)
+        .where(eq(workOrders.id, parsed.workOrderId))
+        .limit(1);
+      let tech: { id: string; email: string | null; phone: string | null } | null = null;
+      if (wo?.propertyId) {
+        const [p] = await tx
+          .select({ coveringUserId: properties.defaultAssigneeUserId })
+          .from(properties)
+          .where(eq(properties.id, wo.propertyId))
+          .limit(1);
+        if (p?.coveringUserId) {
+          const [u] = await tx
+            .select({ id: users.id, email: users.email, phone: users.phone })
+            .from(users)
+            .where(eq(users.id, p.coveringUserId))
+            .limit(1);
+          tech = u ?? null;
+        }
+      }
+      return { row: row!, wo, tech };
+    },
+  );
+
+  if (result.tech && result.wo) {
+    await emitNotification({
+      orgId: session.orgId,
+      recipientUserId: result.tech.id,
+      recipientEmail: result.tech.email ?? undefined,
+      recipientPhone: result.tech.phone ?? undefined,
+      kind: "wo_message",
+      subject: `New message on WO-${result.wo.number}`,
+      body: `A resident replied on ${result.wo.title}.`,
+      targetType: "work_order",
+      targetId: parsed.workOrderId,
+      actor: { type: "system" },
+    });
+  }
+  return result.row;
 }

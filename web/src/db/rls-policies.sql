@@ -294,6 +294,22 @@ USING (
   )
 );
 
+-- Tenant can read EXTERNAL comments on their own-unit work orders (the chat
+-- thread). Internal staff notes are excluded by the visibility clause and
+-- never returned. Tenant writes go through a validated system scope.
+DROP POLICY IF EXISTS comments_tenant_self ON comments;
+CREATE POLICY comments_tenant_self ON comments FOR SELECT TO PUBLIC
+USING (
+  current_actor_type() = 'tenant'
+  AND org_id = current_org_id()
+  AND visibility = 'external'
+  AND target_type = 'work_order'
+  AND target_id IN (
+    SELECT id FROM work_orders
+    WHERE unit_id = (SELECT unit_id FROM tenant_users WHERE id = current_tenant_user_id())
+  )
+);
+
 -- assignments visible to the vendor user (so the EXISTS subquery in
 -- work_orders_vendor_assigned can resolve under the vendor scope).
 DROP POLICY IF EXISTS assignments_vendor_self ON assignments;
