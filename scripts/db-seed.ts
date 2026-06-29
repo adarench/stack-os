@@ -845,6 +845,8 @@ async function main() {
 
   /* ---- tenant_users + tenant_insurance ---- */
   console.log(`[db:seed] inserting ${TENANTS.length} tenants + insurance policies...`);
+  // Captured for the tenant-app demo block below (resident-reported WOs).
+  let demoTenant: { id: string; unitId: string } | null = null;
   for (const t of TENANTS) {
     const propertyUnits = unitIdsByProperty[t.pIdx];
     if (!propertyUnits) continue;
@@ -855,6 +857,7 @@ async function main() {
       values (${ORG_ID}, ${unitId}, ${t.email}, ${t.name}, 'active', ${h(Math.random() * 168)})
       returning id
     `;
+    if (t.email === "marcus.webb@tenant.test") demoTenant = { id: tu!.id, unitId };
     if (t.insurance !== "none") {
       const expiresAt =
         t.insurance === "active"
@@ -1029,6 +1032,53 @@ async function main() {
         )
       `;
     }
+  }
+
+  /* ---- tenant-app demo: resident-reported WOs in varied states ---- */
+  if (demoTenant) {
+    console.log(`[db:seed] inserting tenant-app demo work orders...`);
+    const tProp = propertyIds[0]!;
+    const tTech = propertyTechIds[0]!;
+    let tNum = 1001 + WORK_ORDERS.length;
+
+    // (1) Resolved — awaiting the resident's confirmation (drives ResolutionBar).
+    const [r1] = await sql<{ id: string }[]>`
+      insert into work_orders (org_id, number, title, description, kind, status, priority,
+        property_id, unit_id, category, created_at, updated_at, started_at, completed_at,
+        created_by_actor_type, created_by_tenant_user_id, acknowledged_at, acknowledged_by_user_id, tenant_updated_at)
+      values (${ORG_ID}, ${tNum}, ${"Kitchen faucet won't stop dripping"},
+        ${"Started a few days ago, getting worse."}, 'work_order', 'resolved', 'normal',
+        ${tProp}, ${demoTenant.unitId}, 'plumbing', ${d(6)}, ${h(3)}, ${d(5)}, ${h(3)},
+        'tenant', ${demoTenant.id}, ${d(5)}, ${tTech}, ${h(4)})
+      returning id`;
+    woIds.push(r1!.id);
+    await sql`insert into audit_log (org_id, target_type, target_id, action, actor_type, diff, created_at, updated_at)
+      values (${ORG_ID}, 'work_order', ${r1!.id}, 'tenant_submitted', 'tenant', ${sql.json({ to: { status: "new", category: "plumbing" } })}, ${d(6)}, ${d(6)})`;
+    await sql`insert into audit_log (org_id, target_type, target_id, action, actor_type, actor_user_id, diff, created_at, updated_at)
+      values (${ORG_ID}, 'work_order', ${r1!.id}, 'status_changed', 'user', ${tTech}, ${sql.json({ from: "in_progress", to: "resolved" })}, ${h(3)}, ${h(3)})`;
+    await sql`insert into assignments (org_id, target_type, target_id, assignee_type, assignee_id, assigned_by_user_id, assigned_at)
+      values (${ORG_ID}, 'work_order', ${r1!.id}, 'user', ${tTech}, ${principalUserId}, ${d(5)})`;
+    await sql`insert into comments (org_id, target_type, target_id, body, actor_type, actor_user_id, visibility, created_at, updated_at)
+      values (${ORG_ID}, 'work_order', ${r1!.id}, ${"Came by Tuesday and replaced the cartridge — let us know if it's still dripping."}, 'user', ${tTech}, 'external', ${h(4)}, ${h(4)})`;
+
+    // (2) Blocked, waiting on the resident (drives "Waiting on you").
+    tNum += 1;
+    const [r2] = await sql<{ id: string }[]>`
+      insert into work_orders (org_id, number, title, description, kind, status, priority,
+        property_id, unit_id, category, blocked_reason, created_at, updated_at, started_at,
+        created_by_actor_type, created_by_tenant_user_id, acknowledged_at, acknowledged_by_user_id, tenant_updated_at)
+      values (${ORG_ID}, ${tNum}, ${"Dishwasher not draining"},
+        ${"Water pools at the bottom after every cycle."}, 'work_order', 'blocked', 'normal',
+        ${tProp}, ${demoTenant.unitId}, 'appliance', 'waiting_tenant', ${d(3)}, ${h(20)}, ${h(40)},
+        'tenant', ${demoTenant.id}, ${h(40)}, ${tTech}, ${h(20)})
+      returning id`;
+    woIds.push(r2!.id);
+    await sql`insert into audit_log (org_id, target_type, target_id, action, actor_type, diff, created_at, updated_at)
+      values (${ORG_ID}, 'work_order', ${r2!.id}, 'tenant_submitted', 'tenant', ${sql.json({ to: { status: "new", category: "appliance" } })}, ${d(3)}, ${d(3)})`;
+    await sql`insert into assignments (org_id, target_type, target_id, assignee_type, assignee_id, assigned_by_user_id, assigned_at)
+      values (${ORG_ID}, 'work_order', ${r2!.id}, 'user', ${tTech}, ${principalUserId}, ${h(40)})`;
+    await sql`insert into comments (org_id, target_type, target_id, body, actor_type, actor_user_id, visibility, created_at, updated_at)
+      values (${ORG_ID}, 'work_order', ${r2!.id}, ${"Could you send a photo of the model number inside the door? Need it to order the part."}, 'user', ${tTech}, 'external', ${h(20)}, ${h(20)})`;
   }
 
   /* ---- comments ---- */

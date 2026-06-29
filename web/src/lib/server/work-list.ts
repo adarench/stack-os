@@ -7,6 +7,7 @@ import { properties } from "@db/schema/properties";
 import { units } from "@db/schema/units";
 import { assignments } from "@db/schema/assignments";
 import { withStaffScope, type ScopedDB } from "./db";
+import { workOrderCategoryLabel } from "@contracts/work-order-category";
 import { loadActiveOwners } from "./owners";
 import { type RowHint } from "./row-hints";
 import { ensureUserRow } from "./sync-user";
@@ -86,6 +87,10 @@ export interface WorkRow {
   acknowledgedAt?: string | null;
   tenantUpdatedAt?: string | null;
   isOpen?: boolean;
+  /** Submitted by a resident via the tenant app. */
+  tenantReported?: boolean;
+  /** Tenant-chosen issue category (humanized label), if any. */
+  category?: string | null;
   /** Tier 3 row-level memory hints (max 2) — turns only now. */
   hints?: RowHint[];
   legacyHref: string;
@@ -252,6 +257,8 @@ async function queryWorkOrders(
       unitId: workOrders.unitId,
       propertyId: workOrders.propertyId,
       spawnedFromInspectionId: workOrders.spawnedFromInspectionId,
+      createdByActorType: workOrders.createdByActorType,
+      category: workOrders.category,
       propertyName: properties.name,
       unitLabel: units.label,
     })
@@ -290,6 +297,8 @@ async function queryWorkOrders(
       acknowledgedAt: r.acknowledgedAt ? r.acknowledgedAt.toISOString() : null,
       tenantUpdatedAt: r.tenantUpdatedAt ? r.tenantUpdatedAt.toISOString() : null,
       isOpen: open,
+      tenantReported: r.createdByActorType === "tenant",
+      category: workOrderCategoryLabel(r.category),
       legacyHref: `/work-orders/${r.id}`,
     };
   });

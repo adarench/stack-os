@@ -200,6 +200,14 @@ export function auditActionLabel(action: string): string {
       return "ran the renter-policy sweep";
     case "template_spawned":
       return "fired a recurring task";
+    case "tenant_submitted":
+      return "submitted this request";
+    case "tenant_commented":
+      return "sent a message";
+    case "tenant_confirmed_resolved":
+      return "confirmed it’s fixed";
+    case "tenant_reopened":
+      return "reported it’s not fixed";
     default:
       return action.replace(/_/g, " ");
   }

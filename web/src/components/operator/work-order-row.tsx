@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OwnerChip } from "./owner-chip";
 import type { WorkRow } from "@/lib/server/work-list";
@@ -91,12 +91,29 @@ export function WorkOrderRow({ row }: { row: WorkRow }) {
         <span className="min-w-0 flex-1 truncate text-title text-foreground">
           {row.title}
         </span>
-        <RowStatusAction woRef={row.ref} status={row.status} />
+        <span className="flex shrink-0 items-center gap-1.5">
+          {row.tenantReported && (
+            <span
+              className="inline-flex h-5 items-center gap-1 rounded bg-urgency-inflow/12 px-1.5 text-meta font-medium text-urgency-inflow"
+              title="Submitted by the resident"
+            >
+              <User className="size-3" />
+              Tenant
+            </span>
+          )}
+          <RowStatusAction woRef={row.ref} status={row.status} />
+        </span>
       </div>
 
       {/* Line 2 — quiet metadata. Monochrome; only a long age gets colour. */}
       <div className="mt-1 flex items-center gap-1.5 pl-[34px] text-label text-muted-foreground">
         <span className="min-w-0 truncate">{where || "—"}</span>
+        {row.category && (
+          <>
+            <Dot />
+            <span className="shrink-0">{row.category}</span>
+          </>
+        )}
         {isOpen ? (
           <>
             <Dot />
