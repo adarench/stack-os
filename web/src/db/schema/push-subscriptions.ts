@@ -34,3 +34,26 @@ export const pushSubscriptions = pgTable(
     ),
   }),
 );
+
+/**
+ * Web-push subscriptions for tenant (resident) users — mirror of the staff
+ * table, keyed to a tenant_users.id. Residents subscribe from the tenant PWA;
+ * the dispatcher reads under the system actor to send status/message pushes.
+ */
+export const tenantPushSubscriptions = pgTable(
+  "tenant_push_subscriptions",
+  {
+    id: id(),
+    orgId: orgId(),
+    tenantUserId: uuid("tenant_user_id").notNull(),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    ...timestamps,
+  },
+  (t) => ({
+    orgTenantIdx: index("tenant_push_subs_org_tenant_idx").on(t.orgId, t.tenantUserId),
+    endpointUnique: uniqueIndex("tenant_push_subs_endpoint_unique").on(t.endpoint),
+  }),
+);

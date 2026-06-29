@@ -73,6 +73,7 @@ ALTER TABLE task_template_fires      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_subscriptions       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_push_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspections              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspection_findings      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspection_items         ENABLE ROW LEVEL SECURITY;
@@ -105,6 +106,7 @@ ALTER TABLE task_template_fires      FORCE ROW LEVEL SECURITY;
 ALTER TABLE notifications            FORCE ROW LEVEL SECURITY;
 ALTER TABLE notification_preferences FORCE ROW LEVEL SECURITY;
 ALTER TABLE push_subscriptions       FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_push_subscriptions FORCE ROW LEVEL SECURITY;
 ALTER TABLE inspections              FORCE ROW LEVEL SECURITY;
 ALTER TABLE inspection_findings      FORCE ROW LEVEL SECURITY;
 ALTER TABLE inspection_items         FORCE ROW LEVEL SECURITY;
@@ -154,6 +156,7 @@ DECLARE
     'approvals', 'assignments', 'task_scopes',
     'task_templates', 'task_template_fires',
     'notifications', 'notification_preferences', 'push_subscriptions',
+    'tenant_push_subscriptions',
     'inspections', 'inspection_findings', 'projects',
     'inspection_items', 'checklist_templates', 'checklist_template_items',
     'vendor_cois', 'tenant_users', 'tenant_insurance_policies',
@@ -308,6 +311,21 @@ USING (
     SELECT id FROM work_orders
     WHERE unit_id = (SELECT unit_id FROM tenant_users WHERE id = current_tenant_user_id())
   )
+);
+
+-- A resident manages their own push subscriptions (subscribe from the PWA).
+-- The dispatcher reads them under the system actor (staff_org policy permits).
+DROP POLICY IF EXISTS tenant_push_subs_self ON tenant_push_subscriptions;
+CREATE POLICY tenant_push_subs_self ON tenant_push_subscriptions FOR ALL TO PUBLIC
+USING (
+  current_actor_type() = 'tenant'
+  AND org_id = current_org_id()
+  AND tenant_user_id = current_tenant_user_id()
+)
+WITH CHECK (
+  current_actor_type() = 'tenant'
+  AND org_id = current_org_id()
+  AND tenant_user_id = current_tenant_user_id()
 );
 
 -- assignments visible to the vendor user (so the EXISTS subquery in

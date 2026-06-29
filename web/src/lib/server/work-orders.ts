@@ -6,6 +6,8 @@ import { assignments } from "@db/schema/assignments";
 import { vendorUsers } from "@db/schema/vendor-users";
 import { properties } from "@db/schema/properties";
 import { users } from "@db/schema/users";
+import { tenantUsers } from "@db/schema/compliance";
+import { tenantStatusLabel } from "@/lib/labels";
 import {
   WORK_ORDER_KINDS,
   WORK_ORDER_PRIORITIES,
@@ -234,7 +236,7 @@ export async function updateWorkOrderStatus(
     const userId = await ensureUserRow(tx, ctx.orgId, ctx.userId);
     const current = await getRow(tx, ctx.orgId, parsed.id);
     if (!current) throw new Error("work_order_not_found");
-    if (current.status === parsed.to) return { wo: current, prev: current.status, fired: false, orgId: ctx.orgId };
+    if (current.status === parsed.to) return { wo: current, prev: current.status, fired: false, orgId: ctx.orgId, tenant: null };
     if (!canTransition(current.status as WorkOrderStatus, parsed.to)) {
       throw new Error(`invalid_transition:${current.status}->${parsed.to}`);
     }
@@ -259,7 +261,28 @@ export async function updateWorkOrderStatus(
       actorUserId: userId,
       diff: { from: { status: current.status }, to: { status: parsed.to } },
     });
-    return { wo: updated[0]!, prev: current.status as WorkOrderStatus, fired: true, orgId: ctx.orgId };
+    // Resident contact, if this is a tenant-reported WO (notified after commit).
+    let tenant: { id: string; phone: string | null; email: string | null } | null = null;
+    if (updated[0]!.createdByTenantUserId) {
+      const [t] = await tx
+        .select({ id: tenantUsers.id, phone: tenantUsers.phone, email: tenantUsers.email })
+        .from(tenantUsers)
+        .where(
+          and(
+            eq(tenantUsers.orgId, ctx.orgId),
+            eq(tenantUsers.id, updated[0]!.createdByTenantUserId),
+          ),
+        )
+        .limit(1);
+      tenant = t ?? null;
+    }
+    return {
+      wo: updated[0]!,
+      prev: current.status as WorkOrderStatus,
+      fired: true,
+      orgId: ctx.orgId,
+      tenant,
+    };
   });
 
   // Notify on key transitions only. Recipient is the WO creator (staff)
@@ -285,6 +308,34 @@ export async function updateWorkOrderStatus(
         // and resolving it would require another query. For now this records
         // an in_app notification only. P5 will add user-email lookup.
       });
+    }
+    // Resident notification: tenant-reported WOs get plain-language status
+    // updates (their channels + a deep link into the tenant app).
+    if (result.tenant) {
+      const tenantInteresting: WorkOrderStatus[] = [
+        "scheduled",
+        "in_progress",
+        "blocked",
+        "resolved",
+        "verified",
+        "closed",
+      ];
+      if (tenantInteresting.includes(result.wo.status as WorkOrderStatus)) {
+        const label = tenantStatusLabel(result.wo.status, result.wo.blockedReason);
+        await emitNotification({
+          orgId: result.orgId,
+          recipientTenantUserId: result.tenant.id,
+          recipientEmail: result.tenant.email,
+          recipientPhone: result.tenant.phone,
+          kind: "wo_status",
+          subject: "Update on your request",
+          body: `“${result.wo.title}” is now: ${label}.`,
+          targetType: "work_order",
+          targetId: result.wo.id,
+          url: `/tenant/WO-${result.wo.number}`,
+          actor: { type: "user" },
+        });
+      }
     }
   }
 

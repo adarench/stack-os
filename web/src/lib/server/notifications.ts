@@ -6,6 +6,8 @@ import { sendSms } from "./sms";
 import {
   loadPushSubscriptions,
   prunePushSubscription,
+  loadTenantPushSubscriptions,
+  pruneTenantPushSubscription,
   sendWebPush,
   type PushPayload,
 } from "./push";
@@ -21,12 +23,14 @@ export type NotificationKind =
   | "wo_submitted"
   | "wo_message"
   | "wo_reopened"
+  | "wo_status"
   | "template_spawned";
 
 export interface DispatchInput {
   orgId: string;
   recipientUserId?: string | null;
   recipientVendorUserId?: string | null;
+  recipientTenantUserId?: string | null;
   channel: NotificationChannel;
   kind: NotificationKind;
   subject: string;
@@ -53,6 +57,7 @@ export async function recordNotification(
       orgId: input.orgId,
       recipientUserId: input.recipientUserId ?? null,
       recipientVendorUserId: input.recipientVendorUserId ?? null,
+      recipientTenantUserId: input.recipientTenantUserId ?? null,
       channel: input.channel,
       kind: input.kind,
       subject: input.subject,
@@ -99,9 +104,18 @@ export async function markNotificationStatus(
 export async function enabledChannels(
   tx: ScopedDB,
   orgId: string,
-  recipient: { userId?: string | null; vendorUserId?: string | null },
+  recipient: {
+    userId?: string | null;
+    vendorUserId?: string | null;
+    tenantUserId?: string | null;
+  },
 ): Promise<NotificationChannel[]> {
   const channels: NotificationChannel[] = ["email", "sms", "push", "in_app"];
+  // Tenants have no preferences row — residents get every channel (sms/push
+  // are harmless no-ops without a phone/subscription on file).
+  if (recipient.tenantUserId && !recipient.userId && !recipient.vendorUserId) {
+    return channels;
+  }
   const isStaff = !!recipient.userId;
   // Staff techs get SMS by default — they miss email, and a text on a new
   // assignment is the reliable alert (the customer's #1 ask). Gated on a phone
@@ -146,6 +160,7 @@ export async function emitNotification(args: {
   orgId: string;
   recipientUserId?: string | null;
   recipientVendorUserId?: string | null;
+  recipientTenantUserId?: string | null;
   kind: NotificationKind;
   subject: string;
   body: string;
@@ -153,9 +168,20 @@ export async function emitNotification(args: {
   recipientPhone?: string | null;
   targetType?: PolymorphicTarget;
   targetId?: string;
+  /** Deep link override for push (e.g. the tenant route). */
+  url?: string;
   actor?: { type: ActorType; userId?: string | null };
 }): Promise<void> {
-  if (!args.recipientEmail && !args.recipientPhone) return;
+  // Reachable iff we have an address OR a push-capable recipient id (staff /
+  // tenant) — a resident may have a push subscription but no email/phone.
+  if (
+    !args.recipientEmail &&
+    !args.recipientPhone &&
+    !args.recipientUserId &&
+    !args.recipientTenantUserId
+  ) {
+    return;
+  }
 
   const useInngest =
     process.env.INNGEST_EVENT_KEY && process.env.INNGEST_EVENT_KEY.length > 0;
@@ -191,6 +217,7 @@ export async function dispatchInline(args: {
   orgId: string;
   recipientUserId?: string | null;
   recipientVendorUserId?: string | null;
+  recipientTenantUserId?: string | null;
   kind: NotificationKind;
   subject: string;
   body: string;
@@ -198,6 +225,7 @@ export async function dispatchInline(args: {
   recipientPhone?: string | null;
   targetType?: PolymorphicTarget;
   targetId?: string;
+  url?: string;
 }): Promise<{ sent: NotificationChannel[]; failed: NotificationChannel[] }> {
   const sent: NotificationChannel[] = [];
   const failed: NotificationChannel[] = [];
@@ -206,6 +234,7 @@ export async function dispatchInline(args: {
     const channels = await enabledChannels(tx, args.orgId, {
       userId: args.recipientUserId,
       vendorUserId: args.recipientVendorUserId,
+      tenantUserId: args.recipientTenantUserId,
     });
 
     for (const channel of channels) {
@@ -213,21 +242,21 @@ export async function dispatchInline(args: {
       if (channel === "email" && !args.recipientEmail) continue;
       if (channel === "sms" && !args.recipientPhone) continue;
       if (channel === "push") {
-        // Web-push to every device the staff user has registered. Records one
-        // notifications row reflecting the aggregate outcome; prunes any
-        // subscription the push service reports as gone (404/410).
-        if (!args.recipientUserId) continue; // vendor push not wired yet
-        const subs = await loadPushSubscriptions(
-          tx,
-          args.orgId,
-          args.recipientUserId,
-        );
+        // Web-push to every device the recipient (staff OR tenant) registered.
+        // Records one aggregate notifications row; prunes any subscription the
+        // push service reports as gone (404/410). Vendor push isn't wired.
+        const isTenant = !args.recipientUserId && !!args.recipientTenantUserId;
+        if (!args.recipientUserId && !args.recipientTenantUserId) continue;
+        const subs = args.recipientUserId
+          ? await loadPushSubscriptions(tx, args.orgId, args.recipientUserId)
+          : await loadTenantPushSubscriptions(tx, args.orgId, args.recipientTenantUserId!);
         if (subs.length === 0) continue;
 
         const { id } = await recordNotification(tx, {
           orgId: args.orgId,
           recipientUserId: args.recipientUserId,
           recipientVendorUserId: args.recipientVendorUserId,
+          recipientTenantUserId: args.recipientTenantUserId,
           channel: "push",
           kind: args.kind,
           subject: args.subject,
@@ -239,7 +268,7 @@ export async function dispatchInline(args: {
         const payload: PushPayload = {
           title: args.subject,
           body: args.body,
-          url: targetUrl(args.targetType, args.targetId),
+          url: args.url ?? targetUrl(args.targetType, args.targetId),
           tag: args.targetId ?? args.kind,
         };
         let anyOk = false;
@@ -249,7 +278,10 @@ export async function dispatchInline(args: {
           if (r.ok) anyOk = true;
           else {
             lastError = r.error;
-            if (r.gone) await prunePushSubscription(tx, sub.id);
+            if (r.gone) {
+              if (isTenant) await pruneTenantPushSubscription(tx, sub.id);
+              else await prunePushSubscription(tx, sub.id);
+            }
           }
         }
         if (anyOk) {
@@ -269,6 +301,7 @@ export async function dispatchInline(args: {
           orgId: args.orgId,
           recipientUserId: args.recipientUserId,
           recipientVendorUserId: args.recipientVendorUserId,
+          recipientTenantUserId: args.recipientTenantUserId,
           channel: "in_app",
           kind: args.kind,
           subject: args.subject,
@@ -285,6 +318,7 @@ export async function dispatchInline(args: {
         orgId: args.orgId,
         recipientUserId: args.recipientUserId,
         recipientVendorUserId: args.recipientVendorUserId,
+        recipientTenantUserId: args.recipientTenantUserId,
         channel,
         kind: args.kind,
         subject: args.subject,

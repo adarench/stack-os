@@ -16,6 +16,7 @@ import { WORK_ORDER_PRIORITIES } from "@contracts/state-machines/work-order";
 import { nextWorkOrderNumber } from "./sequence";
 import { writeAudit } from "./audit";
 import { emitNotification } from "./notifications";
+import { saveTenantPushSubscription } from "./push";
 import type { TenantSession } from "./tenant-auth";
 
 export const tenantSubmitInput = z.object({
@@ -454,4 +455,23 @@ export async function tenantReopen(
     });
   }
   return wo;
+}
+
+/* -------------------- push subscription -------------------- */
+
+/** Register a resident's web-push subscription (RLS: own rows only). */
+export async function subscribeTenantPush(
+  session: TenantSession,
+  sub: { endpoint: string; p256dh: string; auth: string; userAgent?: string | null },
+) {
+  return withTenantScope(session, async (tx) => {
+    await saveTenantPushSubscription(tx, {
+      orgId: session.orgId,
+      tenantUserId: session.tenantUserId,
+      endpoint: sub.endpoint,
+      p256dh: sub.p256dh,
+      auth: sub.auth,
+      userAgent: sub.userAgent ?? null,
+    });
+  });
 }

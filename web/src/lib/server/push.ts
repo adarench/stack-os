@@ -1,7 +1,7 @@
 import "server-only";
 import webpush from "web-push";
 import { and, eq, isNull } from "drizzle-orm";
-import { pushSubscriptions } from "@db/schema/push-subscriptions";
+import { pushSubscriptions, tenantPushSubscriptions } from "@db/schema/push-subscriptions";
 import type { ScopedDB } from "./db";
 
 /**
@@ -143,4 +143,75 @@ export async function prunePushSubscription(
     .update(pushSubscriptions)
     .set({ deletedAt: new Date(), updatedAt: new Date() })
     .where(eq(pushSubscriptions.id, id));
+}
+
+/* -------------------- tenant (resident) push -------------------- */
+
+/** Active push subscriptions for a tenant (resident) user. */
+export async function loadTenantPushSubscriptions(
+  tx: ScopedDB,
+  orgId: string,
+  tenantUserId: string,
+): Promise<Array<{ id: string } & PushTarget>> {
+  return tx
+    .select({
+      id: tenantPushSubscriptions.id,
+      endpoint: tenantPushSubscriptions.endpoint,
+      p256dh: tenantPushSubscriptions.p256dh,
+      auth: tenantPushSubscriptions.auth,
+    })
+    .from(tenantPushSubscriptions)
+    .where(
+      and(
+        eq(tenantPushSubscriptions.orgId, orgId),
+        eq(tenantPushSubscriptions.tenantUserId, tenantUserId),
+        isNull(tenantPushSubscriptions.deletedAt),
+      ),
+    );
+}
+
+/** Upsert a tenant subscription by endpoint (refresh on re-subscribe). */
+export async function saveTenantPushSubscription(
+  tx: ScopedDB,
+  input: {
+    orgId: string;
+    tenantUserId: string;
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+    userAgent?: string | null;
+  },
+): Promise<void> {
+  await tx
+    .insert(tenantPushSubscriptions)
+    .values({
+      orgId: input.orgId,
+      tenantUserId: input.tenantUserId,
+      endpoint: input.endpoint,
+      p256dh: input.p256dh,
+      auth: input.auth,
+      userAgent: input.userAgent ?? null,
+    })
+    .onConflictDoUpdate({
+      target: tenantPushSubscriptions.endpoint,
+      set: {
+        tenantUserId: input.tenantUserId,
+        p256dh: input.p256dh,
+        auth: input.auth,
+        userAgent: input.userAgent ?? null,
+        deletedAt: null,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+/** Soft-prune a tenant subscription the push service reported as gone. */
+export async function pruneTenantPushSubscription(
+  tx: ScopedDB,
+  id: string,
+): Promise<void> {
+  await tx
+    .update(tenantPushSubscriptions)
+    .set({ deletedAt: new Date(), updatedAt: new Date() })
+    .where(eq(tenantPushSubscriptions.id, id));
 }

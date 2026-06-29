@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
+import { dispatchInline } from "@/lib/server/notifications";
 
 /**
  * Tenant-app RLS + resolution integration tests. Self-managed fixtures (own
@@ -82,6 +83,7 @@ afterAll(async () => {
   if (!admin) return;
   await admin.begin(async (tx) => {
     await setScope(tx, { orgId: ORG, actorType: "system" });
+    await tx`delete from notifications where org_id = ${ORG}`;
     await tx`delete from audit_log where org_id = ${ORG}`;
     await tx`delete from comments where org_id = ${ORG}`;
     await tx`delete from attachments where org_id = ${ORG}`;
@@ -147,5 +149,26 @@ describe.skipIf(skip)("tenant RLS", () => {
       return tx<{ status: string }[]>`select status from work_orders where id = ${ids.woId}`;
     });
     expect(seen[0]!.status).toBe("verified");
+  });
+
+  it("a notification routes to recipient_tenant_user_id (in-app)", async () => {
+    if (!admin) return;
+    // in-app only (no email/phone) so nothing real sends; records a row.
+    await dispatchInline({
+      orgId: ORG,
+      recipientTenantUserId: ids.tenant1,
+      kind: "wo_status",
+      subject: "Update on your request",
+      body: "Scheduled for this week.",
+      targetType: "work_order",
+      targetId: ids.woId,
+    });
+    const rows = await admin.begin(async (tx) => {
+      await setScope(tx, { orgId: ORG, actorType: "system" });
+      return tx<{ channel: string }[]>`
+        select channel from notifications where recipient_tenant_user_id = ${ids.tenant1}`;
+    });
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some((r) => r.channel === "in_app")).toBe(true);
   });
 });

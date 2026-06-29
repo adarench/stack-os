@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { readTenantSession } from "@/lib/server/tenant-auth";
 import { loadTenantRequests } from "@/lib/server/tenant-requests";
 import { RequestCard } from "@/components/tenant/request-card";
+import { PushOptIn } from "@/components/tenant/push-opt-in";
 import { EmptyState } from "@/components/ui/empty-state";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,10 @@ export default async function TenantHome() {
         <Plus className="size-5" />
         Report an issue
       </Link>
+
+      <div className="mt-4">
+        <PushOptIn />
+      </div>
 
       <h2 className="mb-2 mt-6 text-meta font-medium uppercase tracking-wider text-muted-foreground">
         Your requests

@@ -12,9 +12,10 @@ export const notifications = pgTable(
   {
     id: id(),
     orgId: orgId(),
-    // Recipient: either a staff user (Clerk-mirrored) or a vendor user.
+    // Recipient: a staff user (Clerk-mirrored), a vendor user, or a tenant.
     recipientUserId: uuid("recipient_user_id"),
     recipientVendorUserId: uuid("recipient_vendor_user_id"),
+    recipientTenantUserId: uuid("recipient_tenant_user_id"),
 
     channel: notificationChannelEnum("channel").notNull(),
     kind: text("kind").notNull(), // wo_assigned | wo_blocked | wo_resolved | template_spawned | ...
