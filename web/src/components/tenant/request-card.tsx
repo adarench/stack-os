@@ -41,7 +41,10 @@ export function RequestCard({ request }: { request: TenantRequest }) {
     >
       <div className="flex items-start justify-between gap-3">
         <p className="text-body font-medium text-foreground">{request.title}</p>
-        <Badge tone={toneForTenantStatus(request.status)} className="shrink-0">
+        <Badge
+          tone={toneForTenantStatus(request.status, request.blockedReason)}
+          className="shrink-0"
+        >
           {request.tenantStatus}
         </Badge>
       </div>

@@ -68,6 +68,9 @@ export const workOrders = pgTable(
 
     // Optional issue category from tenant submission (see contracts/work-order-category).
     category: text("category"),
+    // When blocked, who is it waiting on — drives the tenant-facing split
+    // ("Waiting on you" vs "Waiting on vendor"). null = generic "On hold".
+    blockedReason: text("blocked_reason"), // waiting_tenant | waiting_vendor | other
 
     ...timestamps,
   },

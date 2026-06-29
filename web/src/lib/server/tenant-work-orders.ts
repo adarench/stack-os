@@ -307,3 +307,151 @@ export async function createTenantComment(
   }
   return result.row;
 }
+
+/* -------------------- resolution: confirm / reopen -------------------- */
+
+async function coveringTech(
+  tx: import("./db").ScopedDB,
+  propertyId: string | null,
+): Promise<{ id: string; email: string | null; phone: string | null } | null> {
+  if (!propertyId) return null;
+  const [p] = await tx
+    .select({ c: properties.defaultAssigneeUserId })
+    .from(properties)
+    .where(eq(properties.id, propertyId))
+    .limit(1);
+  if (!p?.c) return null;
+  const [u] = await tx
+    .select({ id: users.id, email: users.email, phone: users.phone })
+    .from(users)
+    .where(eq(users.id, p.c))
+    .limit(1);
+  return u ?? null;
+}
+
+/** Load the tenant's own WO for a transition (RLS-guarded). */
+async function tenantWoForTransition(session: TenantSession, workOrderId: string) {
+  return withTenantScope(session, async (tx) => {
+    const [wo] = await tx
+      .select({
+        id: workOrders.id,
+        number: workOrders.number,
+        title: workOrders.title,
+        status: workOrders.status,
+        propertyId: workOrders.propertyId,
+      })
+      .from(workOrders)
+      .where(and(eq(workOrders.orgId, session.orgId), eq(workOrders.id, workOrderId)))
+      .limit(1);
+    return wo ?? null;
+  });
+}
+
+/**
+ * Tenant confirms the work is done: resolved → verified. ONLY valid from
+ * `resolved` (the server fn is the gate on which transition is allowed; tenant
+ * writes run under a validated system scope, never arbitrary).
+ */
+export async function tenantConfirmResolved(session: TenantSession, workOrderId: string) {
+  const wo = await tenantWoForTransition(session, workOrderId);
+  if (!wo) throw new Error("not_found");
+  if (wo.status !== "resolved") throw new Error("not_confirmable");
+
+  const tech = await withScope(
+    { orgId: session.orgId, actorType: "system" },
+    async (tx) => {
+      await tx
+        .update(workOrders)
+        .set({ status: "verified", updatedAt: new Date() })
+        .where(eq(workOrders.id, workOrderId));
+      await writeAudit(tx, {
+        orgId: session.orgId,
+        targetType: "work_order",
+        targetId: workOrderId,
+        action: "tenant_confirmed_resolved",
+        actorType: "tenant",
+        diff: { from: { status: "resolved" }, to: { status: "verified" } },
+      });
+      return coveringTech(tx, wo.propertyId);
+    },
+  );
+
+  if (tech) {
+    await emitNotification({
+      orgId: session.orgId,
+      recipientUserId: tech.id,
+      recipientEmail: tech.email ?? undefined,
+      recipientPhone: tech.phone ?? undefined,
+      kind: "wo_verified",
+      subject: `Resident confirmed WO-${wo.number} is fixed`,
+      body: `The resident verified ${wo.title}. Ready to close.`,
+      targetType: "work_order",
+      targetId: workOrderId,
+      actor: { type: "system" },
+    });
+  }
+  return wo;
+}
+
+export const tenantReopenInput = z.object({
+  workOrderId: z.string().uuid(),
+  note: z.string().min(1).max(5000),
+});
+
+/**
+ * Tenant reports it's NOT fixed: resolved → in_progress, posts their note as an
+ * external comment, and notifies ops. Only valid from `resolved`.
+ */
+export async function tenantReopen(
+  session: TenantSession,
+  input: z.input<typeof tenantReopenInput>,
+) {
+  const parsed = tenantReopenInput.parse(input);
+  const wo = await tenantWoForTransition(session, parsed.workOrderId);
+  if (!wo) throw new Error("not_found");
+  if (wo.status !== "resolved") throw new Error("not_reopenable");
+
+  const tech = await withScope(
+    { orgId: session.orgId, actorType: "system" },
+    async (tx) => {
+      await tx
+        .update(workOrders)
+        .set({ status: "in_progress", updatedAt: new Date() })
+        .where(eq(workOrders.id, parsed.workOrderId));
+      await tx.insert(comments).values({
+        orgId: session.orgId,
+        targetType: "work_order",
+        targetId: parsed.workOrderId,
+        body: parsed.note,
+        actorType: "tenant",
+        actorUserId: session.tenantUserId,
+        visibility: "external",
+      });
+      await writeAudit(tx, {
+        orgId: session.orgId,
+        targetType: "work_order",
+        targetId: parsed.workOrderId,
+        action: "tenant_reopened",
+        actorType: "tenant",
+        diff: { from: { status: "resolved" }, to: { status: "in_progress" }, reason: "tenant_not_fixed" },
+      });
+      return coveringTech(tx, wo.propertyId);
+    },
+  );
+
+  if (tech) {
+    await emitNotification({
+      orgId: session.orgId,
+      recipientUserId: tech.id,
+      recipientEmail: tech.email ?? undefined,
+      recipientPhone: tech.phone ?? undefined,
+      kind: "wo_reopened",
+      subject: `Resident reopened WO-${wo.number} — not fixed`,
+      body: `The resident says ${wo.title} isn't resolved. Reopened to in progress.`,
+      targetType: "work_order",
+      targetId: parsed.workOrderId,
+      actor: { type: "system" },
+    });
+  }
+  return wo;
+}

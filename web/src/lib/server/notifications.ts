@@ -20,6 +20,7 @@ export type NotificationKind =
   | "wo_verified"
   | "wo_submitted"
   | "wo_message"
+  | "wo_reopened"
   | "template_spawned";
 
 export interface DispatchInput {

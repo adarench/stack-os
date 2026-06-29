@@ -9,6 +9,7 @@ import { SectionHeading } from "@/components/ui/panel";
 import { Timeline } from "@/components/tenant/timeline";
 import { MessageThread } from "@/components/tenant/message-thread";
 import { MessageComposer } from "@/components/tenant/message-composer";
+import { ResolutionBar } from "@/components/tenant/resolution-bar";
 import { toneForTenantStatus } from "@/components/tenant/request-card";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ export default async function TenantRequestDetailPage({
           {req.category && (
             <span className="text-label text-muted-foreground">{req.category}</span>
           )}
-          <Badge tone={toneForTenantStatus(req.status)} className="ml-auto">
+          <Badge tone={toneForTenantStatus(req.status, req.blockedReason)} className="ml-auto">
             {req.tenantStatus}
           </Badge>
         </div>
@@ -53,15 +54,8 @@ export default async function TenantRequestDetailPage({
         </p>
       </div>
 
-      {req.needsAction && (
-        <div className="rounded-lg border border-urgency-done/40 bg-urgency-done/10 p-3.5">
-          <p className="text-body font-medium text-foreground">
-            The team marked this complete.
-          </p>
-          <p className="mt-0.5 text-label text-muted-foreground">
-            You&apos;ll be able to confirm it&apos;s fixed — or reopen it — here shortly.
-          </p>
-        </div>
+      {req.status === "resolved" && (
+        <ResolutionBar refId={req.ref} workOrderId={req.id} />
       )}
 
       {req.description && (

@@ -7,6 +7,8 @@ import {
   createWorkOrderFromTenant,
   attachTenantUpload,
   createTenantComment,
+  tenantConfirmResolved,
+  tenantReopen,
   type TenantSubmitInput,
 } from "@/lib/server/tenant-work-orders";
 
@@ -56,6 +58,40 @@ export async function sendTenantMessageAction(
   try {
     await createTenantComment(session, { workOrderId, body: body.trim() });
     revalidatePath(`/tenant/${ref}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+export async function confirmResolvedAction(
+  ref: string,
+  workOrderId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await readTenantSession();
+  if (!session) return { ok: false, error: "not_signed_in" };
+  try {
+    await tenantConfirmResolved(session, workOrderId);
+    revalidatePath(`/tenant/${ref}`);
+    revalidatePath("/tenant");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+export async function reopenRequestAction(
+  ref: string,
+  workOrderId: string,
+  note: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await readTenantSession();
+  if (!session) return { ok: false, error: "not_signed_in" };
+  if (!note.trim()) return { ok: false, error: "note_required" };
+  try {
+    await tenantReopen(session, { workOrderId, note: note.trim() });
+    revalidatePath(`/tenant/${ref}`);
+    revalidatePath("/tenant");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: (err as Error).message };

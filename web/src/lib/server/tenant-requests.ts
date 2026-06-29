@@ -26,6 +26,7 @@ export interface TenantRequest {
   ref: string; // WO-123
   title: string;
   status: string; // internal status (for tone/logic)
+  blockedReason: string | null;
   tenantStatus: string; // plain-language label
   needsAction: boolean;
   createdAt: string;
@@ -79,6 +80,7 @@ export async function loadTenantRequests(session: TenantSession): Promise<Tenant
         number: workOrders.number,
         title: workOrders.title,
         status: workOrders.status,
+        blockedReason: workOrders.blockedReason,
         createdAt: workOrders.createdAt,
         updatedAt: workOrders.updatedAt,
       })
@@ -92,8 +94,9 @@ export async function loadTenantRequests(session: TenantSession): Promise<Tenant
       ref: `WO-${r.number}`,
       title: r.title,
       status: r.status,
-      tenantStatus: tenantStatusLabel(r.status),
-      needsAction: tenantStatusNeedsAction(r.status),
+      blockedReason: r.blockedReason,
+      tenantStatus: tenantStatusLabel(r.status, r.blockedReason),
+      needsAction: tenantStatusNeedsAction(r.status, r.blockedReason),
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
       isOpen: OPEN_STATUSES.has(r.status),
@@ -120,6 +123,7 @@ export interface TenantRequestDetail {
   description: string | null;
   category: string | null; // humanized label
   status: string;
+  blockedReason: string | null;
   tenantStatus: string;
   needsAction: boolean;
   isOpen: boolean;
@@ -162,6 +166,7 @@ export async function loadTenantRequest(
         description: workOrders.description,
         category: workOrders.category,
         status: workOrders.status,
+        blockedReason: workOrders.blockedReason,
         createdAt: workOrders.createdAt,
         updatedAt: workOrders.updatedAt,
       })
@@ -233,8 +238,9 @@ export async function loadTenantRequest(
     description: wo.description,
     category: workOrderCategoryLabel(wo.category),
     status: wo.status,
-    tenantStatus: tenantStatusLabel(wo.status),
-    needsAction: tenantStatusNeedsAction(wo.status),
+    blockedReason: wo.blockedReason,
+    tenantStatus: tenantStatusLabel(wo.status, wo.blockedReason),
+    needsAction: tenantStatusNeedsAction(wo.status, wo.blockedReason),
     isOpen: OPEN_STATUSES.has(wo.status),
     createdAt: wo.createdAt.toISOString(),
     updatedAt: wo.updatedAt.toISOString(),
