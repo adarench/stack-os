@@ -248,6 +248,37 @@ WITH CHECK (
   AND tenant_user_id = current_tenant_user_id()
 );
 
+-- Tenant read scope for the mobile tenant app (read-only; mirrors the
+-- insurance-self pattern). "Own unit" = the unit on the tenant's row.
+-- The tenant sees only their own unit, that unit's property, and the work
+-- orders on that unit. Writes (submit/comment/confirm) come in later phases.
+DROP POLICY IF EXISTS units_tenant_self ON units;
+CREATE POLICY units_tenant_self ON units FOR SELECT TO PUBLIC
+USING (
+  current_actor_type() = 'tenant'
+  AND org_id = current_org_id()
+  AND id = (SELECT unit_id FROM tenant_users WHERE id = current_tenant_user_id())
+);
+
+DROP POLICY IF EXISTS properties_tenant_self ON properties;
+CREATE POLICY properties_tenant_self ON properties FOR SELECT TO PUBLIC
+USING (
+  current_actor_type() = 'tenant'
+  AND org_id = current_org_id()
+  AND id = (
+    SELECT u.property_id FROM units u
+    WHERE u.id = (SELECT unit_id FROM tenant_users WHERE id = current_tenant_user_id())
+  )
+);
+
+DROP POLICY IF EXISTS work_orders_tenant_self ON work_orders;
+CREATE POLICY work_orders_tenant_self ON work_orders FOR SELECT TO PUBLIC
+USING (
+  current_actor_type() = 'tenant'
+  AND org_id = current_org_id()
+  AND unit_id = (SELECT unit_id FROM tenant_users WHERE id = current_tenant_user_id())
+);
+
 -- assignments visible to the vendor user (so the EXISTS subquery in
 -- work_orders_vendor_assigned can resolve under the vendor scope).
 DROP POLICY IF EXISTS assignments_vendor_self ON assignments;

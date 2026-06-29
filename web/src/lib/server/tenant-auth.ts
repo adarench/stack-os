@@ -35,6 +35,14 @@ export async function setTenantSessionCookie(session: TenantSession): Promise<vo
 }
 
 export async function readTenantSession(): Promise<TenantSession | null> {
+  // E2E bypass (dev/screenshot only, never set in production) — pins a seeded
+  // active tenant (marcus.webb@tenant.test, unit 1A @ 247 Maple Lane).
+  if (process.env.E2E_BYPASS_AUTH === "1") {
+    return {
+      orgId: "org_3DK8ysf4DrE4m0LkQNbPoIL0GP0",
+      tenantUserId: "159904c1-5fe8-4df9-a848-858a7063ef44",
+    };
+  }
   let c;
   try {
     c = await cookies();

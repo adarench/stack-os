@@ -17,5 +17,5 @@ export async function recordTenantInsuranceFromPortalAction(
     effectiveAt: effectiveStr ? new Date(effectiveStr) : undefined,
     expiresAt: expiresStr ? new Date(expiresStr) : undefined,
   });
-  revalidatePath("/tenant");
+  revalidatePath("/tenant/insurance");
 }

@@ -63,6 +63,51 @@ export function workOrderStatusLabel(status: string): string {
 }
 
 /**
+ * Tenant-facing status label. The ops cockpit keeps the full 10-state machine;
+ * a resident sees plain language. `blockedReason` (set by ops when marking a
+ * job blocked) splits the single internal `blocked` state into who's holding
+ * it. The column doesn't exist until the resolution phase, so the arg is
+ * optional and defaults to the neutral "On hold".
+ */
+export function tenantStatusLabel(
+  status: string,
+  blockedReason?: string | null,
+): string {
+  switch (status) {
+    case "new":
+    case "triaged":
+      return "Submitted";
+    case "assigned":
+    case "scheduled":
+      return "Scheduled";
+    case "in_progress":
+      return "In progress";
+    case "blocked":
+      if (blockedReason === "waiting_tenant") return "Waiting on you";
+      if (blockedReason === "waiting_vendor") return "Waiting on vendor";
+      return "On hold";
+    case "resolved":
+      return "Completed — please confirm";
+    case "verified":
+      return "Completed";
+    case "closed":
+      return "Closed";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return status.replace(/_/g, " ");
+  }
+}
+
+/** Does the resident need to do something? Drives card emphasis + sort. */
+export function tenantStatusNeedsAction(
+  status: string,
+  blockedReason?: string | null,
+): boolean {
+  return status === "resolved" || (status === "blocked" && blockedReason === "waiting_tenant");
+}
+
+/**
  * Operator-language *next-action* label for a WO status. What the dispatcher
  * would type into a kanban-board card menu — "Send to vendor", not
  * "→ assigned". Used in the drawer status-action footer.
