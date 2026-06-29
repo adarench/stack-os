@@ -17,6 +17,7 @@ const SURFACES: [string, string][] = [
   ["/tenant", "tenant-home"],
   ["/tenant/new", "tenant-new"],
   ["/tenant/insurance", "tenant-insurance"],
+  ["/tenant/WO-1013", "tenant-detail"],
 ];
 
 for (const [path, name] of SURFACES) {

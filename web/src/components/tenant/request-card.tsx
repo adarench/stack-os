@@ -1,9 +1,15 @@
+import Link from "next/link";
+import type { Route } from "next";
+import { ChevronRight } from "lucide-react";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { TenantRequest } from "@/lib/server/tenant-requests";
 
 /** Tenant-facing status → badge tone. "Waiting on you" is red (their move). */
-function toneFor(status: string, blockedReason?: string | null): BadgeTone {
+export function toneForTenantStatus(
+  status: string,
+  blockedReason?: string | null,
+): BadgeTone {
   switch (status) {
     case "new":
     case "triaged":
@@ -24,9 +30,10 @@ function toneFor(status: string, blockedReason?: string | null): BadgeTone {
 
 export function RequestCard({ request }: { request: TenantRequest }) {
   return (
-    <div
+    <Link
+      href={`/tenant/${request.ref}` as Route}
       className={cn(
-        "rounded-lg border bg-card p-3.5",
+        "block rounded-lg border bg-card p-3.5 transition-colors hover:bg-muted/30",
         request.needsAction
           ? "border-urgency-done/40 ring-1 ring-urgency-done/20"
           : "border-border",
@@ -34,7 +41,7 @@ export function RequestCard({ request }: { request: TenantRequest }) {
     >
       <div className="flex items-start justify-between gap-3">
         <p className="text-body font-medium text-foreground">{request.title}</p>
-        <Badge tone={toneFor(request.status)} className="shrink-0">
+        <Badge tone={toneForTenantStatus(request.status)} className="shrink-0">
           {request.tenantStatus}
         </Badge>
       </div>
@@ -42,12 +49,13 @@ export function RequestCard({ request }: { request: TenantRequest }) {
         <span className="font-mono tabular-nums">{request.ref}</span>
         <span aria-hidden>·</span>
         <span>Updated {new Date(request.updatedAt).toLocaleDateString()}</span>
+        <ChevronRight className="ml-auto size-4 text-muted-foreground/50" />
       </div>
       {request.needsAction && (
         <p className="mt-2 text-label font-medium text-urgency-done">
           Please confirm the work is done.
         </p>
       )}
-    </div>
+    </Link>
   );
 }
