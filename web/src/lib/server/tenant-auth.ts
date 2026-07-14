@@ -1,11 +1,15 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { and, eq, isNotNull } from "drizzle-orm";
+import { db } from "@db/client";
+import { tenantUsers } from "@db/schema/compliance";
 
 export { generateToken, hashToken, tokenExpiry } from "@/lib/tokens";
 
 const COOKIE_NAME = "stack_tenant_session";
 const COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+const DEMO_TENANT_EMAIL = "marcus.webb@tenant.test";
 
 function secret(): string {
   const s = process.env.VENDOR_MAGIC_LINK_SECRET;
@@ -38,10 +42,7 @@ export async function readTenantSession(): Promise<TenantSession | null> {
   // E2E bypass (dev/screenshot only, never set in production) — pins a seeded
   // active tenant (marcus.webb@tenant.test, unit 1A @ 247 Maple Lane).
   if (process.env.E2E_BYPASS_AUTH === "1") {
-    return {
-      orgId: "org_3DK8ysf4DrE4m0LkQNbPoIL0GP0",
-      tenantUserId: "159904c1-5fe8-4df9-a848-858a7063ef44",
-    };
+    return readDemoTenantSession();
   }
   let c;
   try {
@@ -67,6 +68,19 @@ export async function readTenantSession(): Promise<TenantSession | null> {
   } catch {
     return null;
   }
+}
+
+async function readDemoTenantSession(): Promise<TenantSession | null> {
+  const [tenant] = await db
+    .select({
+      orgId: tenantUsers.orgId,
+      tenantUserId: tenantUsers.id,
+    })
+    .from(tenantUsers)
+    .where(and(eq(tenantUsers.email, DEMO_TENANT_EMAIL), isNotNull(tenantUsers.unitId)))
+    .limit(1);
+
+  return tenant ?? null;
 }
 
 export async function clearTenantSession(): Promise<void> {

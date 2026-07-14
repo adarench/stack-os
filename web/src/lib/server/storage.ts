@@ -25,6 +25,10 @@ export interface SignedUploadUrl {
   expiresInSeconds: number;
 }
 
+export interface StoredObject {
+  key: string;
+}
+
 /**
  * Sign a PUT URL for direct browser-to-storage upload.
  * Key shape: `<orgId>/<targetType>/<targetId>/<uuid>-<filename>`.
@@ -40,8 +44,7 @@ export async function signUploadUrl(args: {
   if (!client) {
     throw new Error("storage_not_configured");
   }
-  const safeName = args.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const key = `${args.orgId}/${args.targetType}/${args.targetId}/${randomUUID()}-${safeName}`;
+  const key = storageKey(args);
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
@@ -52,6 +55,27 @@ export async function signUploadUrl(args: {
   return { url, key, expiresInSeconds: expiresIn };
 }
 
+export async function uploadObject(args: {
+  orgId: string;
+  targetType: string;
+  targetId: string;
+  filename: string;
+  contentType: string;
+  body: Uint8Array;
+}): Promise<StoredObject> {
+  if (!client) throw new Error("storage_not_configured");
+  const key = storageKey(args);
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: args.contentType,
+      Body: args.body,
+    }),
+  );
+  return { key };
+}
+
 export async function signReadUrl(key: string, expiresInSeconds = 300): Promise<string> {
   if (!client) throw new Error("storage_not_configured");
   const command = new GetObjectCommand({ Bucket: bucket, Key: key });
@@ -59,3 +83,13 @@ export async function signReadUrl(key: string, expiresInSeconds = 300): Promise<
 }
 
 export const storageConfigured = (): boolean => client !== null;
+
+function storageKey(args: {
+  orgId: string;
+  targetType: string;
+  targetId: string;
+  filename: string;
+}): string {
+  const safeName = args.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `${args.orgId}/${args.targetType}/${args.targetId}/${randomUUID()}-${safeName}`;
+}

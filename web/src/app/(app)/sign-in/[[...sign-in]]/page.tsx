@@ -1,4 +1,5 @@
-import { signIn } from "@/auth";
+import { headers } from "next/headers";
+import { demoAuthEnabled, googleAuthConfigured, signIn } from "@/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ export default async function SignInPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const hasGoogleAuth = googleAuthConfigured();
+  const hasDemoAuth = demoAuthEnabled();
   return (
     <main className="flex min-h-dvh items-center justify-center bg-muted/30 p-6">
       <div className="w-full max-w-sm">
@@ -29,26 +32,52 @@ export default async function SignInPage({
 
           {error && (
             <div className="mt-5 rounded-md border border-urgency-overdue/30 bg-urgency-overdue/5 px-3 py-2 text-center text-[13px] text-urgency-overdue">
-              That account isn&rsquo;t set up for this workspace. Ask your
-              operator to add your email.
+              {error === "Configuration"
+                ? "Google sign-in is not configured for this environment."
+                : "That account is not set up for this workspace."}
             </div>
           )}
 
-          <form
-            action={async () => {
-              "use server";
-              await signIn("google", { redirectTo: "/" });
-            }}
-            className="mt-6"
-          >
-            <button
-              type="submit"
-              className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-border bg-background text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+          {hasGoogleAuth && (
+            <form
+              action={async () => {
+                "use server";
+                await signIn("google", { redirectTo: await redirectToHome() });
+              }}
+              className="mt-6"
             >
-              <GoogleIcon />
-              Continue with Google
-            </button>
-          </form>
+              <button
+                type="submit"
+                className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-border bg-background text-sm font-medium shadow-sm transition-colors hover:bg-muted"
+              >
+                <GoogleIcon />
+                Continue with Google
+              </button>
+            </form>
+          )}
+
+          {hasDemoAuth && (
+            <form
+              action={async () => {
+                "use server";
+                await signIn("demo", { redirectTo: await redirectToHome() });
+              }}
+              className="mt-6"
+            >
+              <button
+                type="submit"
+                className="flex h-11 w-full items-center justify-center rounded-lg bg-foreground text-sm font-medium text-background shadow-sm transition-colors hover:bg-foreground/90"
+              >
+                Continue in demo mode
+              </button>
+            </form>
+          )}
+
+          {!hasGoogleAuth && !hasDemoAuth && (
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              Sign-in is not configured for this environment.
+            </p>
+          )}
         </div>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
@@ -57,6 +86,15 @@ export default async function SignInPage({
       </div>
     </main>
   );
+}
+
+async function redirectToHome(): Promise<string> {
+  const requestHeaders = await headers();
+  const forwardedHost = requestHeaders.get("x-forwarded-host");
+  const host = forwardedHost ?? requestHeaders.get("host");
+  if (!host) return "/";
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
+  return `${protocol}://${host}/`;
 }
 
 function GoogleIcon() {

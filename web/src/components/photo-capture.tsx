@@ -107,7 +107,7 @@ export function PhotoCapture({
     const list = Array.from(files);
     const newItems: Array<{ item: UploadItem; file: File }> = list.map((f) => ({
       item: {
-        id: crypto.randomUUID(),
+        id: uploadItemId(),
         filename: f.name || `photo-${Date.now()}.jpg`,
         sizeBytes: f.size,
         contentType: f.type || "image/jpeg",
@@ -188,6 +188,13 @@ export function PhotoCapture({
       )}
     </div>
   );
+}
+
+function uploadItemId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function putWithProgress(

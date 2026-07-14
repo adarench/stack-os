@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImagePlus, X, TriangleAlert } from "lucide-react";
 import { CategoryGrid } from "./category-grid";
@@ -8,10 +8,7 @@ import { Input, Textarea, Label } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { WorkOrderCategory } from "@contracts/work-order-category";
-import {
-  createTenantRequestAction,
-  attachTenantUploadAction,
-} from "@/app/(vendor)/tenant/_actions";
+import { createTenantRequestAction } from "@/app/(vendor)/tenant/_actions";
 
 interface Pick {
   id: string;
@@ -22,7 +19,7 @@ interface Pick {
 
 export function SubmitForm() {
   const router = useRouter();
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const fileInputId = useId();
   const [category, setCategory] = useState<WorkOrderCategory | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -36,7 +33,7 @@ export function SubmitForm() {
 
   function addFiles(files: FileList) {
     const next: Pick[] = Array.from(files).map((f) => ({
-      id: crypto.randomUUID(),
+      id: pickId(),
       file: f,
       url: URL.createObjectURL(f),
       isVideo: (f.type || "").startsWith("video"),
@@ -52,28 +49,14 @@ export function SubmitForm() {
   }
 
   async function uploadPick(workOrderId: string, pick: Pick) {
-    const filename = pick.file.name || `upload-${Date.now()}`;
-    const contentType = pick.file.type || "application/octet-stream";
+    const body = new FormData();
+    body.append("workOrderId", workOrderId);
+    body.append("file", pick.file, pick.file.name || `upload-${Date.now()}`);
     const res = await fetch("/api/tenant/uploads/sign", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ workOrderId, filename, contentType }),
+      body,
     });
     if (!res.ok) throw new Error("upload_sign_failed");
-    const signed = (await res.json()) as { url: string; key: string };
-    const put = await fetch(signed.url, {
-      method: "PUT",
-      headers: { "content-type": contentType },
-      body: pick.file,
-    });
-    if (!put.ok) throw new Error("upload_put_failed");
-    await attachTenantUploadAction({
-      workOrderId,
-      storageKey: signed.key,
-      contentType,
-      filename,
-      sizeBytes: pick.file.size,
-    });
   }
 
   async function onSubmit() {
@@ -144,10 +127,9 @@ export function SubmitForm() {
       <div className="space-y-2">
         <Label>Photos or video</Label>
         <input
-          ref={fileRef}
+          id={fileInputId}
           type="file"
           accept="image/*,video/*"
-          capture="environment"
           multiple
           className="sr-only"
           onChange={(e) => {
@@ -174,14 +156,13 @@ export function SubmitForm() {
               </button>
             </div>
           ))}
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
+          <label
+            htmlFor={fileInputId}
             className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-label text-muted-foreground transition-colors hover:bg-muted/50"
           >
             <ImagePlus className="size-6" />
             Add
-          </button>
+          </label>
         </div>
       </div>
 
@@ -238,4 +219,11 @@ export function SubmitForm() {
       </Button>
     </div>
   );
+}
+
+function pickId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
