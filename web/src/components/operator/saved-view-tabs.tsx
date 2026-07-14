@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { SavedViewControls, type PinnedView } from "./saved-view-controls";
 
 /**
  * Built-in lenses for /work — the operator-model surface from the customer
@@ -66,7 +67,14 @@ export function activeViewFor(
   return best?.slug ?? null;
 }
 
-export function SavedViewTabs({ active }: { active: string | null }) {
+export function SavedViewTabs({
+  active,
+  views = [],
+}: {
+  active: string | null;
+  /** The operator's personal saved views (pinned ones render as tabs). */
+  views?: PinnedView[];
+}) {
   return (
     <nav
       aria-label="Lenses"
@@ -91,6 +99,7 @@ export function SavedViewTabs({ active }: { active: string | null }) {
           </Link>
         );
       })}
+      <SavedViewControls views={views} />
     </nav>
   );
 }

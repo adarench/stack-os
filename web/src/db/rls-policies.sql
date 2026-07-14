@@ -87,6 +87,7 @@ ALTER TABLE task_costs               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE task_time_entries        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE follow_ups               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE saved_views              ENABLE ROW LEVEL SECURITY;
 
 -- Force RLS even for table owners — no escape hatch except BYPASSRLS role.
 ALTER TABLE properties               FORCE ROW LEVEL SECURITY;
@@ -120,6 +121,7 @@ ALTER TABLE task_costs               FORCE ROW LEVEL SECURITY;
 ALTER TABLE task_time_entries        FORCE ROW LEVEL SECURITY;
 ALTER TABLE invoices                 FORCE ROW LEVEL SECURITY;
 ALTER TABLE follow_ups               FORCE ROW LEVEL SECURITY;
+ALTER TABLE saved_views              FORCE ROW LEVEL SECURITY;
 
 -- -----------------------------------------------------------------------------
 -- Helper: current_org_id() — reads app.org_id session var, returns NULL if unset.
@@ -160,7 +162,8 @@ DECLARE
     'inspections', 'inspection_findings', 'projects',
     'inspection_items', 'checklist_templates', 'checklist_template_items',
     'vendor_cois', 'tenant_users', 'tenant_insurance_policies',
-    'task_costs', 'task_time_entries', 'invoices', 'follow_ups'
+    'task_costs', 'task_time_entries', 'invoices', 'follow_ups',
+    'saved_views'
   ];
 BEGIN
   FOREACH t IN ARRAY tables LOOP

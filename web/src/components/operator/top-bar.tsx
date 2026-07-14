@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
-import { Plus, Search, LogOut } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -12,6 +11,8 @@ import {
 } from "@/components/ui/tooltip";
 import { useCommandPalette } from "./command-palette";
 import { useShortcutHint } from "./keyboard-provider";
+import { BellLink } from "./bell-link";
+import { AccountMenu } from "./account-menu";
 import { cn } from "@/lib/utils";
 import type { ShellSummary } from "@/lib/server/shell";
 
@@ -24,8 +25,8 @@ import type { ShellSummary } from "@/lib/server/shell";
  * operational state, regardless of which surface they're on. Every
  * segment is a clickable jump to a scoped surface.
  *
- * Settings + sign-out live inside the Clerk UserButton dropdown — they
- * no longer occupy a slot in the daily rail.
+ * Notifications (bell), the admin/config layer, and sign-out live in the
+ * account menu at the right edge; the daily rail stays focused on work.
  */
 export function TopBar({ summary }: { summary: ShellSummary | null }) {
   const { setOpen } = useCommandPalette();
@@ -72,6 +73,8 @@ export function TopBar({ summary }: { summary: ShellSummary | null }) {
           <Search className="size-4" />
         </button>
 
+        <BellLink />
+
         <div className="hidden md:flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -101,20 +104,8 @@ export function TopBar({ summary }: { summary: ShellSummary | null }) {
           </Tooltip>
         </div>
 
-        <div className="flex items-center pl-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => signOut({ redirectTo: "/sign-in" })}
-                aria-label="Sign out"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Sign out</TooltipContent>
-          </Tooltip>
+        <div className="hidden md:flex items-center pl-1">
+          <AccountMenu />
         </div>
       </div>
     </header>

@@ -139,7 +139,8 @@ export default async function ProjectDetailPage({
                         WO-{w.number}
                       </span>
                       <Link
-                        href={`/work-orders/${w.id}`}
+                        href={`/work?d=WO-${w.number}`}
+                        scroll={false}
                         className="min-w-0 truncate hover:underline"
                       >
                         {w.title}

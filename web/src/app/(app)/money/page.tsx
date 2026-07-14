@@ -1,15 +1,25 @@
 import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { Download, ChevronRight } from "lucide-react";
 import { listPendingApprovals } from "@/lib/server/approvals";
 import { listInvoicesEnriched, type InvoiceRow } from "@/lib/server/invoices";
+import { listVendors } from "@/lib/server/vendors";
+import {
+  INVOICE_STATUSES,
+  canInvoiceTransition,
+  type InvoiceStatus,
+} from "@contracts/financials";
 import { TimeSince, TimeSinceTicker } from "@/components/operator/time-since";
 import { UrgencyDot } from "@/components/operator/urgency-dot";
 import { OwnerChip } from "@/components/operator/owner-chip";
+import { Panel, SectionHeading } from "@/components/ui/panel";
+import { Button } from "@/components/ui/button";
+import { Input, Textarea, Select } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 import { approvalReasonLabel } from "@/lib/labels";
 import { ApprovalButtons } from "./approval-buttons";
+import { staffSubmitInvoiceAction, transitionInvoiceAction } from "./_actions";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +27,7 @@ type Tab = "approvals" | "invoices";
 
 const TABS: Array<{ value: Tab; label: string }> = [
   { value: "approvals", label: "Sign-offs" },
-  { value: "invoices", label: "Vendor billing" },
+  { value: "invoices", label: "Invoices" },
 ];
 
 export default async function MoneyPage({
@@ -32,9 +42,10 @@ export default async function MoneyPage({
   const sp = await searchParams;
   const tab: Tab = strOrNull(sp.tab) === "invoices" ? "invoices" : "approvals";
 
-  const [approvals, invoices] = await Promise.all([
+  const [approvals, invoices, vendors] = await Promise.all([
     tab === "approvals" ? listPendingApprovals() : Promise.resolve([]),
     tab === "invoices" ? listInvoicesEnriched() : Promise.resolve([]),
+    tab === "invoices" ? listVendors() : Promise.resolve([]),
   ]);
 
   return (
@@ -76,7 +87,12 @@ export default async function MoneyPage({
         </nav>
 
         {tab === "approvals" && <ApprovalsTab rows={approvals} />}
-        {tab === "invoices" && <InvoicesTab rows={invoices} />}
+        {tab === "invoices" && (
+          <InvoicesTab
+            rows={invoices}
+            vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}
+          />
+        )}
       </div>
     </TimeSinceTicker>
   );
@@ -278,15 +294,13 @@ function humanizeMs(absMs: number): string {
   return `${d}d`;
 }
 
-function InvoicesTab({ rows }: { rows: InvoiceRow[] }) {
-  if (rows.length === 0) {
-    return (
-      <p className="mt-6 text-sm text-muted-foreground">
-        No vendor bills on file. Submissions land here for review and payment.
-      </p>
-    );
-  }
-
+function InvoicesTab({
+  rows,
+  vendors,
+}: {
+  rows: InvoiceRow[];
+  vendors: { id: string; name: string }[];
+}) {
   // Group by vendor so the operator's mental model ("what's outstanding
   // to Stark?") matches the layout.
   const byVendor = new Map<string, InvoiceRow[]>();
@@ -305,76 +319,132 @@ function InvoicesTab({ rows }: { rows: InvoiceRow[] }) {
 
   return (
     <div className="mt-3 space-y-4">
-      {vendorOrder.map(([vendor, items]) => {
-        const outstandingCents = items
-          .filter(isOutstanding)
-          .reduce((s, r) => s + Number(r.totalCents), 0);
-        const oldestOutstanding = items
-          .filter(isOutstanding)
-          .reduce<number | null>((max, r) => {
-            const at = r.submittedAt ?? r.updatedAt;
-            if (!at) return max;
-            const ms = Date.now() - at.getTime();
-            return max === null || ms > max ? ms : max;
-          }, null);
-        return (
-          <section key={vendor}>
-            <header className="flex items-baseline gap-2 px-2 pb-1 pt-1">
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
-                {vendor}
-              </h3>
-              <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
-                {items.length} {items.length === 1 ? "bill" : "bills"}
-              </span>
-              {outstandingCents > 0 && (
-                <span className="ml-auto font-mono text-[11px] tabular-nums text-urgency-blocked">
-                  ${(outstandingCents / 100).toFixed(0)} outstanding
-                  {oldestOutstanding && oldestOutstanding > 0 && (
-                    <span className="ml-1 text-muted-foreground">
-                      · oldest {humanizeMs(oldestOutstanding)}
-                    </span>
-                  )}
+      {/* Staff data-entry (folded in from the old /admin/financials console). */}
+      <Panel>
+        <SectionHeading>Submit invoice (staff entry)</SectionHeading>
+        <form action={staffSubmitInvoiceAction} className="grid grid-cols-2 gap-2">
+          <Select required name="vendorId" className="col-span-2">
+            <option value="">— vendor —</option>
+            {vendors.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </Select>
+          <Input name="invoiceNumber" placeholder="Invoice #" />
+          <Input
+            required
+            name="totalCents"
+            type="number"
+            min={0}
+            placeholder="Total (cents)"
+          />
+          <Textarea name="notes" rows={2} placeholder="Notes" className="col-span-2" />
+          <Button type="submit" className="col-span-2">
+            Submit
+          </Button>
+        </form>
+        <p className="mt-2 text-label text-muted-foreground">
+          ≤ $500 auto-approves. $500–$5K → manager review. &gt; $5K → owner.
+        </p>
+      </Panel>
+
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No vendor bills on file. Submissions land here for review and payment.
+        </p>
+      ) : (
+        vendorOrder.map(([vendor, items]) => {
+          const outstandingCents = items
+            .filter(isOutstanding)
+            .reduce((s, r) => s + Number(r.totalCents), 0);
+          const oldestOutstanding = items
+            .filter(isOutstanding)
+            .reduce<number | null>((max, r) => {
+              const at = r.submittedAt ?? r.updatedAt;
+              if (!at) return max;
+              const ms = Date.now() - at.getTime();
+              return max === null || ms > max ? ms : max;
+            }, null);
+          return (
+            <section key={vendor}>
+              <header className="flex items-baseline gap-2 px-2 pb-1 pt-1">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-foreground">
+                  {vendor}
+                </h3>
+                <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                  {items.length} {items.length === 1 ? "bill" : "bills"}
                 </span>
-              )}
-            </header>
-            <ul className="space-y-0">
-              {items.map((inv) => (
-                <li
-                  key={inv.id}
-                  className="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] hover:bg-muted/40"
-                >
-                  <UrgencyDot urgency={invoiceUrgency(inv.status)} />
-                  <span className="w-[100px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-                    {inv.invoiceNumber ?? inv.id.slice(0, 8)}
-                  </span>
-                  {inv.workOrderRef && (
-                    <Link
-                      href={`?d=${inv.workOrderRef}`}
-                      scroll={false}
-                      data-ref={inv.workOrderRef}
-                      className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground hover:text-foreground"
-                    >
-                      {inv.workOrderRef}
-                    </Link>
-                  )}
-                  <span className="flex-1 truncate text-muted-foreground">
-                    {invoiceStatusLabel(inv.status)}
-                    {inv.approverName && inv.status !== "submitted" && (
-                      <span className="ml-1 text-muted-foreground/70">
-                        by {inv.approverName}
+                {outstandingCents > 0 && (
+                  <span className="ml-auto font-mono text-[11px] tabular-nums text-urgency-blocked">
+                    ${(outstandingCents / 100).toFixed(0)} outstanding
+                    {oldestOutstanding && oldestOutstanding > 0 && (
+                      <span className="ml-1 text-muted-foreground">
+                        · oldest {humanizeMs(oldestOutstanding)}
                       </span>
                     )}
                   </span>
-                  <span className="font-mono text-sm tabular-nums">
-                    ${(Number(inv.totalCents) / 100).toFixed(2)}
-                  </span>
-                  <TimeSince at={(inv.submittedAt ?? inv.updatedAt).toISOString()} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+                )}
+              </header>
+              <ul className="space-y-0.5">
+                {items.map((inv) => {
+                  const next = INVOICE_STATUSES.filter((s) =>
+                    canInvoiceTransition(inv.status as InvoiceStatus, s),
+                  );
+                  return (
+                    <li key={inv.id} className="rounded-md px-2 py-1.5 hover:bg-muted/40">
+                      <div className="flex items-center gap-2 text-[13px]">
+                        <UrgencyDot urgency={invoiceUrgency(inv.status)} />
+                        <span className="w-[100px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                          {inv.invoiceNumber ?? inv.id.slice(0, 8)}
+                        </span>
+                        {inv.workOrderRef && (
+                          <Link
+                            href={`?d=${inv.workOrderRef}`}
+                            scroll={false}
+                            data-ref={inv.workOrderRef}
+                            className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground hover:text-foreground"
+                          >
+                            {inv.workOrderRef}
+                          </Link>
+                        )}
+                        <span className="flex-1 truncate text-muted-foreground">
+                          {invoiceStatusLabel(inv.status)}
+                          {inv.approverName && inv.status !== "submitted" && (
+                            <span className="ml-1 text-muted-foreground/70">
+                              by {inv.approverName}
+                            </span>
+                          )}
+                        </span>
+                        <span className="font-mono text-sm tabular-nums">
+                          ${(Number(inv.totalCents) / 100).toFixed(2)}
+                        </span>
+                        <TimeSince
+                          at={(inv.submittedAt ?? inv.updatedAt).toISOString()}
+                        />
+                      </div>
+                      {next.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1 pl-6">
+                          {next.map((to) => (
+                            <form key={to} action={transitionInvoiceAction}>
+                              <input type="hidden" name="id" value={inv.id} />
+                              <input type="hidden" name="to" value={to} />
+                              <Button type="submit" size="sm" variant="outline">
+                                <ChevronRight className="size-3.5" />
+                                {to.replace(/_/g, " ")}
+                              </Button>
+                            </form>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })
+      )}
     </div>
   );
 }

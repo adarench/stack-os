@@ -20,3 +20,4 @@ export * from "./projects";
 export * from "./compliance";
 export * from "./financials";
 export * from "./follow-ups";
+export * from "./saved-views";

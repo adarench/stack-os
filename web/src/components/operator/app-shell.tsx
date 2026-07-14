@@ -7,6 +7,7 @@ import { ThemeProvider } from "./theme-provider";
 import { TopBar } from "./top-bar";
 import { LeftRail } from "./left-rail";
 import { BottomTabBar } from "./bottom-tab-bar";
+import { MoreSheet } from "./more-sheet";
 import { CommandPaletteProvider } from "./command-palette";
 import { InstallPrompt } from "./install-prompt";
 import { OfflineIndicator } from "./offline-indicator";
@@ -43,6 +44,7 @@ export function AppShell({
 }) {
   const sp = useSearchParams();
   const drawerOpen = !!sp.get("d");
+  const [moreOpen, setMoreOpen] = React.useState(false);
 
   return (
     <ThemeProvider
@@ -69,8 +71,9 @@ export function AppShell({
                 </main>
                 <EntityDrawerDocked open={drawerOpen} />
               </div>
-              <BottomTabBar />
+              <BottomTabBar onOpenMore={() => setMoreOpen(true)} />
             </div>
+            <MoreSheet open={moreOpen} onOpenChange={setMoreOpen} />
             <InstallPrompt />
             <OfflineIndicator />
             <Toaster />

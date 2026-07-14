@@ -99,27 +99,30 @@ function RailLink({
   );
 }
 
+/** Quiet uppercase group heading that separates the rail's two mental models. */
+function RailGroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-2 pb-1 text-meta font-medium uppercase tracking-wider text-muted-foreground/60">
+      {children}
+    </div>
+  );
+}
+
 /**
- * Left rail — desktop only. 200px wide. Five operational destinations,
- * each with an inline count badge driven from the shell summary. Badges
- * tone red on overdue / pending sign-offs; otherwise quiet gray.
+ * Left rail — desktop only. 200px wide. Two labeled groups: WORK (the daily
+ * work-lenses) and PORTFOLIO (the things you manage), each RailLink carrying an
+ * inline count badge from the shell summary. Badges tone red on overdue /
+ * pending sign-offs; otherwise quiet gray.
  */
 export function LeftRail({ summary }: { summary: ShellSummary | null }) {
   const pathname = usePathname();
 
   return (
     <aside className="hidden md:flex w-[200px] shrink-0 flex-col border-r border-border bg-background">
-      <nav className="flex-1 space-y-0.5 p-2">
-        {PRIMARY_NAV.map((item) => (
-          <RailLink
-            key={item.href}
-            item={item}
-            pathname={pathname}
-            summary={summary}
-          />
-        ))}
-        {SECONDARY_NAV.length > 0 &&
-          SECONDARY_NAV.map((item) => (
+      <nav className="flex-1 space-y-4 p-2">
+        <div className="space-y-0.5">
+          <RailGroupLabel>Work</RailGroupLabel>
+          {PRIMARY_NAV.map((item) => (
             <RailLink
               key={item.href}
               item={item}
@@ -127,6 +130,20 @@ export function LeftRail({ summary }: { summary: ShellSummary | null }) {
               summary={summary}
             />
           ))}
+        </div>
+        {SECONDARY_NAV.length > 0 && (
+          <div className="space-y-0.5">
+            <RailGroupLabel>Portfolio</RailGroupLabel>
+            {SECONDARY_NAV.map((item) => (
+              <RailLink
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                summary={summary}
+              />
+            ))}
+          </div>
+        )}
       </nav>
       {FOOT_NAV.length > 0 && (
         <div className="p-2">

@@ -529,8 +529,8 @@ function AssignVendorMenu({
     return (
       <p className="text-xs text-muted-foreground">
         No assignable vendors. Invite one from{" "}
-        <Link href="/admin/vendors" className="underline">
-          /admin/vendors
+        <Link href="/vendors" className="underline">
+          /vendors
         </Link>
         .
       </p>

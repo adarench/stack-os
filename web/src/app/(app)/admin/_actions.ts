@@ -57,6 +57,7 @@ export async function createVendorAction(formData: FormData) {
     primaryContactName: String(formData.get("primaryContactName") ?? "") || undefined,
   });
   revalidatePath("/admin/vendors");
+  revalidatePath("/vendors");
 }
 
 export async function inviteVendorUserAction(formData: FormData): Promise<void> {
@@ -71,4 +72,5 @@ export async function inviteVendorUserAction(formData: FormData): Promise<void> 
   // eslint-disable-next-line no-console
   console.log("[invite] vendor_user_id=%s url=%s", result.vendorUserId, result.inviteUrl);
   revalidatePath("/admin/vendors");
+  revalidatePath("/vendors");
 }

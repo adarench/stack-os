@@ -54,6 +54,7 @@ export async function recordCoiAction(
     });
     revalidatePath("/admin/compliance/cois");
     revalidatePath("/admin/vendors");
+    revalidatePath("/vendors");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
@@ -74,6 +75,7 @@ export async function recordTenantInsuranceAction(formData: FormData): Promise<v
     notes: String(formData.get("notes") ?? "") || undefined,
   });
   revalidatePath("/admin/compliance/tenants");
+  revalidatePath("/vendors");
 }
 
 export async function inviteTenantUserAction(formData: FormData): Promise<void> {
@@ -86,4 +88,5 @@ export async function inviteTenantUserAction(formData: FormData): Promise<void> 
   // eslint-disable-next-line no-console
   console.log("[invite/tenant] tenant_user_id=%s url=%s", r.tenantUserId, r.inviteUrl);
   revalidatePath("/admin/compliance/tenants");
+  revalidatePath("/vendors");
 }

@@ -263,7 +263,8 @@ export default async function InspectionDetailPage({
             {spawned.map((w) => (
               <li key={w.id} className="px-2 py-2.5 text-body hover:bg-muted/40">
                 <Link
-                  href={`/work-orders/${w.id}`}
+                  href={`/work?d=WO-${w.number}`}
+                  scroll={false}
                   className="text-foreground underline"
                 >
                   WO-{w.number}

@@ -9,6 +9,7 @@ import {
   FolderPlus,
   Inbox,
   ListTodo,
+  PhoneCall,
   Plus,
   Search,
   ShieldCheck,
@@ -241,6 +242,14 @@ export function CommandPaletteProvider({
         icon: Plus,
         keywords: ["wo", "create", "new"],
         run: () => go("/work/new"),
+      },
+      {
+        id: "create-service-request",
+        label: "New service request",
+        group: "Create",
+        icon: PhoneCall,
+        keywords: ["request", "resident", "tenant", "phone", "email", "log", "sr"],
+        run: () => go("/work/new-request"),
       },
       {
         id: "create-inspection",

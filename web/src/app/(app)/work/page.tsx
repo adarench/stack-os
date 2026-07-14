@@ -1,6 +1,8 @@
 import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   loadWorkList,
   type MineFilter,
@@ -11,6 +13,7 @@ import {
 import { groupByAttention, byAge } from "@/lib/attention-buckets";
 import { DEFAULT_BOARD_COLUMNS, loadBoard } from "@/lib/server/board";
 import { listProperties, listStaffUsers } from "@/lib/server/properties";
+import { listSavedViews } from "@/lib/server/saved-views";
 import { ViewModeToggle } from "@/components/operator/view-mode-toggle";
 import { SavedViewTabs, activeViewFor } from "@/components/operator/saved-view-tabs";
 import { WorkFilters } from "@/components/operator/work-filters";
@@ -96,7 +99,7 @@ export default async function WorkPage({
     );
   }
 
-  const [{ rows }, properties, staff] = await Promise.all([
+  const [{ rows }, properties, staff, savedViews] = await Promise.all([
     loadWorkList({
       type,
       status,
@@ -112,6 +115,7 @@ export default async function WorkPage({
     }),
     listProperties(),
     listStaffUsers(),
+    listSavedViews(),
   ]);
 
   // Work orders are grouped by the operator's escalating question — "have they
@@ -129,7 +133,7 @@ export default async function WorkPage({
     <TimeSinceTicker>
       <AutoRefresh intervalMs={30_000} />
       <div className="mx-auto max-w-[1280px] px-3 md:px-4">
-        <SavedViewTabs active={activeViewFor(sp)} />
+        <SavedViewTabs active={activeViewFor(sp)} views={savedViews} />
         <WorkFilters
           sp={sp}
           properties={properties.map((p) => ({ id: p.id, name: p.name }))}
@@ -152,6 +156,12 @@ export default async function WorkPage({
             >
               Log request
             </Link>
+            <Button asChild size="sm">
+              <Link href="/work/new">
+                <Plus className="size-3.5" />
+                New
+              </Link>
+            </Button>
             <ViewModeToggle />
           </span>
         </div>

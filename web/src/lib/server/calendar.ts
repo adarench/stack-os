@@ -160,7 +160,7 @@ export async function loadCalendar(
         kind: "work_order",
         title: r.title,
         subtitle: locationLabel(r.propertyName, r.unitLabel),
-        href: `/work-orders/${r.id}`,
+        href: `/work?d=WO-${r.number}`,
       });
     }
 
