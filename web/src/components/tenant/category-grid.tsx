@@ -5,7 +5,6 @@ import {
   Zap,
   Thermometer,
   WashingMachine,
-  Bug,
   KeyRound,
   CircleHelp,
   type LucideIcon,
@@ -22,7 +21,6 @@ const ICONS: Record<WorkOrderCategory, LucideIcon> = {
   electrical: Zap,
   hvac: Thermometer,
   appliance: WashingMachine,
-  pest: Bug,
   locks_doors: KeyRound,
   general: CircleHelp,
 };

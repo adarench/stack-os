@@ -1,5 +1,6 @@
 import { auth } from "@/lib/server/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import {
   loadWorkList,
   type MineFilter,
@@ -7,6 +8,7 @@ import {
   type WorkRow,
   type WorkType,
 } from "@/lib/server/work-list";
+import { groupByAttention, byAge } from "@/lib/attention-buckets";
 import { DEFAULT_BOARD_COLUMNS, loadBoard } from "@/lib/server/board";
 import { listProperties, listStaffUsers } from "@/lib/server/properties";
 import { ViewModeToggle } from "@/components/operator/view-mode-toggle";
@@ -112,19 +114,10 @@ export default async function WorkPage({
     listStaffUsers(),
   ]);
 
-  // Within a group, the longest-waiting sits on top (oldest submission first).
-  const byAge = (a: WorkRow, b: WorkRow) =>
-    (a.openedAt ?? a.lastActionAt).localeCompare(b.openedAt ?? b.lastActionAt);
-
   // Work orders are grouped by the operator's escalating question — "have they
   // looked? have they told the tenant?" Moves/inspections stay a flat list.
   const isWoView = type === "wo";
-  const groups = isWoView
-    ? ATTENTION_GROUPS.map((g) => ({
-        ...g,
-        items: rows.filter((r) => attentionBucket(r) === g.key).sort(byAge),
-      })).filter((g) => g.items.length > 0)
-    : [];
+  const groups = isWoView ? groupByAttention(rows) : [];
   const flat = [...rows].sort((a, b) => {
     const ao = a.isOpen === false ? 1 : 0;
     const bo = b.isOpen === false ? 1 : 0;
@@ -146,7 +139,19 @@ export default async function WorkPage({
           <span className="text-[12px] text-muted-foreground">
             {rows.length} {rows.length === 1 ? "work order" : "work orders"}
           </span>
-          <span className="ml-auto shrink-0">
+          <span className="ml-auto flex shrink-0 items-center gap-3 text-label">
+            <Link
+              href="/work/building"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Buildings
+            </Link>
+            <Link
+              href="/work/new-request"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Log request
+            </Link>
             <ViewModeToggle />
           </span>
         </div>
@@ -198,28 +203,6 @@ export default async function WorkPage({
       </div>
     </TimeSinceTicker>
   );
-}
-
-/**
- * Attention buckets — the operator's escalating concern, derived from existing
- * fields (no backend change): not seen → seen-but-tenant-uninformed → in hand →
- * done. This is the spine of the operator console.
- */
-// Section headers stay quiet — the per-row left bar already carries urgency
-// and the bucket order itself conveys the escalation. A small tone dot marks
-// the urgent buckets without colouring the whole label.
-const ATTENTION_GROUPS = [
-  { key: "unseen", label: "Not seen", tone: "text-muted-foreground", dot: "bg-urgency-overdue" },
-  { key: "tenant", label: "Tenant waiting", tone: "text-muted-foreground", dot: "bg-urgency-blocked" },
-  { key: "inhand", label: "Active", tone: "text-muted-foreground", dot: "" },
-  { key: "done", label: "Done", tone: "text-muted-foreground", dot: "" },
-] as const;
-
-function attentionBucket(r: WorkRow): (typeof ATTENTION_GROUPS)[number]["key"] {
-  if (r.isOpen === false) return "done";
-  if (!r.acknowledgedAt) return "unseen";
-  if (!r.tenantUpdatedAt) return "tenant";
-  return "inhand";
 }
 
 function strOrNull(v: string | string[] | undefined): string | null {

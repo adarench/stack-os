@@ -1,9 +1,10 @@
 import "server-only";
 import { z } from "zod";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { attachments } from "@db/schema/attachments";
 import { ATTACHMENT_KINDS, POLYMORPHIC_TARGETS } from "@contracts/polymorphic";
 import { withStaffScope } from "./db";
+import { signReadUrl, storageConfigured } from "./storage";
 import { writeAudit } from "./audit";
 import { ensureUserRow } from "./sync-user";
 
@@ -46,6 +47,36 @@ export async function createAttachment(input: z.infer<typeof createAttachmentInp
       diff: { attachmentId: row.id, kind: parsed.kind, filename: parsed.filename },
     });
     return row;
+  });
+}
+
+/**
+ * Batch-resolve signed read URLs for a set of attachment ids (e.g. the
+ * denormalized `attachment_id` on a list of COI rows). One org-scoped query
+ * plus local HMAC signing per row — safe to call from a server component.
+ * Returns an empty map when storage is unconfigured.
+ */
+export async function getAttachmentReadUrls(
+  ids: Array<string | null | undefined>,
+): Promise<Map<string, { url: string; filename: string | null }>> {
+  const unique = Array.from(new Set(ids.filter((x): x is string => !!x)));
+  if (unique.length === 0 || !storageConfigured()) {
+    return new Map();
+  }
+  return withStaffScope(async (tx, ctx) => {
+    const rows = await tx
+      .select({
+        id: attachments.id,
+        storageKey: attachments.storageKey,
+        filename: attachments.filename,
+      })
+      .from(attachments)
+      .where(and(eq(attachments.orgId, ctx.orgId), inArray(attachments.id, unique)));
+    const out = new Map<string, { url: string; filename: string | null }>();
+    for (const r of rows) {
+      out.set(r.id, { url: await signReadUrl(r.storageKey), filename: r.filename });
+    }
+    return out;
   });
 }
 

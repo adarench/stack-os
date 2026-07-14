@@ -1,9 +1,10 @@
 import "server-only";
 import { z } from "zod";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { properties } from "@db/schema/properties";
 import { units } from "@db/schema/units";
 import { users } from "@db/schema/users";
+import { tenantUsers } from "@db/schema/compliance";
 import { withStaffScope } from "./db";
 import { writeAudit } from "./audit";
 import { ensureUserRow } from "./sync-user";
@@ -152,4 +153,24 @@ export async function listUnits(propertyId?: string) {
     if (propertyId) conds.push(eq(units.propertyId, propertyId));
     return tx.select().from(units).where(and(...conds)).orderBy(asc(units.label));
   });
+}
+
+/**
+ * Residents in the org (non-revoked), for the admin "log a request on behalf
+ * of a tenant" flow. Includes `unitId` so the request form can filter tenants
+ * down to the chosen unit client-side.
+ */
+export async function listTenants() {
+  return withStaffScope(async (tx, ctx) =>
+    tx
+      .select({
+        id: tenantUsers.id,
+        name: tenantUsers.name,
+        email: tenantUsers.email,
+        unitId: tenantUsers.unitId,
+      })
+      .from(tenantUsers)
+      .where(and(eq(tenantUsers.orgId, ctx.orgId), ne(tenantUsers.status, "revoked")))
+      .orderBy(asc(tenantUsers.email)),
+  );
 }

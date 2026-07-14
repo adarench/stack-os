@@ -6,10 +6,12 @@ import {
   addFinding,
   completeInspection,
   createInspection,
+  moveInspection,
   removeFinding,
   reviewInspection,
   updateFinding,
 } from "@/lib/server/inspections";
+import type { InspectionStatus } from "@contracts/state-machines/inspection";
 import {
   addInspectionItem,
   toggleInspectionItem,
@@ -106,5 +108,26 @@ export async function reviewInspectionAction(formData: FormData): Promise<void> 
   await reviewInspection(inspectionId);
   revalidatePath(`/inspections/${inspectionId}`);
   revalidatePath("/inspections");
+}
+
+/**
+ * Board move — used by drag-and-drop and the per-card Move menu. Routes the
+ * status change (incl. the completeInspection WO-spawn side effect) and returns
+ * the number of work orders spawned so the client can surface it. Invalid
+ * transitions come back as { ok: false } for optimistic rollback.
+ */
+export async function moveInspectionAction(
+  id: string,
+  to: InspectionStatus,
+): Promise<{ ok: true; spawned: number } | { ok: false; error: string }> {
+  try {
+    const { spawned } = await moveInspection(id, to);
+    revalidatePath("/inspections");
+    revalidatePath("/work");
+    revalidatePath("/now");
+    return { ok: true, spawned };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 

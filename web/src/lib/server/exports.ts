@@ -2,6 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { workOrders } from "@db/schema/work-orders";
 import { withStaffScope } from "./db";
+import { loadBuildingReport, loadVendorReport } from "./reporting-summary";
 
 /**
  * CSV-friendly listing for export. Returns work_orders with property + unit
@@ -16,4 +17,14 @@ export async function exportWorkOrdersCsv() {
       .orderBy(workOrders.number);
     return rows;
   });
+}
+
+/** Per-building open + aging counts, for CSV export from the reports page. */
+export async function exportBuildingsCsv() {
+  return loadBuildingReport();
+}
+
+/** Per-vendor load + COI state, for CSV export from the reports page. */
+export async function exportVendorsCsv() {
+  return loadVendorReport();
 }

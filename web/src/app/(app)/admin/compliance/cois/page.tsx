@@ -1,20 +1,21 @@
 import Link from "next/link";
 import { listCois } from "@/lib/server/coi";
 import { listVendors } from "@/lib/server/vendors";
+import { getAttachmentReadUrls } from "@/lib/server/attachments";
 import type { ComplianceStatus } from "@contracts/compliance";
-import { recordCoiAction } from "../_actions";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Panel, SectionHeading } from "@/components/ui/panel";
 import { Badge, toneForStatus } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea, Select } from "@/components/ui/form";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CoiRecordForm } from "@/components/compliance/coi-record-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function CoisPage() {
   const [cois, vendors] = await Promise.all([listCois(), listVendors()]);
   const vendorById = new Map(vendors.map((v) => [v.id, v]));
+  const docs = await getAttachmentReadUrls(cois.map((c) => c.attachmentId));
 
   return (
     <Page width="default">
@@ -30,30 +31,7 @@ export default async function CoisPage() {
 
       <Panel className="mb-6">
         <SectionHeading>Record a COI</SectionHeading>
-        <form action={recordCoiAction} className="grid grid-cols-2 gap-2">
-          <Select required name="vendorId" className="col-span-2">
-            <option value="">— select vendor —</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </Select>
-          <Input name="policyNumber" placeholder="Policy number" />
-          <Input name="carrier" placeholder="Carrier" />
-          <Input
-            name="coverageAmountCents"
-            type="number"
-            min={0}
-            placeholder="Coverage (¢)"
-          />
-          <Input name="effectiveAt" type="date" />
-          <Input name="expiresAt" type="date" className="col-span-2" />
-          <Textarea name="notes" rows={2} placeholder="Notes" className="col-span-2" />
-          <Button type="submit" className="col-span-2">
-            Record COI
-          </Button>
-        </form>
+        <CoiRecordForm vendors={vendors.map((v) => ({ id: v.id, name: v.name }))} />
       </Panel>
 
       {cois.length === 0 ? (
@@ -62,12 +40,23 @@ export default async function CoisPage() {
         <ul className="divide-y divide-border/50">
           {cois.map((c) => {
             const v = vendorById.get(c.vendorId);
+            const doc = c.attachmentId ? docs.get(c.attachmentId) : undefined;
             return (
               <li key={c.id} className="px-2 py-2.5 text-body hover:bg-muted/40">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-foreground">
                     {v?.name ?? "(unknown vendor)"}
                   </span>
+                  {doc && (
+                    <a
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-label text-urgency-inflow hover:underline"
+                    >
+                      PDF
+                    </a>
+                  )}
                   <Badge tone={toneForStatus(c.status)} className="ml-auto">
                     {(c.status as ComplianceStatus).replace(/_/g, " ")}
                   </Badge>

@@ -16,6 +16,7 @@ import {
   type WorkOrderStatus,
   type WorkOrderPriority,
 } from "@contracts/state-machines/work-order";
+import { WORK_ORDER_CATEGORIES } from "@contracts/work-order-category";
 import { withStaffScope, type ScopedDB } from "./db";
 import { writeAudit } from "./audit";
 import { nextWorkOrderNumber } from "./sequence";
@@ -52,6 +53,11 @@ export const createWorkOrderInput = z.object({
   priority: z.enum(WORK_ORDER_PRIORITIES).default("normal"),
   propertyId: z.string().uuid().optional(),
   unitId: z.string().uuid().optional(),
+  // Optional tenant-request framing for operator-logged requests (phone/email):
+  // a tenant issue category and the resident it's on behalf of. Attribution
+  // only — createdByActorType stays "user" and routing is unchanged.
+  category: z.enum(WORK_ORDER_CATEGORIES).optional(),
+  createdByTenantUserId: z.string().uuid().optional(),
   dueAt: z.coerce.date().optional(),
   scheduledFor: z.coerce.date().optional(),
 });
@@ -83,10 +89,12 @@ export async function createWorkOrder(input: CreateWorkOrderInput) {
         priority: parsed.priority,
         propertyId: parsed.propertyId ?? null,
         unitId: parsed.unitId ?? null,
+        category: parsed.category ?? null,
         dueAt: parsed.dueAt ?? null,
         scheduledFor: parsed.scheduledFor ?? null,
         createdByUserId: userId,
         createdByActorType: "user",
+        createdByTenantUserId: parsed.createdByTenantUserId ?? null,
       })
       .returning();
     const row = inserted[0]!;

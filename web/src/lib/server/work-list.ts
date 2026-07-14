@@ -73,6 +73,8 @@ export interface WorkRow {
   unit: string | null;
   /** Raw unit FK — lets the row pivot to the unit drawer (?d=UNT-…). */
   unitId: string | null;
+  /** Raw property FK — lets a surface group/scope rows by building (WOs only). */
+  propertyId?: string | null;
   dueAt: string | null;
   lastActionAt: string;
   lastActionText: string | null;
@@ -288,6 +290,7 @@ async function queryWorkOrders(
       property: r.propertyName,
       unit: r.unitLabel,
       unitId: r.unitId,
+      propertyId: r.propertyId,
       dueAt: r.dueAt ? r.dueAt.toISOString() : null,
       lastActionAt: r.updatedAt.toISOString(),
       lastActionText: lastActionForWO(r.status),

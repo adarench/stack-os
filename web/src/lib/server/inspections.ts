@@ -312,6 +312,87 @@ export async function reviewInspection(inspectionId: string) {
   });
 }
 
+/** scheduled → in_progress (idempotent). Stamps startedAt on first entry. */
+export async function startInspection(inspectionId: string) {
+  return withStaffScope(async (tx, ctx) => {
+    const userId = await ensureUserRow(tx, ctx.orgId, ctx.userId);
+    const ins = await getInspectionRow(tx, ctx.orgId, inspectionId);
+    if (!ins) throw new Error("inspection_not_found");
+    if (ins.status === "in_progress") return ins;
+    if (!canInspectionTransition(ins.status as InspectionStatus, "in_progress")) {
+      throw new Error(`invalid_transition:${ins.status}->in_progress`);
+    }
+    await tx
+      .update(inspections)
+      .set({ status: "in_progress", startedAt: ins.startedAt ?? new Date(), updatedAt: new Date() })
+      .where(eq(inspections.id, ins.id));
+    await writeAudit(tx, {
+      orgId: ctx.orgId,
+      targetType: "inspection",
+      targetId: ins.id,
+      action: "status_changed",
+      actorUserId: userId,
+      diff: { from: ins.status, to: "in_progress" },
+    });
+    return ins;
+  });
+}
+
+/** Any non-terminal → cancelled (idempotent). */
+export async function cancelInspection(inspectionId: string) {
+  return withStaffScope(async (tx, ctx) => {
+    const userId = await ensureUserRow(tx, ctx.orgId, ctx.userId);
+    const ins = await getInspectionRow(tx, ctx.orgId, inspectionId);
+    if (!ins) throw new Error("inspection_not_found");
+    if (ins.status === "cancelled") return ins;
+    if (!canInspectionTransition(ins.status as InspectionStatus, "cancelled")) {
+      throw new Error(`invalid_transition:${ins.status}->cancelled`);
+    }
+    await tx
+      .update(inspections)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(inspections.id, ins.id));
+    await writeAudit(tx, {
+      orgId: ctx.orgId,
+      targetType: "inspection",
+      targetId: ins.id,
+      action: "cancelled",
+      actorUserId: userId,
+    });
+    return ins;
+  });
+}
+
+/**
+ * Board move dispatcher — routes a status change to the right handler so side
+ * effects fire correctly: `completed` runs the WO-spawning completeInspection;
+ * `reviewed` runs reviewInspection; `in_progress`/`cancelled` are simple guarded
+ * transitions. Returns the count of work orders spawned (only non-zero when a
+ * card is dropped into Completed).
+ */
+export async function moveInspection(
+  inspectionId: string,
+  to: InspectionStatus,
+): Promise<{ spawned: number }> {
+  switch (to) {
+    case "in_progress":
+      await startInspection(inspectionId);
+      return { spawned: 0 };
+    case "completed": {
+      const r = await completeInspection(inspectionId);
+      return { spawned: r.spawnedWorkOrderIds.length };
+    }
+    case "reviewed":
+      await reviewInspection(inspectionId);
+      return { spawned: 0 };
+    case "cancelled":
+      await cancelInspection(inspectionId);
+      return { spawned: 0 };
+    default:
+      throw new Error(`unsupported_transition:${to}`);
+  }
+}
+
 async function getInspectionRow(tx: ScopedDB, orgId: string, id: string) {
   const rows = await tx
     .select()

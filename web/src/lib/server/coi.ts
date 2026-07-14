@@ -3,6 +3,7 @@ import { z } from "zod";
 import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { vendorCois } from "@db/schema/compliance";
 import { vendors } from "@db/schema/vendors";
+import { attachments } from "@db/schema/attachments";
 import {
   COMPLIANCE_STATUSES,
   computeComplianceStatus,
@@ -20,6 +21,17 @@ export const recordCoiInput = z.object({
   effectiveAt: z.coerce.date().optional(),
   expiresAt: z.coerce.date().optional(),
   attachmentId: z.string().uuid().optional(),
+  // A freshly-uploaded document (already stored via the sign route). Recorded
+  // as a polymorphic attachment against the new COI row, and denormalized onto
+  // vendor_cois.attachment_id — all in the same transaction.
+  upload: z
+    .object({
+      storageKey: z.string().min(1).max(500),
+      contentType: z.string().min(1).max(120),
+      filename: z.string().max(200).optional(),
+      sizeBytes: z.number().int().min(0).max(50 * 1024 * 1024).optional(),
+    })
+    .optional(),
   notes: z.string().max(10_000).optional(),
 });
 
@@ -83,6 +95,42 @@ export async function recordCoi(input: z.input<typeof recordCoiInput>) {
         status,
       },
     });
+
+    // Persist the uploaded document as a polymorphic attachment and link it
+    // back onto the COI row. The COI id doesn't exist until the insert above,
+    // so the attach happens here (same tx) rather than before recording.
+    if (parsed.upload) {
+      const att = await tx
+        .insert(attachments)
+        .values({
+          orgId: ctx.orgId,
+          targetType: "vendor_coi",
+          targetId: row.id,
+          kind: "coi",
+          storageKey: parsed.upload.storageKey,
+          contentType: parsed.upload.contentType,
+          sizeBytes: parsed.upload.sizeBytes ?? null,
+          filename: parsed.upload.filename ?? null,
+          uploadedByActorType: "user",
+          uploadedByUserId: userId,
+        })
+        .returning({ id: attachments.id });
+      const attachmentId = att[0]!.id;
+      await tx
+        .update(vendorCois)
+        .set({ attachmentId, updatedAt: new Date() })
+        .where(eq(vendorCois.id, row.id));
+      row.attachmentId = attachmentId;
+      await writeAudit(tx, {
+        orgId: ctx.orgId,
+        targetType: "vendor_coi",
+        targetId: row.id,
+        action: "attachment_added",
+        actorUserId: userId,
+        diff: { attachmentId, kind: "coi", filename: parsed.upload.filename },
+      });
+    }
+
     return row;
   });
 }

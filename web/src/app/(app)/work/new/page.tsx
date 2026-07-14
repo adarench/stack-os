@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { listProperties, listUnits } from "@/lib/server/properties";
 import { createWorkOrderAction } from "@/lib/actions/work-orders";
 import { WORK_ORDER_PRIORITIES } from "@contracts/state-machines/work-order";
@@ -27,6 +28,12 @@ export default async function NewWorkOrderPage() {
   return (
     <Page width="narrow">
       <PageHeader title="New work order" backHref="/work" />
+      <p className="mb-3 text-label text-muted-foreground">
+        Logging a resident request?{" "}
+        <Link href="/work/new-request" className="text-urgency-inflow hover:underline">
+          Use the service request form →
+        </Link>
+      </p>
       <form action={action} className="space-y-3">
         <Field label="Title" htmlFor="title">
           <Input required id="title" name="title" maxLength={200} />

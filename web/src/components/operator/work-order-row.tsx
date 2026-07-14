@@ -45,8 +45,6 @@ export function WorkOrderRow({ row }: { row: WorkRow }) {
   const ageDays = row.openedAt ? daysSince(row.openedAt) : null;
   const aging = isOpen && ageDays !== null && ageDays >= 7;
 
-  const where = [row.property, row.unit].filter(Boolean).join(" · ");
-
   // One calm urgency signal: the row's top priority paints a single left
   // accent bar. The operator vocabulary stays on line 2 but reads quietly —
   // muted and monochrome, with only a long age carrying colour. This replaces
@@ -107,7 +105,16 @@ export function WorkOrderRow({ row }: { row: WorkRow }) {
 
       {/* Line 2 — quiet metadata. Monochrome; only a long age gets colour. */}
       <div className="mt-1 flex items-center gap-1.5 pl-[34px] text-label text-muted-foreground">
-        <span className="min-w-0 truncate">{where || "—"}</span>
+        {row.property ? (
+          <span className="min-w-0 truncate">
+            <span className="font-medium text-foreground">{row.property}</span>
+            {row.unit && (
+              <span className="text-muted-foreground"> · {row.unit}</span>
+            )}
+          </span>
+        ) : (
+          <span className="min-w-0 truncate">{row.unit || "—"}</span>
+        )}
         {row.category && (
           <>
             <Dot />

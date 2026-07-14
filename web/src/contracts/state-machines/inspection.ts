@@ -23,6 +23,13 @@ export function canTransition(
   return TRANSITIONS[from].includes(to);
 }
 
+/** Statuses reachable from `from` in one step (drives the board's Move menu). */
+export function allowedNext(
+  from: InspectionStatus,
+): ReadonlyArray<InspectionStatus> {
+  return TRANSITIONS[from];
+}
+
 export const INSPECTION_KINDS = [
   "move_in",
   "move_out",

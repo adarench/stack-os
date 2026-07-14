@@ -5,6 +5,8 @@ import {
   ClipboardCheck,
   Wrench,
   Building2,
+  Building,
+  BarChart3,
 } from "lucide-react";
 
 export interface NavItem {
@@ -49,8 +51,13 @@ export const PRIMARY_NAV: NavItem[] = [
 ];
 
 export const SECONDARY_NAV: NavItem[] = [
+  // Buildings — per-building work-order triage (open work grouped by attention,
+  // one building at a time). Distinct from Properties (history/reporting).
+  { href: "/work/building", label: "Buildings", icon: Building },
   // Property is the ontology / a drill-in (history + reporting), not a daily
   // work-lens — so it lives in the secondary rail, not the primary tabs.
   { href: "/properties", label: "Properties", icon: Building2 },
+  // Reports — the v1 reporting dashboard (throughput, buildings, vendors, COI).
+  { href: "/reports", label: "Reports", icon: BarChart3 },
 ];
 export const FOOT_NAV: NavItem[] = [];

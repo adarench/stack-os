@@ -9,7 +9,6 @@ export const WORK_ORDER_CATEGORIES = [
   "electrical",
   "hvac",
   "appliance",
-  "pest",
   "locks_doors",
   "general",
 ] as const;
@@ -21,7 +20,6 @@ export const WORK_ORDER_CATEGORY_LABELS: Record<WorkOrderCategory, string> = {
   electrical: "Electrical",
   hvac: "Heat / AC",
   appliance: "Appliance",
-  pest: "Pest",
   locks_doors: "Locks & doors",
   general: "Something else",
 };
