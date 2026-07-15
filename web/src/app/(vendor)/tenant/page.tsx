@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function TenantHome() {
   const session = await readTenantSession();
-  if (!session) redirect("/tenant/invalid");
+  if (!session) redirect("/tenant/sign-in");
 
   const requests = await loadTenantRequests(session);
   // Action-needed first, then open, then closed — each newest-first (already

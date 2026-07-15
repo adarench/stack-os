@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function TenantInsurancePage() {
   const session = await readTenantSession();
-  if (!session) redirect("/tenant/invalid");
+  if (!session) redirect("/tenant/sign-in");
 
   const policies = await withTenantScope(session, async (tx) =>
     tx

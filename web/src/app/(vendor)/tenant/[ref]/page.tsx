@@ -21,7 +21,7 @@ export default async function TenantRequestDetailPage({
 }) {
   const { ref } = await params;
   const session = await readTenantSession();
-  if (!session) redirect("/tenant/invalid");
+  if (!session) redirect("/tenant/sign-in");
 
   const req = await loadTenantRequest(session, ref);
   if (!req) notFound();
