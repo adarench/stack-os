@@ -15,6 +15,7 @@ import { assignments } from "@db/schema/assignments";
 import { vendorUsers } from "@db/schema/vendor-users";
 import { WORK_ORDER_STATUSES, canTransition, type WorkOrderStatus } from "@contracts/state-machines/work-order";
 import { withStaffScope, type ScopedDB } from "./db";
+import { signReadUrl, storageConfigured } from "./storage";
 import { loadTurnStatuses } from "./turn-status";
 import {
   loadUnitHistory,
@@ -139,8 +140,11 @@ export interface FileItem {
   id: string;
   filename: string | null;
   kind: string;
+  contentType: string;
   sizeBytes: number | null;
   at: string;
+  /** Signed read URL for viewing/opening the file (null if storage unconfigured). */
+  url: string | null;
 }
 
 /**
@@ -857,13 +861,18 @@ async function loadFiles(
     )
     .orderBy(desc(attachments.createdAt))
     .limit(25);
-  return rows.map((r) => ({
-    id: r.id,
-    filename: r.filename,
-    kind: r.kind,
-    sizeBytes: r.sizeBytes,
-    at: r.createdAt.toISOString(),
-  }));
+  const canSign = storageConfigured();
+  return Promise.all(
+    rows.map(async (r) => ({
+      id: r.id,
+      filename: r.filename,
+      kind: r.kind,
+      contentType: r.contentType,
+      sizeBytes: r.sizeBytes,
+      at: r.createdAt.toISOString(),
+      url: canSign ? await signReadUrl(r.storageKey) : null,
+    })),
+  );
 }
 
 function capitalize(s: string): string {

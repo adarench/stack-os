@@ -28,9 +28,29 @@ const REDIRECTS = [
   { source: "/admin/approvals", destination: "/money?tab=approvals" },
 ];
 
+/**
+ * Baseline security headers. Conservative (no CSP yet — that needs testing
+ * against the inline styles/OAuth flows) but covers the checks a client's IT
+ * reviewer will run: clickjacking, MIME-sniffing, referrer leakage, HSTS, and
+ * a locked-down permissions policy (camera allowed for photo capture only).
+ */
+const SECURITY_HEADERS = [
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(self), microphone=(), geolocation=()",
+  },
+];
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
   async redirects() {
     if (!newShellOn) return [];
     return REDIRECTS.map((r) => ({

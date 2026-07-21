@@ -113,8 +113,10 @@ interface EntityDetail {
     id: string;
     filename: string | null;
     kind: string;
+    contentType: string;
     sizeBytes: number | null;
     at: string;
+    url: string | null;
   }>;
   reason?: string;
   amountCents?: string | null;
@@ -1182,7 +1184,7 @@ function CommentComposer({
               : "bg-muted text-muted-foreground hover:text-foreground",
           )}
         >
-          {visibility === "external" ? "visible to vendor" : "internal"}
+          {visibility === "external" ? "visible to resident / vendor" : "internal (team only)"}
         </button>
         <span className="text-[10px] text-muted-foreground">
           ⌘↵ to post
@@ -1516,23 +1518,52 @@ function FilesList({ data }: { data: EntityDetail }) {
     return <p className="text-sm text-muted-foreground">No files uploaded.</p>;
   }
   return (
-    <ul className="space-y-1">
-      {data.files.map((f) => (
-        <li key={f.id} className="flex items-center gap-2 text-sm">
-          <span className="flex-1 truncate">
-            {f.filename ?? f.id.slice(0, 8)}
-          </span>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            {f.kind}
-          </span>
-          {f.sizeBytes && (
-            <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
-              {formatSize(f.sizeBytes)}
+    <ul className="space-y-1.5">
+      {data.files.map((f) => {
+        const isImage = f.contentType?.startsWith("image/");
+        const name = f.filename ?? f.id.slice(0, 8);
+        return (
+          <li key={f.id} className="flex items-center gap-2 text-sm">
+            {f.url && isImage ? (
+              <a
+                href={f.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0"
+              >
+                {/* Signed R2 URL; next/image would need per-host config for a rotating URL. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={f.url}
+                  alt={name}
+                  className="size-10 rounded border border-border object-cover"
+                />
+              </a>
+            ) : null}
+            {f.url ? (
+              <a
+                href={f.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 truncate text-urgency-inflow hover:underline"
+              >
+                {name}
+              </a>
+            ) : (
+              <span className="flex-1 truncate">{name}</span>
+            )}
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              {f.kind}
             </span>
-          )}
-          <TimeSince at={f.at} />
-        </li>
-      ))}
+            {f.sizeBytes && (
+              <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                {formatSize(f.sizeBytes)}
+              </span>
+            )}
+            <TimeSince at={f.at} />
+          </li>
+        );
+      })}
     </ul>
   );
 }

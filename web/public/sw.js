@@ -28,7 +28,8 @@ self.addEventListener("push", (event) => {
     tag: data.tag || undefined,
     renotify: !!data.tag,
     data: { url: data.url || "/my" },
-    badge: "/manifest.webmanifest",
+    // No `badge` — it must be a monochrome image URL; pointing it at the
+    // .webmanifest silently failed to decode. Omit until a real badge PNG exists.
   };
 
   event.waitUntil(self.registration.showNotification(title, options));

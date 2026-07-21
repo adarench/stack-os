@@ -19,8 +19,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Do not disable zoom — pinch-to-zoom is a WCAG 2.1 AA requirement (SC 1.4.4)
+  // and a mobile-web-app "feel" does not require locking scale on modern iOS/Android.
   themeColor: "#0a0a0a",
 };
 
