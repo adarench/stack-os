@@ -1,0 +1,122 @@
+name: CI
+
+# M0 · OBS-001 — quality gate for the Lucid rollout.
+#
+# Two jobs, deliberately separated so the database state is HONEST:
+#   • build-and-test  — always runs; the primary, non-database gate. NEVER claims
+#                       database-backed enforcement.
+#   • integration     — DB-backed integration + RLS. VISIBLY SKIPPED (not a green
+#                       pass) unless the repo variable CI_DB_ENABLED=true AND the
+#                       secret CI_DATABASE_URL (a DISPOSABLE Neon CI branch) are set.
+#
+# CI does NOT prove end-to-end production behavior. Playwright e2e is excluded
+# (needs browsers, E2E_BYPASS_AUTH, a running server, a DB) — run locally via
+# `pnpm test:e2e`.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & non-database tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject committed env files (secret hygiene · SEC-006)
+        run: |
+          bad="$(git ls-files | grep -E '(^|/)\.env' | grep -v -E '(^|/)\.env\.example$' || true)"
+          if [ -n "$bad" ]; then
+            echo "::error::Tracked environment file(s) found (only .env.example may be committed):"
+            echo "$bad"
+            exit 1
+          fi
+          echo "OK: no committed env files."
+
+      # pnpm before setup-node so setup-node's pnpm cache works. Version comes
+      # from the root package.json "packageManager" field.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install (deterministic)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Lint design tokens
+        run: pnpm --filter web lint:tokens
+
+      - name: Unit tests (DB-backed integration self-skips without DATABASE_URL)
+        run: pnpm --filter web test
+
+      - name: Production build
+        run: pnpm build
+
+      - name: CI summary
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## ✅ Non-database CI (enforced on every push)
+          Ran: `install --frozen-lockfile`, `typecheck`, `lint`, `lint:tokens`, **unit tests**, production `build`.
+
+          > ⚠️ **Database-backed integration + RLS tests did NOT run in this job.** Vitest self-skips them without `DATABASE_URL`, so RLS/tenant-isolation is **not enforced here**. They run only in the separate **integration** job, which is **skipped** unless:
+          > - repository **variable** `CI_DB_ENABLED` = `true`, and
+          > - repository **secret** `CI_DATABASE_URL` points at a **disposable** Neon CI branch.
+          >
+          > Until both are configured (and the integration job is added to branch protection), database-backed enforcement is a **known gap** — see `docs/lucid-rollout/RELEASE_CHECKLIST.md`.
+          EOF
+
+  integration:
+    name: Database integration + RLS (disposable CI branch)
+    # Visibly SKIPPED — not a green pass — until a disposable CI database is enabled.
+    if: ${{ vars.CI_DB_ENABLED == 'true' }}
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+      DATABASE_URL_UNPOOLED: ${{ secrets.CI_DATABASE_URL_UNPOOLED }}
+    steps:
+      - name: Require a configured CI database (never prints it)
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::CI_DB_ENABLED=true but CI_DATABASE_URL is empty. Set it to a DISPOSABLE Neon CI branch URL — never a production or developer database."
+            exit 1
+          fi
+          echo "CI database is configured (connection string not printed)."
+
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+      - name: Install (deterministic)
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations + RLS to the disposable CI database
+        run: pnpm --filter web db:migrate
+
+      - name: Integration + RLS tests
+        run: pnpm --filter web test
+
+      - name: CI summary
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## 🛢️ Database-backed CI
+          Applied migrations + RLS policies and ran the **integration + RLS** suite against the **disposable** CI Neon branch. A failure in migrations or any test fails this job.
+          EOF

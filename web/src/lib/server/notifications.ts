@@ -14,6 +14,7 @@ import {
 import { withScope, type ScopedDB } from "./db";
 import type { ActorType, NotificationChannel, PolymorphicTarget } from "@contracts/polymorphic";
 import { inngest } from "@/lib/inngest-client";
+import { logger, logError } from "./logger";
 
 export type NotificationKind =
   | "wo_assigned"
@@ -195,16 +196,18 @@ export async function emitNotification(args: {
       return;
     } catch (e) {
       // Fall through to inline.
-      // eslint-disable-next-line no-console
-      console.warn("[notify] inngest.send failed; falling back to inline:", (e as Error).message);
+      logger.warn("notify.inngest_send_failed", {
+        kind: args.kind,
+        orgId: args.orgId,
+        err: e,
+      });
     }
   }
 
   try {
     await dispatchInline(args);
   } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error("[notify] dispatchInline failed:", (e as Error).message);
+    logError("notify.dispatch_failed", e, { kind: args.kind, orgId: args.orgId });
   }
 }
 
