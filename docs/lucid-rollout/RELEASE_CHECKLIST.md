@@ -57,6 +57,7 @@ ship with any ❌ on a P0 line. Cross-refs: [`AUTH_SPEC.md`](./AUTH_SPEC.md),
 ## Real-device tests
 - [ ] Tenant + technician flows on real iPhone Safari **and** Android Chrome.
 - [ ] Photo capture incl. HEIC (ATT-006); large-file rejection; retry.
+- [ ] (M0 baseline audit: `manifest.webmanifest` is valid with no broken references, `sw.js`/`tenant-sw.js` present — `test/unit/manifest.test.ts`. **Not installable yet** — icons/offline-SW/global-registration are M7.)
 - [ ] **PWA installable** (icons/manifest/SW) on iOS + Android (PWA-004) — launch gate.
 - [ ] **Web push** received foreground/background/closed/expired/revoked on real
   devices (PUSH-005) — launch gate.

@@ -115,39 +115,44 @@ describe.skipIf(skip)("P3 template spawn", () => {
 
   it("paused template skips spawning", async () => {
     await setTemplateActive(templateId, false);
-    // Run the cron — it should not fire a paused template
-    const r = await runDueTemplates();
-    // Even if the template's nextFireAt is past, isActive=false filters it out
-    expect(r.spawned).toBe(0);
+    // runDueTemplates() is an ORG-WIDE sweep, so its global `spawned` count is
+    // polluted by any other org's due templates (e.g. seed data) — asserting on
+    // it is non-isolated and flakes under the full suite. Assert instead on THIS
+    // template's own fires: a paused template must not fire, regardless of what
+    // else is due across the DB.
+    const before = (await listTemplateFires(templateId)).length;
+    await runDueTemplates();
+    const after = (await listTemplateFires(templateId)).length;
+    expect(after).toBe(before);
     await setTemplateActive(templateId, true);
   });
 
   it("spawn is idempotent on the same fire_at", async () => {
     if (!admin) return;
-    // Use admin to set nextFireAt to a known past time
     const knownFireAt = new Date("2026-05-01T13:00:00Z");
-    await admin.begin(async (tx) => {
-      await tx`select set_config('app.actor_type', 'system', true)`;
-      await tx`select set_config('app.org_id', ${TEST_ORG}, true)`;
-      await tx`set local role app_user`;
-      await tx`update task_templates set next_fire_at = ${knownFireAt} where id = ${templateId}`;
-    });
+    const armFireAt = async () => {
+      await admin!.begin(async (tx) => {
+        await tx`select set_config('app.actor_type', 'system', true)`;
+        await tx`select set_config('app.org_id', ${TEST_ORG}, true)`;
+        await tx`set local role app_user`;
+        await tx`update task_templates set next_fire_at = ${knownFireAt} where id = ${templateId}`;
+      });
+    };
 
-    const r1 = await runDueTemplates(new Date());
-    expect(r1.spawned).toBeGreaterThanOrEqual(1);
+    // First sweep with this template due → it fires exactly once for this fire_at.
+    // Assert on THIS template's fires (not the org-wide count) so other orgs'
+    // templates are irrelevant and the test is deterministic under the full suite.
+    await armFireAt();
+    const before = (await listTemplateFires(templateId)).length;
+    await runDueTemplates(new Date());
+    const afterFirst = (await listTemplateFires(templateId)).length;
+    expect(afterFirst).toBe(before + 1);
 
-    // Reset nextFireAt back to the same fire-at to simulate a re-run hitting
-    // the same period (it shouldn't double-spawn).
-    await admin.begin(async (tx) => {
-      await tx`select set_config('app.actor_type', 'system', true)`;
-      await tx`select set_config('app.org_id', ${TEST_ORG}, true)`;
-      await tx`set local role app_user`;
-      await tx`update task_templates set next_fire_at = ${knownFireAt} where id = ${templateId}`;
-    });
-
-    const r2 = await runDueTemplates(new Date());
-    // Idempotent: 0 actually-spawned (skipped due to dedupe key)
-    expect(r2.skipped).toBeGreaterThanOrEqual(1);
-    expect(r2.spawned).toBe(0);
+    // Re-arm the SAME fire_at and sweep again → dedupe on (template, fire_at)
+    // means NO second fire for this template.
+    await armFireAt();
+    await runDueTemplates(new Date());
+    const afterSecond = (await listTemplateFires(templateId)).length;
+    expect(afterSecond).toBe(afterFirst);
   }, 30_000);
 });

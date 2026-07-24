@@ -176,8 +176,8 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 ## PWA — installable app (LAUNCH GATE)
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
-| PWA-001 | Manifest icons + assets | P0 | M7 | **Defective** | prod | `icons:[]`; no assets | | |
-| PWA-002 | Service worker (offline messaging min) | P1 | M7 | Partial | prod | push-only SW, no cache | | |
+| PWA-001 | Manifest icons + assets | P0 | M7 | **Defective** | prod | `icons:[]`; no icon assets. M0 audit: manifest **valid JSON, no broken refs**; test `test/unit/manifest.test.ts` | | installability deferred to M7 (launch gate); do NOT infer installability from manifest presence |
+| PWA-002 | Service worker (offline messaging min) | P1 | M7 | Partial | prod | `sw.js`/`tenant-sw.js` exist + referenced; opt-in-only registration; no offline cache | | global registration + offline caching = M7 |
 | PWA-003 | Safe areas, large touch targets, branding | P1 | M7 | Partial | prod | mobile shells exist | | |
 | PWA-004 | Installable on iOS/Android | P0 | M7 | Backlog | — | blocked by PWA-001 | PWA-001 | launch gate |
 | PWA-005 | Persistent secure sessions on device | P1 | M7 | Deployed | prod | 30-day cookies | AUTH-003 | |

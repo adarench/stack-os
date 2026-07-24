@@ -16,12 +16,20 @@
   `audit-workorders.ts` generalized into a committed read-only tool; 5 one-offs
   quarantined (OBS-001/003 · partial OBS-002/004/005 · SEC-006 · SEC-007 partial).
 - **Focused automated tests added:** `test/unit/logger.test.ts` (redaction, 6),
-  `test/unit/health-ready.test.ts` (readiness, 4).
+  `test/unit/health-ready.test.ts` (readiness, 4), `test/unit/manifest.test.ts`
+  (PWA manifest baseline, 4).
+- **PWA baseline audited — no M0 change:** `manifest.webmanifest` is valid JSON with
+  **no broken references**; `sw.js`/`tenant-sw.js` exist and are correctly referenced.
+  Missing icons/offline-cache/global-registration/installability are **M7** (launch
+  gate, PWA-001/002/004), not M0 defects. Not installable today — do not infer
+  installability from the manifest.
+- **Test-suite determinism fixed:** `template-spawn.test.ts` asserted the org-wide
+  `runDueTemplates()` global count (polluted by seed templates in the shared Neon
+  branch); reworked to assert per-template fires. Now deterministic across full-suite
+  runs (test-only change; no production behavior change).
 - Gates green: typecheck ✓ · lint ✓ · `lint:tokens` ✓ · build ✓ · `--frozen-lockfile`
-  consistent post-Clerk-removal. **206/208 tests pass**; the 2 failures are a
-  **pre-existing** `template-spawn` integration-isolation flake (passes 5/5 in
-  isolation; green in the pre-change baseline; unrelated to M0 — self-skips in the
-  non-DB CI job).
+  consistent. **212/212 tests pass across 3 consecutive full-suite runs**
+  (`pnpm --filter web test`) after the `template-spawn` determinism fix.
 
 ## In progress
 - M0 awaiting: merge authorization + a `CI_DATABASE_URL` (Neon branch) secret to enforce
