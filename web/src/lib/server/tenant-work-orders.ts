@@ -5,6 +5,7 @@ import { withTenantScope, withScope } from "./db";
 import { workOrders } from "@db/schema/work-orders";
 import { comments } from "@db/schema/comments";
 import { assignments } from "@db/schema/assignments";
+import { orgSettings } from "@db/schema/commercial";
 import { tenantUsers } from "@db/schema/compliance";
 import { units } from "@db/schema/units";
 import { properties } from "@db/schema/properties";
@@ -60,17 +61,32 @@ export async function createWorkOrderFromTenant(
   const result = await withScope(
     { orgId: session.orgId, actorType: "system" },
     async (tx) => {
-      // ASN-001 fix: resolve the covering technician BEFORE insert so a
-      // resident-submitted WO auto-assigns on submit (previously it was created
-      // unassigned — ownerless, un-acknowledgeable, stuck in the "attention" lens).
+      // ASN-001/003/008: resolve an assignee BEFORE insert so a resident WO
+      // auto-assigns on submit and is never silently left unassigned. Priority:
+      // (1) the building/property covering tech; (2) the org-level fallback.
       let tech: { id: string; email: string | null; phone: string | null } | null = null;
-      if (scope.coveringUserId) {
+      let routingReason = "property_routing";
+      const lookupTech = async (userId: string) => {
         const [u] = await tx
           .select({ id: users.id, email: users.email, phone: users.phone })
           .from(users)
-          .where(and(eq(users.orgId, session.orgId), eq(users.id, scope.coveringUserId)))
+          .where(and(eq(users.orgId, session.orgId), eq(users.id, userId)))
           .limit(1);
-        tech = u ?? null;
+        return u ?? null;
+      };
+      if (scope.coveringUserId) {
+        tech = await lookupTech(scope.coveringUserId);
+      }
+      if (!tech) {
+        const [settings] = await tx
+          .select({ fallback: orgSettings.fallbackAssigneeUserId })
+          .from(orgSettings)
+          .where(eq(orgSettings.orgId, session.orgId))
+          .limit(1);
+        if (settings?.fallback) {
+          tech = await lookupTech(settings.fallback);
+          if (tech) routingReason = "org_fallback";
+        }
       }
 
       const number = await nextWorkOrderNumber(tx, session.orgId);
@@ -114,7 +130,7 @@ export async function createWorkOrderFromTenant(
           targetId: row!.id,
           action: "auto_assigned",
           actorType: "system",
-          diff: { to: { assigneeUserId: tech.id }, reason: "property_routing" },
+          diff: { to: { assigneeUserId: tech.id }, reason: routingReason },
         });
       }
       return { row: row!, tech };

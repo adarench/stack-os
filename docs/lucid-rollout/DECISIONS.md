@@ -160,6 +160,16 @@ reads the new model. Larger workstream (M3).
 **Revisit trigger.** A simpler portfolio makes the hierarchy overkill (unlikely
 for commercial).
 
+**Implementation note (M3).** Realized **additively** rather than as an all-new
+table hierarchy + backfill (which would rewire `work_orders`/`units` app-wide and
+is high-risk): `properties` = **building**, `units` = **suite** (now carrying
+`floor`/`suite` columns), plus a first-class **`tenant_companies`** table
+(`tenant_users.company_id`) and an **`org_settings`** table for the org-level
+**fallback assignee** (ASN-003/008). Migration `0015` is additive (no backfill).
+This delivers the commercial location + company + routing capability now; a fully
+separate `buildings/floors/suites` table hierarchy remains a later refinement if a
+multi-building-per-property need appears.
+
 ---
 
 ## LR-012 — Completion summary is structured/deterministic first

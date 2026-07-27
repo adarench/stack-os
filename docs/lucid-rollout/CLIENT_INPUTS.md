@@ -7,6 +7,15 @@ hard-code any client-specific person, building, or routing rule** — everything
 here becomes configuration/records, not code. Validation = confirmed usable
 (format correct, mapped, imported).
 
+> **Blocker status (M3):** the **technical** blocker is resolved — the system now
+> holds the commercial model (property=building, `floor`/`suite` on units,
+> first-class `tenant_companies`, `org_settings` fallback assignee) and routes
+> resident WOs (building tech → org fallback → never silently unassigned), all
+> tested (`m3-routing`). What remains is **data entry**: the real Lucid buildings/
+> floors/suites/company mappings + routing owners still need to be provided
+> (CI-04…12 below) and entered via admin/import. Send the copy/paste request at
+> the bottom to unblock population.
+
 | # | Item | From | Contact | Why needed | Blocks | Requested | Received | Validation | Notes |
 |---|---|---|---|---|---|---|---|---|---|
 | CI-01 | Approved user list (names + emails) | Lucid | TBD | Individual identities; invites | M1 | TBD | — | — | no shared login (IDN-003) |

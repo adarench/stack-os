@@ -9,6 +9,13 @@
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
 ## Completed this period
+- **M3 commercial model + fallback routing (in review, not deployed):** migration 0015
+  (additive) — `floor`/`suite` on units, first-class `tenant_companies` (+ `tenant_users.company_id`),
+  `org_settings` fallback assignee; routing chain **building tech → org fallback → never silently
+  unassigned** (ASN-003/008); `commercial.ts` admin API; RLS on the new tables. **229/229 tests**
+  (2 new: `m3-routing`). Pragmatic realization of LR-011 (property=building, unit=suite) — see
+  DECISIONS impl note. **Technical blocker "fixed": system holds + routes Lucid's commercial data;
+  real data entry is the remaining step** (CLIENT_INPUTS).
 - **M2 confirmed-defect fixes (merged; not deployed):** **ASN-001** (resident WOs
   auto-assign the covering technician + audit), **MSG-001** (ops composer defaults
   to a requester-visible "reply to requester" on tenant WOs, labeled to avoid

@@ -76,12 +76,12 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 |---|---|---|---|---|---|---|---|---|
 | ASN-001 | Tenant-submitted WO auto-assigns covering tech | P0 | M2 | In review | — | **FIXED**: inserts `assignments` row + status `assigned` `tenant-work-orders.ts`; test `m2-tenant-defects` | | not deployed |
 | ASN-002 | Building→technician ownership config | P0 | M3 | Partial | prod | property-level only `properties.defaultAssigneeUserId` | LOC-006 | extend to buildings |
-| ASN-003 | Default/fallback assignee (org-level) | P0 | M3 | Not-impl | — | none | ADM-003 | prevents silent unassigned |
+| ASN-003 | Default/fallback assignee (org-level) | P0 | M3 | In review | — | `org_settings.fallbackAssigneeUserId` + routing `tenant-work-orders.ts`; test `m3-routing` | ADM-003 | not deployed |
 | ASN-004 | Manual reassignment | P1 | M3 | Partial | prod | vendor reassign; no staff-user per-WO UI | | |
 | ASN-005 | Technician absence / escalation coverage | P1 | M3 | Not-impl | — | none | ASN-003 | |
 | ASN-006 | Assignment audit trail (auto + manual) | P1 | M3 | Partial | prod | `assignments` + audit | | ensure tenant path audits |
 | ASN-007 | Assignment reasoning visible to STACK | P1 | M3 | Not-impl | — | none | | "assigned via building rule" |
-| ASN-008 | Prevent silent unassigned | P0 | M3 | Not-impl | — | invariant currently false | ASN-001/003 | |
+| ASN-008 | Prevent silent unassigned | P0 | M3 | In review | — | property tech → org-fallback chain `tenant-work-orders.ts`; test `m3-routing` | ASN-001/003 | not deployed (no-fallback case still lands `new`) |
 
 ## MSG — messaging
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
@@ -185,14 +185,14 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 ## LOC — commercial location & company model
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
-| LOC-001 | `buildings` table | P0 | M3 | Backlog | — | flat `properties` today | LR-011 | |
-| LOC-002 | `floors` table | P0 | M3 | Backlog | — | none | LOC-001 | |
-| LOC-003 | `suites` table (or unit extension) | P0 | M3 | Backlog | — | `units.label` only | LOC-002 | |
-| LOC-004 | `tenant_companies` table + membership | P0 | M3 | Backlog | — | none | LR-011 | |
-| LOC-005 | Tenant user → company + suite + building mapping | P0 | M3 | Backlog | — | `tenant_users.unitId` only | LOC-003/004 | session-derived |
-| LOC-006 | Building-level routing ownership | P0 | M3 | Backlog | — | property-level today | ASN-002 | |
-| LOC-007 | Migration + backfill from flat model | P0 | M3 | Backlog | — | — | LOC-001..005 | reversible + dual-read |
-| LOC-008 | RLS policies for new location tables | P0 | M3 | Backlog | — | pattern in `rls-policies.sql` | SEC-004 | preserve ADR-006 |
+| LOC-001 | `buildings` table | P0 | M3 | In review | — | pragmatic: `properties` = building (see LR-011 impl note) | LR-011 | not deployed |
+| LOC-002 | `floors` table | P0 | M3 | In review | — | `units.floor` column (migration 0015) | LOC-001 | not deployed |
+| LOC-003 | `suites` table (or unit extension) | P0 | M3 | In review | — | `units.suite` column; unit = suite | LOC-002 | not deployed |
+| LOC-004 | `tenant_companies` table + membership | P0 | M3 | In review | — | `tenant_companies` table + `tenant_users.company_id` `commercial.ts` | LR-011 | not deployed |
+| LOC-005 | Tenant user → company + suite + building mapping | P0 | M3 | In review | — | `company_id` + unit→property; session-derived | LOC-003/004 | not deployed |
+| LOC-006 | Building-level routing ownership | P0 | M3 | In review | — | `properties.defaultAssigneeUserId` + org fallback | ASN-002 | not deployed |
+| LOC-007 | Migration + backfill from flat model | P0 | M3 | In review | — | migration 0015 (additive; no backfill needed) | LOC-001..005 | not deployed |
+| LOC-008 | RLS policies for new location tables | P0 | M3 | In review | — | staff_org on `tenant_companies`+`org_settings`; test `m3-routing` | SEC-004 | not deployed |
 
 ## ADM — admin & technician management
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
