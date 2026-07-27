@@ -3,12 +3,30 @@
 **Executive control surface. Update this in the same change that materially moves any requirement.**
 
 - **Overall state:** **M0 in production** (`1de22f22`); **M1 (credential auth) + M2 (defect fixes) merged** to `redesign/operator-shell` (flag-gated / additive; not yet deployed); **M3 (commercial model + routing) in progress.** Not yet in pilot.
-- **Current milestone:** M5 (completion lifecycle + summary) — in review; M3/M4 in review
+- **Current milestone:** M7 (push + installable PWA, launch gate) — in review; M3–M6 in review
 - **Last updated:** 2026-07-27
+- **Prod DB schema note:** per owner decision (2026-07-27), migrations **0014–0017** are applied to
+  the shared `neondb` (all additive/forward-compatible; the deployed M0 app references none of them).
+  A future code deploy therefore needs the **merges only**, not the migrations. `stack_os_ci` mirrors it.
 - **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `1de22f22` (M0 deployed; `/api/health/ready` live)
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
 ## Completed this period
+- **M7 push + installable PWA — launch gate (in review, not deployed):** generated the branded
+  icon set (192 / 512 / maskable-512 / apple-touch-180) with a **zero-dependency** pure-Node PNG
+  encoder (`scripts/gen-pwa-icons.mjs`); wired `manifest.webmanifest` + layout `icons`/apple-touch.
+  `sw.js` + `tenant-sw.js` now **precache an offline shell + serve `offline.html`** on a failed
+  navigation (network-first; **never caches authenticated HTML** — RLS safety); `ServiceWorkerRegister`
+  registers the right SW **on every load** (not opt-in-only) → installable. `manifest.test.ts` now
+  asserts the install contract (7 tests). **250/250.** PWA-001/002/004, PUSH-002 → In review.
+  **Remaining gate: on-device install + web-push validation on real iPhone/Android + VAPID keys.**
+- **M6 email notifications (in review, not deployed):** `email-templates.ts` — one branded,
+  table-based, inline-CSS transactional shell + `absoluteUrl()` deep links (replaces bare
+  `<p>${body}</p>`); **EML-004** staff status email now resolves the creator's address in-tx
+  (was in_app-only); **EML-009** idempotency via `notifications.idempotency_key` + partial unique
+  index (migration 0017) + per-channel dedupe. Inngest event now typed from `dispatchInline` (was
+  dropping tenant/url fields). **247/247** (10 new). EML-004/008/009, → In review.
+  **Remaining gate: verified Resend domain + `RESEND_API_KEY` for real delivery.**
 - **M5 completion lifecycle + structured summary (in review, not deployed):** migration 0016
   (additive `work_orders.completion_summary` jsonb); `completion.ts` assembles a **deterministic**
   summary at completion (requester, location/floor/suite, technician, work-performed = internal

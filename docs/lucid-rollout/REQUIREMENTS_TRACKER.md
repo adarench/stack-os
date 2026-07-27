@@ -153,12 +153,12 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 | EML-001 | New-submission email | P1 | M6 | Partial | prod | `wo_submitted` to tech `tenant-work-orders.ts:102` | | |
 | EML-002 | Assignment/reassignment email | P1 | M6 | Partial | prod | `wo_assigned` | ASN-* | |
 | EML-003 | New participant-visible message email | P1 | M6 | Partial | prod | `wo_message` | MSG-001 | |
-| EML-004 | Status-change email (fix staff never-emails) | P1 | M6 | **Defective** | prod | `recipientEmail` null `work-orders.ts:315-317` | | |
+| EML-004 | Status-change email (fix staff never-emails) | P1 | M6 | **In review** | — | FIXED — creator email resolved in-tx `work-orders.ts`; email channel now fires | | branded template + deep link |
 | EML-005 | Completion email w/ summary | P1 | M6 | Backlog | — | — | SUM-002 | |
 | EML-006 | Tenant confirmation / reopen email | P1 | M6 | Partial | prod | `wo_verified`/`wo_reopened` | | |
 | EML-007 | Escalation/overdue email | P2 | M6 | Not-impl | — | none | ASN-005 | |
-| EML-008 | Auth deep links + correct recipient + no cross-tenant leak | P1 | M6 | Partial | prod | session-gated links `notifications.ts:390` | | |
-| EML-009 | Retry/idempotency (no uncontrolled duplicates) | P1 | M6 | Defective | prod | double-send risk `dispatch-notification.ts:42` | | idempotency key |
+| EML-008 | Auth deep links + correct recipient + no cross-tenant leak | P1 | M6 | In review | — | absolute deep links via `email-templates.ts`; `absoluteUrl()` + CTA button; session-gated | | |
+| EML-009 | Retry/idempotency (no uncontrolled duplicates) | P1 | M6 | In review | — | FIXED — `notifications.idempotency_key` + partial unique index (0017); per-channel dedupe in `dispatchInline` | | |
 | EML-010 | Delivery logging + failure observability | P1 | M6 | Deployed | prod | status/error/providerMessageId | OBS-002 | |
 | EML-011 | Templates + preferences/unsubscribe | P1 | M6 | Partial | prod | inline HTML `notifications.ts:335`; prefs table exists | | |
 | EML-012 | Provider/SMTP secret via env (never committed) | P0 | M6 | Ready | prod | `RESEND_API_KEY` env | SEC-006 | verify prod key+domain |
@@ -167,7 +167,7 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
 | PUSH-001 | Web push for supported devices | P0 | M7 | Partial | prod | real web-push `push.ts` | LR-008 | operational when VAPID set |
-| PUSH-002 | Global SW registration + subscription lifecycle | P0 | M7 | Partial | prod | SW registers only on opt-in | PWA-002 | |
+| PUSH-002 | Global SW registration + subscription lifecycle | P0 | M7 | In review | — | `ServiceWorkerRegister` registers per-surface on every load (not opt-in-only) | PWA-002 | subscription lifecycle unchanged |
 | PUSH-003 | Foreground/background/closed/expired/revoked handling | P0 | M7 | Backlog | — | prune on 404/410 exists | | test matrix |
 | PUSH-004 | Notification preferences | P1 | M7 | Partial | prod | `notification_preferences` | EML-011 | |
 | PUSH-005 | Real iPhone + Android validation | P0 | M7 | Backlog | — | none | | launch gate |
@@ -176,10 +176,10 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 ## PWA — installable app (LAUNCH GATE)
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
-| PWA-001 | Manifest icons + assets | P0 | M7 | **Defective** | prod | `icons:[]`; no icon assets. M0 audit: manifest **valid JSON, no broken refs**; test `test/unit/manifest.test.ts` | | installability deferred to M7 (launch gate); do NOT infer installability from manifest presence |
-| PWA-002 | Service worker (offline messaging min) | P1 | M7 | Partial | prod | `sw.js`/`tenant-sw.js` exist + referenced; opt-in-only registration; no offline cache | | global registration + offline caching = M7 |
+| PWA-001 | Manifest icons + assets | P0 | M7 | **In review** | — | FIXED — generated icon set (192/512/maskable-512/apple-touch-180) via `scripts/gen-pwa-icons.mjs`; manifest + layout wired; `manifest.test.ts` asserts install contract | | |
+| PWA-002 | Service worker (offline messaging min) | P1 | M7 | In review | — | `sw.js`+`tenant-sw.js` now precache offline shell + network-first navigations → `offline.html`; global registration | | never caches authenticated HTML (RLS safety) |
 | PWA-003 | Safe areas, large touch targets, branding | P1 | M7 | Partial | prod | mobile shells exist | | |
-| PWA-004 | Installable on iOS/Android | P0 | M7 | Backlog | — | blocked by PWA-001 | PWA-001 | launch gate |
+| PWA-004 | Installable on iOS/Android | P0 | M7 | In review | — | code-complete (icons + SW + registration); **on-device install still needs real iPhone/Android** | PWA-001 | launch gate — device validation |
 | PWA-005 | Persistent secure sessions on device | P1 | M7 | Deployed | prod | 30-day cookies | AUTH-003 | |
 
 ## LOC — commercial location & company model

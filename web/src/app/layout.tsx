@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://stack-os-six.vercel.app"),
@@ -13,6 +14,15 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "Stack OS",
+  },
+  // PWA-001 installability: Chrome reads the manifest icons; iOS home-screen
+  // needs an explicit apple-touch-icon link (it ignores the manifest).
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon-180.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
@@ -29,7 +39,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <ServiceWorkerRegister />
+        {children}
+      </body>
     </html>
   );
 }
