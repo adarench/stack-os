@@ -11,7 +11,10 @@ export const units = pgTable(
       .notNull()
       .references(() => properties.id, { onDelete: "restrict" }),
     externalId: text("external_id"),
-    label: text("label").notNull(), // e.g. "Apt 3B"
+    label: text("label").notNull(), // e.g. "Apt 3B" / "Suite 100"
+    // Commercial spatial detail (M3 · LOC-002/003). Additive + nullable.
+    floor: text("floor"),
+    suite: text("suite"),
     bedrooms: text("bedrooms"),
     bathrooms: text("bathrooms"),
     squareFeet: text("square_feet"),

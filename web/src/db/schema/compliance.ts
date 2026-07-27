@@ -49,6 +49,8 @@ export const tenantUsers = pgTable(
     id: id(),
     orgId: orgId(),
     unitId: uuid("unit_id"),
+    // Occupying tenant company (M3 · LOC-004/005). Additive + nullable.
+    companyId: uuid("company_id"),
 
     email: text("email").notNull(),
     name: text("name"),

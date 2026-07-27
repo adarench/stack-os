@@ -18,6 +18,7 @@ export * from "./inspections";
 export * from "./checklists";
 export * from "./projects";
 export * from "./compliance";
+export * from "./commercial";
 export * from "./financials";
 export * from "./follow-ups";
 export * from "./saved-views";
