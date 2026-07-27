@@ -113,10 +113,13 @@
   demo-stub removal (M1), Sentry vendor (manual), migration-on-deploy decision (LR-013).
 
 ## Next actions
-1. Human review + merge PR #2 (draft); add branch protection so the DB check gates merges (plan-gated).
+1. **Execute the coordinated deploy** — follow [`DEPLOY_RUNBOOK.md`](./DEPLOY_RUNBOOK.md):
+   set new env vars (Resend/VAPID/`NEXT_PUBLIC_APP_URL`), merge PR chain #5→#11 (fast-forwards
+   onto `redesign/operator-shell`), trigger + verify the prod deploy (M0→M10), then flag the
+   M1 auth cutover when accounts exist. **Deploying also ships M1+M2** (merged, never live).
 2. Collect Lucid inputs (users/buildings/routing/categories) — send the
    [`CLIENT_INPUTS.md`](./CLIENT_INPUTS.md) request block.
-3. M1: credential auth + identity + RBAC (the approved first slice; separate implementation approval).
+3. Real-device push validation + Resend domain verification (the two infra gates).
 
 ## Blockers
 - **Branch protection is plan-gated** on this private repo — the DB integration/RLS check runs
