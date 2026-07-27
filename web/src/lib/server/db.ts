@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { db, type DB } from "@db/client";
 import { auth, isOperatorAllowed } from "./auth";
 import { ensureUserRow } from "./ensure-user";
+import { logger } from "./logger";
 
 export type ScopedDB = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
@@ -72,7 +73,12 @@ export async function withStaffScope<T>(
   if (!userId) redirect("/sign-in");
   // Access gate: with the org pinned, an authenticated account is only an
   // operator if it's on the allow-list (or the gate is unconfigured).
-  if (!(await isOperatorAllowed())) redirect("/no-access");
+  if (!(await isOperatorAllowed())) {
+    // Authorization-failure observability (OBS-003). No PII: identity is not
+    // logged here — richer account logging lands with the M1 auth work.
+    logger.warn("authz.operator_denied", { route: "withStaffScope" });
+    redirect("/no-access");
+  }
   // orgId is pinned to STACK_ORG_ID; this fallback only fires if that env is
   // unset (legacy multi-tenant path).
   if (!orgId) redirect("/select-org");

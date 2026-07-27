@@ -27,3 +27,13 @@ drizzle/.snapshot
 .cache
 
 *.tsbuildinfo
+
+# Disposable / client-specific one-off scripts — hard-code a live org id, client
+# emails, or specific record ids, and (most) mutate production. Kept OUT of the
+# repo; guarded locally by _prod-guard.ts. Supported replacements: scripts/README.md.
+# (audit-workorders.ts was generalized into a committed read-only tool.)
+scripts/cancel-all-wos.ts
+scripts/cancel-test-wos.ts
+scripts/invite-demo-tenants.ts
+scripts/restore-fallback-wo.ts
+scripts/verify-lucid-tenants.ts
