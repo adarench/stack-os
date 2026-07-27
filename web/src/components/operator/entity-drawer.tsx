@@ -1120,7 +1120,11 @@ function TimelineFeed({
         )}
       </div>
 
-      <CommentComposer entityRef={data.ref} onPosted={onMutated} />
+      <CommentComposer
+        entityRef={data.ref}
+        onPosted={onMutated}
+        defaultExternal={!!data.tenantContext}
+      />
     </div>
   );
 }
@@ -1128,13 +1132,16 @@ function TimelineFeed({
 function CommentComposer({
   entityRef,
   onPosted,
+  defaultExternal = false,
 }: {
   entityRef: string;
   onPosted: () => void;
+  /** MSG-001: default to a requester-visible reply on tenant-reported WOs. */
+  defaultExternal?: boolean;
 }) {
   const [body, setBody] = React.useState("");
   const [visibility, setVisibility] = React.useState<"internal" | "external">(
-    "internal",
+    defaultExternal ? "external" : "internal",
   );
   const [pending, startTransition] = React.useTransition();
 
@@ -1146,8 +1153,8 @@ function CommentComposer({
         setBody("");
         toast.success(
           visibility === "external"
-            ? "Comment posted (visible to vendor)"
-            : "Comment posted",
+            ? "Reply posted — visible to the requester"
+            : "Internal note posted",
         );
         onPosted();
       } else {
@@ -1162,7 +1169,9 @@ function CommentComposer({
         rows={2}
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder="Add a note for the team…"
+        placeholder={
+          defaultExternal ? "Reply to the requester…" : "Add a note for the team…"
+        }
         className="w-full resize-none rounded-md border border-input bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {

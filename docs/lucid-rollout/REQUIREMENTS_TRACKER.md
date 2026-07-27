@@ -65,7 +65,7 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 | TEN-003 | Accurate building/floor/suite/company context | P0 | M3 | Backlog | — | flat model today | LOC-* | |
 | TEN-004 | Category selection | P0 | M2 | Deployed | prod | `work-order-category.ts` | ADM-004 | add commercial cats |
 | TEN-005 | Photo upload w/ progress, retry, success | P0 | M2 | Partial | prod | tenant multipart `tenant/uploads/sign` | ATT-006/007/008 | |
-| TEN-006 | Message thread visible to tenant | P0 | M2 | Defective | prod | filter `external` `tenant-work-orders.ts:216` | MSG-001 | blocked by MSG-001 defect |
+| TEN-006 | Message thread visible to tenant | P0 | M2 | In review | — | unblocked by MSG-001 fix; tenant `external` read path was already correct | MSG-001 | not deployed |
 | TEN-007 | Tenant status visibility + history | P0 | M2 | Deployed | prod | `tenantStatusLabel` `labels.ts:72` | LIF-007 | |
 | TEN-008 | Completion summary visible to tenant | P0 | M5 | Backlog | — | none | SUM-001/002 | |
 | TEN-009 | Confirm-fixed / reopen | P0 | M5 | Deployed | prod | `tenant-work-orders.ts:356-458` | LIF-004/005 | |
@@ -74,7 +74,7 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 ## ASN — automatic assignment & routing
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
-| ASN-001 | Tenant-submitted WO auto-assigns covering tech | P0 | M2 | **Defective** | prod | never inserts assignment `tenant-work-orders.ts:71,88-96` | | **confirmed P0 defect** |
+| ASN-001 | Tenant-submitted WO auto-assigns covering tech | P0 | M2 | In review | — | **FIXED**: inserts `assignments` row + status `assigned` `tenant-work-orders.ts`; test `m2-tenant-defects` | | not deployed |
 | ASN-002 | Building→technician ownership config | P0 | M3 | Partial | prod | property-level only `properties.defaultAssigneeUserId` | LOC-006 | extend to buildings |
 | ASN-003 | Default/fallback assignee (org-level) | P0 | M3 | Not-impl | — | none | ADM-003 | prevents silent unassigned |
 | ASN-004 | Manual reassignment | P1 | M3 | Partial | prod | vendor reassign; no staff-user per-WO UI | | |
@@ -86,7 +86,7 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 ## MSG — messaging
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
-| MSG-001 | Fix ops reply invisible to resident | P0 | M2 | **Defective** | prod | default `internal` `comments.ts:17`; hard-coded `lib/actions/work-orders.ts:94` | LR-007 | **the demo defect** |
+| MSG-001 | Fix ops reply invisible to resident | P0 | M2 | In review | — | **FIXED**: drawer composer defaults `external` ("reply to requester") on tenant WOs `entity-drawer.tsx` | LR-007 | not deployed |
 | MSG-002 | Back-and-forth tenant↔technician | P0 | M4 | Partial | prod | tenant↔ops exists; tech surface pending | TEC-005, MSG-001 | |
 | MSG-003 | STACK visibility of threads | P0 | M2 | Deployed | prod | drawer no visibility filter `entity-detail.ts:730-748` | | |
 | MSG-004 | Sender identity + timestamp + audience label | P1 | M2 | Partial | prod | labels imprecise ("with vendor") `entity-drawer.tsx:1084` | | |
@@ -95,7 +95,7 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 | MSG-007 | Persistence across refresh/device + order/pagination | P1 | M2 | Partial | prod | ordered; no pagination | | |
 | MSG-008 | Idempotent/safe repeated submission | P1 | M2 | Backlog | — | none | | |
 | MSG-009 | Visibility-boundary tests (tenant/tech/operator) | P0 | M2 | Partial | prod | `tenant-rls.test.ts` | | add tech boundary |
-| MSG-010 | `createTenantComment` stamps `tenantUpdatedAt` | P1 | M2 | Defective | prod | missing `tenant-work-orders.ts:234` | | small fix |
+| MSG-010 | `createTenantComment` stamps `tenantUpdatedAt` | P1 | M2 | In review | — | **FIXED** `tenant-work-orders.ts`; test `m2-tenant-defects` | | not deployed |
 
 ## ATT — photos & attachments
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |

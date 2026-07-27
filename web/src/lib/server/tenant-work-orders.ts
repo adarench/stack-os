@@ -4,6 +4,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { withTenantScope, withScope } from "./db";
 import { workOrders } from "@db/schema/work-orders";
 import { comments } from "@db/schema/comments";
+import { assignments } from "@db/schema/assignments";
 import { tenantUsers } from "@db/schema/compliance";
 import { units } from "@db/schema/units";
 import { properties } from "@db/schema/properties";
@@ -59,6 +60,19 @@ export async function createWorkOrderFromTenant(
   const result = await withScope(
     { orgId: session.orgId, actorType: "system" },
     async (tx) => {
+      // ASN-001 fix: resolve the covering technician BEFORE insert so a
+      // resident-submitted WO auto-assigns on submit (previously it was created
+      // unassigned — ownerless, un-acknowledgeable, stuck in the "attention" lens).
+      let tech: { id: string; email: string | null; phone: string | null } | null = null;
+      if (scope.coveringUserId) {
+        const [u] = await tx
+          .select({ id: users.id, email: users.email, phone: users.phone })
+          .from(users)
+          .where(and(eq(users.orgId, session.orgId), eq(users.id, scope.coveringUserId)))
+          .limit(1);
+        tech = u ?? null;
+      }
+
       const number = await nextWorkOrderNumber(tx, session.orgId);
       const [row] = await tx
         .insert(workOrders)
@@ -68,7 +82,7 @@ export async function createWorkOrderFromTenant(
           title: parsed.title,
           description: parsed.description ?? null,
           category: parsed.category,
-          status: "new", // land in ops triage ("Not seen"); no auto-route
+          status: tech ? "assigned" : "new", // auto-route when a covering tech exists
           priority: parsed.priority ?? "normal",
           propertyId: scope.propertyId ?? null,
           unitId: scope.unitId,
@@ -82,17 +96,26 @@ export async function createWorkOrderFromTenant(
         targetId: row!.id,
         action: "tenant_submitted",
         actorType: "tenant",
-        diff: { to: { status: "new", title: parsed.title, category: parsed.category } },
+        diff: { to: { status: row!.status, title: parsed.title, category: parsed.category } },
       });
 
-      let tech: { id: string; email: string | null; phone: string | null } | null = null;
-      if (scope.coveringUserId) {
-        const [u] = await tx
-          .select({ id: users.id, email: users.email, phone: users.phone })
-          .from(users)
-          .where(and(eq(users.orgId, session.orgId), eq(users.id, scope.coveringUserId)))
-          .limit(1);
-        tech = u ?? null;
+      if (tech) {
+        await tx.insert(assignments).values({
+          orgId: session.orgId,
+          targetType: "work_order",
+          targetId: row!.id,
+          assigneeType: "user",
+          assigneeId: tech.id,
+          assignedByUserId: null, // system auto-route, not an operator action
+        });
+        await writeAudit(tx, {
+          orgId: session.orgId,
+          targetType: "work_order",
+          targetId: row!.id,
+          action: "auto_assigned",
+          actorType: "system",
+          diff: { to: { assigneeUserId: tech.id }, reason: "property_routing" },
+        });
       }
       return { row: row!, tech };
     },
@@ -262,6 +285,13 @@ export async function createTenantComment(
         actorType: "tenant",
         diff: { commentId: row!.id },
       });
+
+      // MSG-010 fix: an inbound resident message is a tenant update — stamp the WO
+      // so the ops "tenant not updated" lens clears (parity with staff externals).
+      await tx
+        .update(workOrders)
+        .set({ tenantUpdatedAt: new Date() })
+        .where(eq(workOrders.id, parsed.workOrderId));
 
       const [wo] = await tx
         .select({

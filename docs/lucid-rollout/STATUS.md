@@ -9,6 +9,13 @@
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
 ## Completed this period
+- **M2 confirmed-defect fixes (in review, not deployed):** **ASN-001** (resident WOs
+  now auto-assign the covering technician + audit), **MSG-001** (ops composer defaults
+  to a requester-visible "reply to requester" on tenant WOs, clearly labeled to avoid
+  internal-note leaks), **MSG-010** (tenant messages stamp `tenantUpdatedAt`). 214/214
+  tests (2 new integration); typecheck/lint/tokens/build green. PR vs `redesign/operator-shell`.
+  *(M0 is deployed to prod; M1 credential auth is a separate in-review PR — overall-state
+  header reconciled at merge.)*
 - Repository-grounded audit + 12 control documents + 136 requirements (planning).
 - **M0 implemented (in review):** CI workflow with an **honest, visibly-skipped** DB
   integration job; structured logger + `onRequestError`; `/api/health/ready`;
