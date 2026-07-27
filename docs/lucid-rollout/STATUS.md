@@ -2,17 +2,19 @@
 
 **Executive control surface. Update this in the same change that materially moves any requirement.**
 
-- **Overall state:** **Roadmap code-complete (M0–M10).** M0 in production (`1de22f22`); M1+M2 merged
-  to `redesign/operator-shell` (flag-gated/additive); **M3–M9 on a stacked, CI-green PR chain
-  (#5→#6→#7→#8→#9→#10→#11)**; M10 = native-evaluation memo. **Not yet deployed beyond M0; not yet in
-  pilot.** Remaining work is **gates, not code** (coordinated deploy + merges, Resend/VAPID keys,
-  real-device validation, real Lucid data, acceptance sign-off).
-- **Current milestone:** **Roadmap code-complete through M10** (M1–M9 in review on stacked PRs; M10 = native-evaluation memo). Remaining work is **gates, not code**: coordinated deploy + merges, Resend/VAPID keys, real-device validation, real Lucid data, stakeholder acceptance sign-off.
+- **Overall state:** **M0–M10 DEPLOYED to production (2026-07-27)** — `redesign/operator-shell` @ `6fc639e`,
+  Vercel `dpl_CmJ4o6Ni`, aliased to stack-os-six.vercel.app; `/api/health/ready` = ok. New features ship
+  **flag-off / degrade-safe** (`CREDENTIAL_AUTH` off → Google auth unchanged; email stubs w/o Resend; push
+  dormant w/o VAPID). PWA install assets live. **Not yet in pilot.** Remaining = **gates, not code**: set
+  feature env (Resend/VAPID/`NEXT_PUBLIC_APP_URL`), fix `APP_ENV=development`→`production`, real-device push
+  validation, real Lucid data, provision credentialed accounts + flip `CREDENTIAL_AUTH`, acceptance sign-off.
+- **Rollback target:** Vercel promote `dpl_iZWj6h8wMgMPqseNEkJLmwEqfmBj` (M0, `1de22f22`); migrations additive → no schema revert.
+- **Current milestone:** **Deployed; pre-pilot hardening.** Roadmap code-complete (M0–M10) and live behind flags. Next: feature env + real-device validation + acceptance ([`DEPLOY_RUNBOOK.md`](./DEPLOY_RUNBOOK.md) §5–§8).
 - **Last updated:** 2026-07-27
 - **Prod DB schema note:** per owner decision (2026-07-27), migrations **0014–0017** are applied to
   the shared `neondb` (all additive/forward-compatible; the deployed M0 app references none of them).
   A future code deploy therefore needs the **merges only**, not the migrations. `stack_os_ci` mirrors it.
-- **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `1de22f22` (M0 deployed; `/api/health/ready` live)
+- **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `6fc639e` (M0–M10 deployed 2026-07-27, `dpl_CmJ4o6Ni`; `/api/health/ready` = ok)
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
 ## Completed this period
