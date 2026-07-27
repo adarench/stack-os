@@ -15,6 +15,7 @@ export async function auth(): Promise<{
   orgId: string | null;
   email: string | null;
   name: string | null;
+  role: string | null;
 }> {
   if (process.env.E2E_BYPASS_AUTH === "1") {
     return {
@@ -22,11 +23,12 @@ export async function auth(): Promise<{
       orgId: "org_3DK8ysf4DrE4m0LkQNbPoIL0GP0",
       email: "adam.rencher12@gmail.com",
       name: "Adam Rencher",
+      role: "admin",
     };
   }
   const session = await nextAuth();
   const user = session?.user;
-  // Stable identity: Google subject id (falls back to email).
+  // Stable identity: OAuth/credential subject id (falls back to email).
   const userId = user?.id ?? user?.email ?? null;
   const orgId = userId ? (process.env.STACK_ORG_ID ?? null) : null;
   return {
@@ -34,6 +36,8 @@ export async function auth(): Promise<{
     orgId,
     email: user?.email ?? null,
     name: user?.name ?? null,
+    // Populated for credential logins; null for OAuth (read from DB when needed).
+    role: (user as { role?: string } | undefined)?.role ?? null,
   };
 }
 

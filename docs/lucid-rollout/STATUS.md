@@ -2,13 +2,22 @@
 
 **Executive control surface. Update this in the same change that materially moves any requirement.**
 
-- **Overall state:** **M0 engineering hygiene implemented — in review** (not merged/deployed). Not yet in pilot.
-- **Current milestone:** M0 (baseline & decisions) · next: **M1 (credential auth — first slice)**
+- **Overall state:** **M0 shipped to production** (`1de22f22`); **M1 (credential auth) in progress** — operator+technician credential login built (flag-gated, tested), not yet deployed. Not yet in pilot.
+- **Current milestone:** M1 (credential auth + individual identity + RBAC)
 - **Last updated:** 2026-07-27
-- **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `ba13375` (unchanged — M0 not deployed)
+- **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `1de22f22` (M0 deployed; `/api/health/ready` live)
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
 ## Completed this period
+- **M1 credential auth (operator + technician), flag-gated behind `CREDENTIAL_AUTH`:**
+  migration 0014 (additive credential columns on `users`/`tenant_users`; no destructive
+  change); bcrypt hashing (`password.ts`); login verifier with per-account lockout +
+  generic errors + timing mitigation (`credentials.ts`); NextAuth `password` provider +
+  sign-in form; `technician` role + RBAC read (`roles.ts`, `loadStaffRole`); removed no
+  dead code. **225/225 tests** (13 new: password, roles, credential-auth) vs `stack_os_ci`;
+  typecheck/lint/tokens/build green. **Not deployed** — prod behavior unchanged (flag off).
+  Next M1 sub-steps: tenant credential login, self-serve reset, invite→set-password UI, per-IP rate limit.
+- **M0 shipped to production** (`1de22f22`, deploy `dpl_iZWj6h8w…`) — see `CHANGELOG_M0.md`.
 - Repository-grounded audit + 12 control documents + 136 requirements (planning).
 - **M0 implemented (in review):** CI workflow with an **honest, visibly-skipped** DB
   integration job; structured logger + `onRequestError`; `/api/health/ready`;
