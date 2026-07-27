@@ -4,7 +4,7 @@
 
 - **Overall state:** **M0 engineering hygiene implemented — in review** (not merged/deployed). Not yet in pilot.
 - **Current milestone:** M0 (baseline & decisions) · next: **M1 (credential auth — first slice)**
-- **Last updated:** 2026-07-23
+- **Last updated:** 2026-07-27
 - **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `ba13375` (unchanged — M0 not deployed)
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
@@ -32,18 +32,21 @@
   (`pnpm --filter web test`) after the `template-spawn` determinism fix.
 
 ## In progress
-- M0 awaiting: merge authorization + a `CI_DATABASE_URL` (Neon branch) secret to enforce
-  integration/RLS in CI. Deferred this slice: Clerk-dep removal (follow-up PR), demo-stub
-  removal (coupled to M1), Sentry vendor (manual step), migration-on-deploy decision (LR-013).
+- **DB-backed CI configured + passing on PR #2** (variable `CI_DB_ENABLED=true` + secrets
+  `CI_DATABASE_URL`/`CI_DATABASE_URL_UNPOOLED` → an **isolated `stack_os_ci` database** on the
+  authorized Neon endpoint; production `neondb` data untouched). Awaiting: human review/merge and
+  branch protection (plan-gated) to make the DB check a *required* merge gate. Deferred: Clerk
+  demo-stub removal (M1), Sentry vendor (manual), migration-on-deploy decision (LR-013).
 
 ## Next actions
-1. Review + merge M0; add the `CI_DATABASE_URL` secret so RLS/integration run in CI.
+1. Human review + merge PR #2 (draft); add branch protection so the DB check gates merges (plan-gated).
 2. Collect Lucid inputs (users/buildings/routing/categories) — send the
    [`CLIENT_INPUTS.md`](./CLIENT_INPUTS.md) request block.
 3. M1: credential auth + identity + RBAC (the approved first slice; separate implementation approval).
 
 ## Blockers
-- **CI enforcement of RLS/integration** needs a `CI_DATABASE_URL` Neon-branch secret (LR-013).
+- **Branch protection is plan-gated** on this private repo — the DB integration/RLS check runs
+  green on PR #2 but is not yet a *required* merge gate (needs GitHub Team/Pro or a public repo).
 - **Client inputs** for M3 (buildings/floors/suites/companies/routing) — not yet requested. See CLIENT_INPUTS.
 - **Infra unverified:** Resend prod domain (M6), VAPID keys + test devices (M7), Inngest prod keys.
 
@@ -65,10 +68,10 @@ Auth cutover (H) · commercial-hierarchy backfill (M) · routing-config complete
 [`ROADMAP.md`](./ROADMAP.md).
 
 ## Test summary
-198/198 tests pass locally (unit + DB-gated integration + RLS + tenant-RLS against Neon).
-**CI now runs** install(frozen)/typecheck/lint/`lint:tokens`/unit/build on every push
-(OBS-001); DB-backed integration + RLS run in a gated CI job **once `CI_DATABASE_URL`
-is set**. Playwright e2e stays local. **No full-loop acceptance e2e yet** — AT-CANONICAL
+212/212 tests pass locally (3 consecutive runs) **and in CI**: the DB integration + RLS job
+runs against the isolated `stack_os_ci` database and passes (30 files / 212 tests, including
+`rls.test.ts` + `tenant-rls.test.ts`). Non-DB CI (typecheck/lint/`lint:tokens`/unit/build) also
+green (OBS-001). Playwright e2e stays local. **No full-loop acceptance e2e yet** — AT-CANONICAL
 to be authored as code in M1–M8.
 
 ## Deployment summary

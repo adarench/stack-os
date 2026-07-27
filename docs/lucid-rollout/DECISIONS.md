@@ -216,6 +216,17 @@ Migration-on-deploy needs a decision before M-later automation.
 **Revisit trigger.** A CI Neon branch is provisioned; a Sentry account exists; or
 we decide the migration-automation strategy.
 
+**Implementation note (2026-07-27).** With stakeholder authorization to use the
+production connection, the CI database was implemented as an **isolated database
+`stack_os_ci` on the production Neon endpoint** (not a separate Neon branch).
+Postgres connections are database-scoped, so the CI suite cannot read/write the
+production `neondb` data — production data is untouched while reusing the authorized
+endpoint. `CI_DB_ENABLED=true` + `CI_DATABASE_URL`/`CI_DATABASE_URL_UNPOOLED` are set;
+the DB integration/RLS job **runs and passes on PR #2** (30 files / 212 tests).
+Branch-protection enforcement remains pending (GitHub plan-gated on this private repo).
+A dedicated Neon branch remains the cleaner long-term target (separate compute,
+resettable) — revisit if CI load on the prod compute or `stack_os_ci` drift becomes an issue.
+
 ---
 
 ## Existing ADR reconciliation

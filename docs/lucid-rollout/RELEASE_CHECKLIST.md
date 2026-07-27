@@ -50,7 +50,8 @@ ship with any ❌ on a P0 line. Cross-refs: [`AUTH_SPEC.md`](./AUTH_SPEC.md),
 
 ## Automated tests
 - [ ] CI green (`.github/workflows/ci.yml`): install(frozen), typecheck, lint, `lint:tokens`, unit, production build (OBS-001).
-- [ ] **Database-backed CI is NOT enforced** until ALL of: repo **variable** `CI_DB_ENABLED=true`, repo **secret** `CI_DATABASE_URL` (a **disposable** Neon branch — never prod/dev), and the `integration` job added to **branch protection**. Until then the integration job is **visibly skipped** (grey, not a green pass) and RLS/tenant-isolation is not gated by CI (known gap, LR-013).
+- [x] **Database-backed CI configured + passing on PR #2** — `CI_DB_ENABLED=true` + secrets `CI_DATABASE_URL`/`CI_DATABASE_URL_UNPOOLED` point at an **isolated `stack_os_ci`** database on the Neon endpoint (production `neondb` untouched; connection strings masked in logs). The job applies migrations + runs the integration/RLS suite (30 files/212 tests).
+- [ ] **Make it a required merge gate:** add the `Database integration + RLS (disposable CI branch)` check (pull_request context) to **branch protection**. Currently plan-gated on this private repo (needs GitHub Team/Pro or public) — until then the check runs green but does not *block* merges (LR-013).
 - [ ] Playwright e2e run locally (`pnpm test:e2e`) — intentionally excluded from CI.
 - [ ] New requirement tests present and green for everything moving to Ready-for-QA.
 

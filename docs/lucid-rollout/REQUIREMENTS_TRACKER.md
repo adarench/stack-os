@@ -222,11 +222,11 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 ## OBS — observability, CI & release engineering
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
-| OBS-001 | CI pipeline (typecheck/lint/test/RLS/e2e gate) | P1 | M0 | In review | — | `.github/workflows/ci.yml` | | all local gates green; DB integration job **visibly skipped** until `CI_DB_ENABLED`+`CI_DATABASE_URL`; e2e excluded (documented) |
+| OBS-001 | CI pipeline (typecheck/lint/test/RLS/e2e gate) | P1 | M0 | In review | — | `.github/workflows/ci.yml`; PR #2 green | | DB integration+RLS job **runs + passes** on PR #2 (30 files/212 tests, incl. `rls`/`tenant-rls`, vs isolated `stack_os_ci`); branch-protection required-check pending (plan-gated); e2e excluded |
 | OBS-002 | Error tracking (Sentry or equiv) | P1 | M0 | In progress | — | `web/src/instrumentation.ts` → `logger.ts` seam | OBS-003 | baseline via Vercel logs; Sentry vendor deferred (manual steps in RELEASE_CHECKLIST) — LR-013 |
 | OBS-003 | Structured logging | P1 | M0 | In review | — | `logger.ts`; `instrumentation.ts`; wired `notifications.ts`+`db.ts`; tests `test/unit/logger.test.ts` | | redaction covered by automated tests |
 | OBS-004 | Health check w/ dependency checks | P1 | M8 | Partial | prod | `api/health` + `api/health/ready` (config presence); tests `test/unit/health-ready.test.ts` | | DEEP DB/storage/email checks remain M8 |
-| OBS-005 | Migration application in deploy pipeline | P1 | M0 | In progress | — | CI integration job runs `db:migrate` on the CI branch | OBS-001, LR-013 | auto-apply-on-prod-deploy deferred (LR-013) |
+| OBS-005 | Migration application in deploy pipeline | P1 | M0 | In progress | — | CI job runs `db:migrate` against isolated `stack_os_ci` (verified on PR #2) | OBS-001, LR-013 | prod deploy auto-apply still deferred (LR-013) |
 | OBS-006 | Production smoke tests | P1 | M8 | Partial | — | `scripts/p2-smoke.ts` legacy | | refresh for Lucid loop |
 | OBS-007 | Backups + rollback procedure | P1 | M8 | Backlog | — | Neon PITR assumed | | document + test |
 
