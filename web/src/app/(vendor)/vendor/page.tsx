@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { readVendorSession } from "@/lib/server/vendor-auth";
 import { withVendorScope } from "@/lib/server/db";
@@ -73,22 +74,24 @@ export default async function VendorHome() {
       ) : (
         <ul className="divide-y divide-border/50">
           {data.workOrders.map((w) => (
-            <li
-              key={w.id}
-              className="flex flex-col gap-1 px-2 py-2.5 text-body hover:bg-muted/40"
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-meta text-muted-foreground">WO-{w.number}</span>
-                <Badge tone={toneForStatus(w.status)}>
-                  {w.status.replace(/_/g, " ")}
-                </Badge>
-              </div>
-              <div className="text-foreground">{w.title}</div>
-              {w.dueAt && (
-                <div className="text-meta text-muted-foreground">
-                  Due {new Date(w.dueAt).toLocaleDateString()}
+            <li key={w.id}>
+              <Link
+                href={`/vendor/WO-${w.number}`}
+                className="flex flex-col gap-1 px-2 py-2.5 text-body hover:bg-muted/40"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-meta text-muted-foreground">WO-{w.number}</span>
+                  <Badge tone={toneForStatus(w.status)}>
+                    {w.status.replace(/_/g, " ")}
+                  </Badge>
                 </div>
-              )}
+                <div className="text-foreground">{w.title}</div>
+                {w.dueAt && (
+                  <div className="text-meta text-muted-foreground">
+                    Due {new Date(w.dueAt).toLocaleDateString()}
+                  </div>
+                )}
+              </Link>
             </li>
           ))}
         </ul>

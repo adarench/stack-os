@@ -210,7 +210,7 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 |---|---|---|---|---|---|---|---|---|
 | VEN-001 | External vendor accounts/secure access | P2 | M9 | Deployed | prod | `vendor_users` magic-link | | |
 | VEN-002 | Assignment acceptance | P2 | M9 | Partial | prod | vendor portal read-only | | |
-| VEN-003 | Vendor details/messaging/status/photos/completion | P2 | M9 | Partial | prod | partial vendor portal | | |
+| VEN-003 | Vendor details/messaging/status/photos/completion | P2 | M9 | In review | — | detail + messaging shipped (`vendor-work-orders.ts`, `/vendor/[ref]`, RLS-guarded); **status/completion by external party deferred (post-pilot design)** | | authoritative writer stays operator/tech |
 | VEN-004 | Vendor notification emails | P2 | M9 | Partial | prod | `wo_assigned` to vendor | | |
 | VEN-005 | Role isolation (vendor ≠ internal tech) | P0 | M9 | Deployed | prod | separate identity/RLS | LR-005 | |
 | VEN-006 | Vendor org + technician membership | P2 | M9 | Deployed | prod | `vendors`/`vendor_users` | | |
