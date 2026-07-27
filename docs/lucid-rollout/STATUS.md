@@ -2,8 +2,12 @@
 
 **Executive control surface. Update this in the same change that materially moves any requirement.**
 
-- **Overall state:** **M0 in production** (`1de22f22`); **M1 (credential auth) + M2 (defect fixes) merged** to `redesign/operator-shell` (flag-gated / additive; not yet deployed); **M3 (commercial model + routing) in progress.** Not yet in pilot.
-- **Current milestone:** M8 (pilot hardening — canonical acceptance test authored) — in review; M3–M7 in review
+- **Overall state:** **Roadmap code-complete (M0–M10).** M0 in production (`1de22f22`); M1+M2 merged
+  to `redesign/operator-shell` (flag-gated/additive); **M3–M9 on a stacked, CI-green PR chain
+  (#5→#6→#7→#8→#9→#10→#11)**; M10 = native-evaluation memo. **Not yet deployed beyond M0; not yet in
+  pilot.** Remaining work is **gates, not code** (coordinated deploy + merges, Resend/VAPID keys,
+  real-device validation, real Lucid data, acceptance sign-off).
+- **Current milestone:** **Roadmap code-complete through M10** (M1–M9 in review on stacked PRs; M10 = native-evaluation memo). Remaining work is **gates, not code**: coordinated deploy + merges, Resend/VAPID keys, real-device validation, real Lucid data, stakeholder acceptance sign-off.
 - **Last updated:** 2026-07-27
 - **Prod DB schema note:** per owner decision (2026-07-27), migrations **0014–0017** are applied to
   the shared `neondb` (all additive/forward-compatible; the deployed M0 app references none of them).
@@ -12,6 +16,17 @@
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
 ## Completed this period
+- **M10 native evaluation — recommendation memo:** [`NATIVE_EVALUATION.md`](./NATIVE_EVALUATION.md).
+  **Recommendation: ship the installable PWA for the pilot; defer native** (LR-010). Documents the
+  one real gap (iOS push needs Home-Screen install), a mitigation (guided install), cost of native,
+  and re-open triggers. No code — decision doc.
+- **M9 external-vendor workflow (in review, not deployed):** `vendor-work-orders.ts` +
+  `/vendor/[ref]` — a vendor_user now **opens an assigned WO's detail and messages** on it, all
+  under `withVendorScope` so RLS (`work_orders_vendor_assigned`, `comments_vendor_external/insert`)
+  is the boundary. Vendor comments are external-only (RLS-enforced). **Deferred (post-pilot):
+  external-party status change / authoritative completion** — keeps the authoritative writer
+  operator/tech-only. `m9-vendor.test.ts` (4: sees own detail + external msgs, never internal;
+  posts a message; unassigned vendor blocked on read AND write). **261/261.** VEN-003 → In review.
 - **M8 canonical acceptance test — authored as code (in review):** `test/integration/at-canonical.test.ts`
   runs the **full Lucid loop** green in CI against `stack_os_ci` — tenant submit → **auto-assign covering
   tech** → tech queue → acknowledge/start/**reply-to-requester**/internal-note → **authoritative complete**
@@ -98,10 +113,13 @@
   demo-stub removal (M1), Sentry vendor (manual), migration-on-deploy decision (LR-013).
 
 ## Next actions
-1. Human review + merge PR #2 (draft); add branch protection so the DB check gates merges (plan-gated).
+1. **Execute the coordinated deploy** — follow [`DEPLOY_RUNBOOK.md`](./DEPLOY_RUNBOOK.md):
+   set new env vars (Resend/VAPID/`NEXT_PUBLIC_APP_URL`), merge PR chain #5→#11 (fast-forwards
+   onto `redesign/operator-shell`), trigger + verify the prod deploy (M0→M10), then flag the
+   M1 auth cutover when accounts exist. **Deploying also ships M1+M2** (merged, never live).
 2. Collect Lucid inputs (users/buildings/routing/categories) — send the
    [`CLIENT_INPUTS.md`](./CLIENT_INPUTS.md) request block.
-3. M1: credential auth + identity + RBAC (the approved first slice; separate implementation approval).
+3. Real-device push validation + Resend domain verification (the two infra gates).
 
 ## Blockers
 - **Branch protection is plan-gated** on this private repo — the DB integration/RLS check runs
