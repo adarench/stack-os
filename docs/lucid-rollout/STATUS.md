@@ -3,12 +3,20 @@
 **Executive control surface. Update this in the same change that materially moves any requirement.**
 
 - **Overall state:** **M0 in production** (`1de22f22`); **M1 (credential auth) + M2 (defect fixes) merged** to `redesign/operator-shell` (flag-gated / additive; not yet deployed); **M3 (commercial model + routing) in progress.** Not yet in pilot.
-- **Current milestone:** M3 (commercial location/org model + configurable routing)
+- **Current milestone:** M4 (technician mobile workflow) — in review; M3 in review
 - **Last updated:** 2026-07-27
 - **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `1de22f22` (M0 deployed; `/api/health/ready` live)
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
 ## Completed this period
+- **M4 technician mobile workflow (in review, not deployed):** `lib/server/technician.ts`
+  (queue / detail / actions, all guarded by "assigned to me") + a mobile `(tech)` surface
+  (`/tech` queue, `/tech/[ref]` detail with acknowledge / start / block / **complete** /
+  reply-to-requester / internal note); role-based landing routes technicians to `/tech`.
+  Completion **reuses the authoritative `updateWorkOrderStatus`** (no redundant operator
+  step, TEC-009). **234/234 tests** (5 new: `m4-technician` — queue scoping, detail authz,
+  authoritative completion, external reply). Tech **photo upload UI** is the remaining sub-step
+  (detail already shows photos). TEC-002…009, ADM-007 → In review.
 - **M3 commercial model + fallback routing (in review, not deployed):** migration 0015
   (additive) — `floor`/`suite` on units, first-class `tenant_companies` (+ `tenant_users.company_id`),
   `org_settings` fallback assignee; routing chain **building tech → org fallback → never silently

@@ -115,14 +115,14 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
 | TEC-001 | Individual technician accounts (users+technician) | P0 | M3 | Backlog | — | Oscar/Fernando seed staff | SEC-003, LR-005 | real accounts |
-| TEC-002 | Mobile assigned-work queue (only their work) | P0 | M4 | Backlog | — | ops `/work` exists; tech queue pending | ASN-001 | |
-| TEC-003 | WO detail (requester, bldg/floor/suite/company, category, scope, photos, access) | P0 | M4 | Backlog | — | ops drawer exists | LOC-*, TEN-003 | |
-| TEC-004 | Acknowledge/start action | P0 | M4 | Partial | prod | `acknowledgedAt` exists; needs assignment | ASN-001 | |
-| TEC-005 | Technician messaging | P0 | M4 | Backlog | — | comments infra exists | MSG-001 | |
-| TEC-006 | Technician notes | P0 | M4 | Backlog | — | internal comments | | |
-| TEC-007 | Technician photo upload | P0 | M4 | Backlog | — | upload infra exists | ATT-003 | |
-| TEC-008 | Status updates | P0 | M4 | Deployed | prod | state machine | LIF-002 | expose on tech UI |
-| TEC-009 | Authoritative completion (no redundant step) | P0 | M4 | Deployed | prod | `work-orders.ts:256` | LR-006, LIF-003 | |
+| TEC-002 | Mobile assigned-work queue (only their work) | P0 | M4 | In review | — | `technician.ts` `loadTechnicianQueue` + `/tech`; test `m4-technician` | ASN-001 | not deployed |
+| TEC-003 | WO detail (requester, bldg/floor/suite/company, category, scope, photos, access) | P0 | M4 | In review | — | `loadTechnicianWorkOrder` + `/tech/[ref]` (requester, floor/suite, photos, desc); test | LOC-*, TEN-003 | company display follow-up |
+| TEC-004 | Acknowledge/start action | P0 | M4 | In review | — | `techAcknowledge`/`techSetStatus`; `/tech/[ref]` buttons | ASN-001 | not deployed |
+| TEC-005 | Technician messaging | P0 | M4 | In review | — | `techReplyToRequester` (external, tested) + note | MSG-001 | not deployed |
+| TEC-006 | Technician notes | P0 | M4 | In review | — | `techAddNote` (internal) | | not deployed |
+| TEC-007 | Technician photo upload | P0 | M4 | In progress | — | detail **shows** photos; tech upload UI pending (reuses staff signed-upload) | ATT-003 | UI follow-up |
+| TEC-008 | Status updates | P0 | M4 | In review | — | `techSetStatus` exposed on `/tech/[ref]`, assignment-guarded | LIF-002 | not deployed |
+| TEC-009 | Authoritative completion (no redundant step) | P0 | M4 | In review | — | `techComplete` → reuses authoritative `updateWorkOrderStatus`; test `m4-technician` | LR-006, LIF-003 | not deployed |
 | TEC-010 | Add/manage additional technicians | P1 | M3 | Backlog | — | none | ADM-001 | |
 | TEC-011 | Reassignment/coverage for absence | P1 | M3 | Not-impl | — | none | ASN-005 | |
 | TEC-012 | Overdue/priority/schedule info | P1 | M4 | Partial | prod | ops lanes exist | | tech view |
@@ -203,7 +203,7 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 | ADM-004 | Manage categories | P1 | M2 | Partial | prod | contract-coded | | add commercial cats |
 | ADM-005 | Manage external vendors + COIs | P2 | M9 | Deployed | prod | vendors/COI admin | VEN/COI | |
 | ADM-006 | Search/filter/sort/report across portfolio | P1 | M8 | Deployed | prod | `/work`, exports | | verify for Lucid scale |
-| ADM-007 | Role-boundary enforcement (no internal/financial exposure) | P0 | M4 | Partial | prod | RLS scopes | SEC-002 | verify tenant/tech surfaces |
+| ADM-007 | Role-boundary enforcement (no internal/financial exposure) | P0 | M4 | In review | — | tech surface scoped to own assignments; role-based landing → `/tech` | SEC-002 | operator-route blocking for techs = follow-up |
 
 ## VEN / COI — external vendors (post-pilot)
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
