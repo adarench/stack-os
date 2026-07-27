@@ -2,7 +2,11 @@
 
 **Executive control surface. Update this in the same change that materially moves any requirement.**
 
-- **Overall state:** **M0 in production** (`1de22f22`); **M1 (credential auth) + M2 (defect fixes) merged** to `redesign/operator-shell` (flag-gated / additive; not yet deployed); **M3 (commercial model + routing) in progress.** Not yet in pilot.
+- **Overall state:** **Roadmap code-complete (M0–M10).** M0 in production (`1de22f22`); M1+M2 merged
+  to `redesign/operator-shell` (flag-gated/additive); **M3–M9 on a stacked, CI-green PR chain
+  (#5→#6→#7→#8→#9→#10→#11)**; M10 = native-evaluation memo. **Not yet deployed beyond M0; not yet in
+  pilot.** Remaining work is **gates, not code** (coordinated deploy + merges, Resend/VAPID keys,
+  real-device validation, real Lucid data, acceptance sign-off).
 - **Current milestone:** **Roadmap code-complete through M10** (M1–M9 in review on stacked PRs; M10 = native-evaluation memo). Remaining work is **gates, not code**: coordinated deploy + merges, Resend/VAPID keys, real-device validation, real Lucid data, stakeholder acceptance sign-off.
 - **Last updated:** 2026-07-27
 - **Prod DB schema note:** per owner decision (2026-07-27), migrations **0014–0017** are applied to
