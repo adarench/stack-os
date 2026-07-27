@@ -3,7 +3,7 @@
 **Executive control surface. Update this in the same change that materially moves any requirement.**
 
 - **Overall state:** **M0 in production** (`1de22f22`); **M1 (credential auth) + M2 (defect fixes) merged** to `redesign/operator-shell` (flag-gated / additive; not yet deployed); **M3 (commercial model + routing) in progress.** Not yet in pilot.
-- **Current milestone:** M7 (push + installable PWA, launch gate) — in review; M3–M6 in review
+- **Current milestone:** M8 (pilot hardening — canonical acceptance test authored) — in review; M3–M7 in review
 - **Last updated:** 2026-07-27
 - **Prod DB schema note:** per owner decision (2026-07-27), migrations **0014–0017** are applied to
   the shared `neondb` (all additive/forward-compatible; the deployed M0 app references none of them).
@@ -12,6 +12,14 @@
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
 ## Completed this period
+- **M8 canonical acceptance test — authored as code (in review):** `test/integration/at-canonical.test.ts`
+  runs the **full Lucid loop** green in CI against `stack_os_ci` — tenant submit → **auto-assign covering
+  tech** → tech queue → acknowledge/start/**reply-to-requester**/internal-note → **authoritative complete**
+  → tenant-safe completion summary → **reopen**, plus **cross-org isolation**. Asserts identity/attribution,
+  the completion summary, the **internal-note boundary (no leak)**, and the audit trail — proving M1–M7
+  compose. **257/257.** Remaining for *acceptance* (not code): run on **prod** with **real Lucid accounts +
+  devices** + stakeholder sign-off. Other M8 items (security/RLS review sign-off, real-device, rollback
+  rehearsal) remain process/human.
 - **M7 push + installable PWA — launch gate (in review, not deployed):** generated the branded
   icon set (192 / 512 / maskable-512 / apple-touch-180) with a **zero-dependency** pure-Node PNG
   encoder (`scripts/gen-pwa-icons.mjs`); wired `manifest.webmanifest` + layout `icons`/apple-touch.
@@ -122,8 +130,9 @@ Auth cutover (H) · commercial-hierarchy backfill (M) · routing-config complete
 212/212 tests pass locally (3 consecutive runs) **and in CI**: the DB integration + RLS job
 runs against the isolated `stack_os_ci` database and passes (30 files / 212 tests, including
 `rls.test.ts` + `tenant-rls.test.ts`). Non-DB CI (typecheck/lint/`lint:tokens`/unit/build) also
-green (OBS-001). Playwright e2e stays local. **No full-loop acceptance e2e yet** — AT-CANONICAL
-to be authored as code in M1–M8.
+green (OBS-001). Playwright e2e stays local. **AT-CANONICAL is now authored as code** —
+`test/integration/at-canonical.test.ts` runs the full loop green in CI (7 steps); production
+sign-off with real accounts/devices is the remaining *acceptance* step (not code).
 
 ## Deployment summary
 Prod on Vercel at `ba13375` (pre-rollout baseline) — **unchanged; M0 not deployed.**

@@ -17,6 +17,15 @@ confirm".** This is the single acceptance test that gates the pilot (M8). Runs
 against production with real credentialed accounts (and mirrored as a Playwright
 e2e against a seeded org).
 
+> **Implemented as code (M8):** the DB-integration form of this loop lives in
+> `test/integration/at-canonical.test.ts` and runs green in CI against the
+> isolated `stack_os_ci` (7 steps: submit→auto-assign→queue→ack/start/reply/note→
+> authoritative complete→tenant-safe summary→reopen→cross-org isolation). It
+> asserts identity/attribution, the completion summary, the **internal-note
+> boundary (no leak)**, the audit trail, and RLS isolation. What remains for
+> *acceptance* (not code): running it on **production** with **real credentialed
+> Lucid accounts** on **real devices**, plus stakeholder sign-off.
+
 ### Starting data
 - Org: the Lucid production org. Building **B1** with floor **F3**, suite
   **S-301**; tenant company **Lucid**. Building B1's routing owner = technician
