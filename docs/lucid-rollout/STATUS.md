@@ -2,20 +2,24 @@
 
 **Executive control surface. Update this in the same change that materially moves any requirement.**
 
-- **Overall state:** **M0 engineering hygiene implemented — in review** (not merged/deployed). Not yet in pilot.
-- **Current milestone:** M0 (baseline & decisions) · next: **M1 (credential auth — first slice)**
+- **Overall state:** **M0 in production** (`1de22f22`); **M1 (credential auth) + M2 (defect fixes) merged** to `redesign/operator-shell` (flag-gated / additive; not yet deployed); **M3 (commercial model + routing) in progress.** Not yet in pilot.
+- **Current milestone:** M3 (commercial location/org model + configurable routing)
 - **Last updated:** 2026-07-27
-- **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `ba13375` (unchanged — M0 not deployed)
+- **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `1de22f22` (M0 deployed; `/api/health/ready` live)
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
 ## Completed this period
-- **M2 confirmed-defect fixes (in review, not deployed):** **ASN-001** (resident WOs
-  now auto-assign the covering technician + audit), **MSG-001** (ops composer defaults
-  to a requester-visible "reply to requester" on tenant WOs, clearly labeled to avoid
-  internal-note leaks), **MSG-010** (tenant messages stamp `tenantUpdatedAt`). 214/214
-  tests (2 new integration); typecheck/lint/tokens/build green. PR vs `redesign/operator-shell`.
-  *(M0 is deployed to prod; M1 credential auth is a separate in-review PR — overall-state
-  header reconciled at merge.)*
+- **M2 confirmed-defect fixes (merged; not deployed):** **ASN-001** (resident WOs
+  auto-assign the covering technician + audit), **MSG-001** (ops composer defaults
+  to a requester-visible "reply to requester" on tenant WOs, labeled to avoid
+  internal-note leaks), **MSG-010** (tenant messages stamp `tenantUpdatedAt`). 214/214 tests.
+- **M1 credential auth (operator + technician), flag-gated behind `CREDENTIAL_AUTH`; merged (not deployed):**
+  migration 0014 (additive credential columns on `users`/`tenant_users`); bcrypt hashing;
+  login verifier with per-account lockout + generic errors + timing mitigation; NextAuth
+  `password` provider + sign-in form; `technician` role + RBAC read. **225/225 tests**.
+  Prod behavior unchanged (flag off). Next M1 sub-steps: tenant credential login, self-serve
+  reset, invite→set-password UI, per-IP rate limit.
+- **M0 shipped to production** (`1de22f22`, deploy `dpl_iZWj6h8w…`) — see `CHANGELOG_M0.md`.
 - Repository-grounded audit + 12 control documents + 136 requirements (planning).
 - **M0 implemented (in review):** CI workflow with an **honest, visibly-skipped** DB
   integration job; structured logger + `onRequestError`; `/api/health/ready`;
