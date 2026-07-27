@@ -463,7 +463,9 @@ export async function tenantReopen(
     async (tx) => {
       await tx
         .update(workOrders)
-        .set({ status: "in_progress", updatedAt: new Date() })
+        // LIF-005: reopening clears the stale completedAt so the WO is not both
+        // "completed" and "in progress".
+        .set({ status: "in_progress", completedAt: null, updatedAt: new Date() })
         .where(eq(workOrders.id, parsed.workOrderId));
       await tx.insert(comments).values({
         orgId: session.orgId,

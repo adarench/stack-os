@@ -3,12 +3,19 @@
 **Executive control surface. Update this in the same change that materially moves any requirement.**
 
 - **Overall state:** **M0 in production** (`1de22f22`); **M1 (credential auth) + M2 (defect fixes) merged** to `redesign/operator-shell` (flag-gated / additive; not yet deployed); **M3 (commercial model + routing) in progress.** Not yet in pilot.
-- **Current milestone:** M4 (technician mobile workflow) — in review; M3 in review
+- **Current milestone:** M5 (completion lifecycle + summary) — in review; M3/M4 in review
 - **Last updated:** 2026-07-27
 - **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `1de22f22` (M0 deployed; `/api/health/ready` live)
 - **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
 
 ## Completed this period
+- **M5 completion lifecycle + structured summary (in review, not deployed):** migration 0016
+  (additive `work_orders.completion_summary` jsonb); `completion.ts` assembles a **deterministic**
+  summary at completion (requester, location/floor/suite, technician, work-performed = internal
+  notes, completion photos, timestamps) — read via existing WO RLS. **LIF-005** reopen clears
+  `completedAt`; **LIF-007** blocking records `blockedReason`; **TEN-008** tenant sees a
+  **tenant-safe** completion block (date + technician; no internal notes). **237/237 tests**
+  (3 new: `m5-completion`). SUM-001/002, LIF-005/007, TEN-008 → In review.
 - **M4 technician mobile workflow (in review, not deployed):** `lib/server/technician.ts`
   (queue / detail / actions, all guarded by "assigned to me") + a mobile `(tech)` surface
   (`/tech` queue, `/tech/[ref]` detail with acknowledge / start / block / **complete** /

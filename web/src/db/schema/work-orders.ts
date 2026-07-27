@@ -6,6 +6,7 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import {
   id,
@@ -71,6 +72,11 @@ export const workOrders = pgTable(
     // When blocked, who is it waiting on — drives the tenant-facing split
     // ("Waiting on you" vs "Waiting on vendor"). null = generic "On hold".
     blockedReason: text("blocked_reason"), // waiting_tenant | waiting_vendor | other
+
+    // Structured completion record (M5 · SUM-001/002). A deterministic snapshot
+    // assembled at completion (in_progress → resolved); read by tenant/tech/ops
+    // via the existing WO RLS (no new policy). See lib/server/completion.ts.
+    completionSummary: jsonb("completion_summary"),
 
     ...timestamps,
   },
