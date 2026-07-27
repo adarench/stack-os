@@ -129,6 +129,8 @@ export interface TenantRequestDetail {
   isOpen: boolean;
   createdAt: string;
   updatedAt: string;
+  completedAt: string | null;
+  technician: string | null; // tenant-safe completion attribution
   photos: TenantPhoto[];
   timeline: TenantTimelineEvent[];
 }
@@ -169,6 +171,8 @@ export async function loadTenantRequest(
         blockedReason: workOrders.blockedReason,
         createdAt: workOrders.createdAt,
         updatedAt: workOrders.updatedAt,
+        completedAt: workOrders.completedAt,
+        completionSummary: workOrders.completionSummary,
       })
       .from(workOrders)
       .where(and(eq(workOrders.orgId, session.orgId), eq(workOrders.number, number)))
@@ -244,6 +248,10 @@ export async function loadTenantRequest(
     isOpen: OPEN_STATUSES.has(wo.status),
     createdAt: wo.createdAt.toISOString(),
     updatedAt: wo.updatedAt.toISOString(),
+    completedAt: wo.completedAt ? wo.completedAt.toISOString() : null,
+    // Tenant-safe: only the technician's name from the completion record —
+    // never the internal "work performed" notes (TEN-008, no internal-note leak).
+    technician: (wo.completionSummary as { technician?: string | null } | null)?.technician ?? null,
     photos,
     timeline,
   };

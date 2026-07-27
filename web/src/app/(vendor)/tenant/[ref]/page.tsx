@@ -58,6 +58,17 @@ export default async function TenantRequestDetailPage({
         <ResolutionBar refId={req.ref} workOrderId={req.id} />
       )}
 
+      {req.completedAt && (
+        <div className="rounded-lg border border-urgency-done/25 bg-urgency-done/5 p-3">
+          <p className="text-label font-medium text-urgency-done">Completed</p>
+          <p className="mt-0.5 text-body text-foreground">
+            Your request was completed on{" "}
+            {new Date(req.completedAt).toLocaleDateString()}
+            {req.technician ? ` by ${req.technician}` : ""}.
+          </p>
+        </div>
+      )}
+
       {req.description && (
         <div>
           <SectionHeading>Details</SectionHeading>

@@ -22,6 +22,7 @@ import { writeAudit } from "./audit";
 import { nextWorkOrderNumber } from "./sequence";
 import { ensureUserRow } from "./sync-user";
 import { emitNotification } from "./notifications";
+import { buildCompletionSummary } from "./completion";
 
 /**
  * Build a `WHERE`-friendly LIKE pattern from a free-text query. Returns null
@@ -234,6 +235,8 @@ export async function getWorkOrder(id: string) {
 export const updateStatusInput = z.object({
   id: z.string().uuid(),
   to: z.enum(WORK_ORDER_STATUSES),
+  // LIF-007: when blocking, who is it waiting on (drives the tenant-facing split).
+  blockedReason: z.enum(["waiting_tenant", "waiting_vendor", "other"]).optional(),
 });
 
 export async function updateWorkOrderStatus(
@@ -248,12 +251,21 @@ export async function updateWorkOrderStatus(
     if (!canTransition(current.status as WorkOrderStatus, parsed.to)) {
       throw new Error(`invalid_transition:${current.status}->${parsed.to}`);
     }
+    const now = new Date();
     const patch: Partial<typeof workOrders.$inferInsert> = {
       status: parsed.to,
-      updatedAt: new Date(),
+      updatedAt: now,
     };
-    if (parsed.to === "in_progress" && !current.startedAt) patch.startedAt = new Date();
-    if (parsed.to === "resolved") patch.completedAt = new Date();
+    if (parsed.to === "in_progress" && !current.startedAt) patch.startedAt = now;
+    if (parsed.to === "resolved") {
+      patch.completedAt = now;
+      // SUM-001: capture the structured completion record at completion.
+      const summary = await buildCompletionSummary(tx, ctx.orgId, parsed.id, userId, now);
+      if (summary) patch.completionSummary = summary;
+    }
+    if (parsed.to === "blocked") {
+      patch.blockedReason = parsed.blockedReason ?? "other"; // LIF-007
+    }
 
     const updated = await tx
       .update(workOrders)

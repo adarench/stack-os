@@ -67,7 +67,7 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 | TEN-005 | Photo upload w/ progress, retry, success | P0 | M2 | Partial | prod | tenant multipart `tenant/uploads/sign` | ATT-006/007/008 | |
 | TEN-006 | Message thread visible to tenant | P0 | M2 | In review | — | unblocked by MSG-001 fix; tenant `external` read path was already correct | MSG-001 | not deployed |
 | TEN-007 | Tenant status visibility + history | P0 | M2 | Deployed | prod | `tenantStatusLabel` `labels.ts:72` | LIF-007 | |
-| TEN-008 | Completion summary visible to tenant | P0 | M5 | Backlog | — | none | SUM-001/002 | |
+| TEN-008 | Completion summary visible to tenant | P0 | M5 | In review | — | tenant detail shows completed date + technician (tenant-safe; no internal notes) | SUM-001/002 | not deployed |
 | TEN-009 | Confirm-fixed / reopen | P0 | M5 | Deployed | prod | `tenant-work-orders.ts:356-458` | LIF-004/005 | |
 | TEN-010 | Empty/loading/error/offline/session-expiry states | P1 | M2 | Partial | prod | some states exist | | audit each |
 
@@ -135,16 +135,16 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 | LIF-002 | Server-side invalid-transition prevention (incl. bypasses) | P0 | M5 | Partial | prod | enforced `work-orders.ts:248`; raw bypasses exist | | route bypasses through guard |
 | LIF-003 | Prevent duplicate completion server-side | P0 | M5 | Partial | prod | single writer; add explicit guard | LR-006 | |
 | LIF-004 | Confirm-fixed / reopen semantics | P0 | M5 | Deployed | prod | `tenant-work-orders.ts:356-458` | | |
-| LIF-005 | Reopen clears stale `completedAt` | P1 | M5 | Defective | prod | not cleared `:418-421` | | small fix |
+| LIF-005 | Reopen clears stale `completedAt` | P1 | M5 | In review | — | **FIXED** `tenantReopen` sets `completedAt: null`; test `m5-completion` | | not deployed |
 | LIF-006 | Cancelled + duplicate handling | P1 | M5 | Partial | prod | cancelled terminal | | |
-| LIF-007 | `blockedReason` populated (waiting_tenant/vendor/other) | P1 | M5 | Not-impl | — | never written; labels dormant `labels.ts:86` | | |
+| LIF-007 | `blockedReason` populated (waiting_tenant/vendor/other) | P1 | M5 | In review | — | `updateWorkOrderStatus` sets `blockedReason` on block (input); test `m5-completion` | | activates dormant tenant labels |
 | LIF-008 | Reconcile duplicated client transition table | P1 | M5 | Defective | prod | drift `entity-drawer.tsx:1040-1046` | | derive from contract |
 
 ## SUM — completion summary
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
-| SUM-001 | Structured completion record | P0 | M5 | Backlog | — | none | LIF-004, ATT-010 | deterministic |
-| SUM-002 | Summary preserved + tenant-visible | P0 | M5 | Backlog | — | none | TEN-008, EML-005 | |
+| SUM-001 | Structured completion record | P0 | M5 | In review | — | `completion.ts` `buildCompletionSummary` captured on resolve → `work_orders.completion_summary`; test `m5-completion` | LIF-004, ATT-010 | deterministic (no AI) |
+| SUM-002 | Summary preserved + tenant-visible | P0 | M5 | In review | — | jsonb persisted; tenant-safe fields (completedAt/technician) surfaced | TEN-008, EML-005 | ops/tech raw-summary view = follow-up |
 | SUM-003 | Optional AI summary (labeled/grounded/non-required) | P2 | M9+ | Deferred | — | — | SUM-001 | LR-012 |
 
 ## EML — email notifications
