@@ -40,24 +40,53 @@ export function demoAuthEnabled(): boolean {
   return process.env.NODE_ENV !== "production" && !googleAuthConfigured();
 }
 
-const providers: Provider[] = googleAuthConfigured()
-  ? [Google]
-  : demoAuthEnabled()
-    ? [
-        Credentials({
-          id: "demo",
-          name: "Demo",
-          credentials: {},
-          authorize() {
-            return {
-              id: "local-demo-operator",
-              email: "demo@stack.local",
-              name: "Stack OS Demo",
-            };
-          },
-        }),
-      ]
-    : [];
+/** Username/email + password auth (M1). Off by default; enable per-env. */
+export function credentialAuthEnabled(): boolean {
+  return process.env.CREDENTIAL_AUTH === "1";
+}
+
+function passwordProvider(): Provider {
+  return Credentials({
+    id: "password",
+    name: "Password",
+    credentials: {
+      identifier: { label: "Username or email", type: "text" },
+      password: { label: "Password", type: "password" },
+    },
+    async authorize(creds) {
+      const orgId = process.env.STACK_ORG_ID;
+      if (!orgId) return null;
+      const rawIdentifier = creds?.identifier;
+      const rawPassword = creds?.password;
+      const identifier = typeof rawIdentifier === "string" ? rawIdentifier : "";
+      const password = typeof rawPassword === "string" ? rawPassword : "";
+      if (!identifier || !password) return null;
+      // Dynamic import keeps bcrypt/db out of the module graph of anything that
+      // merely imports @/auth (e.g. the sign-in page). authorize() is server-only.
+      const { verifyStaffCredentials } = await import("@/lib/server/credentials");
+      const u = await verifyStaffCredentials(orgId, identifier, password);
+      if (!u) return null;
+      return { id: u.subject, email: u.email, name: u.name ?? undefined, role: u.role };
+    },
+  });
+}
+
+function demoProvider(): Provider {
+  return Credentials({
+    id: "demo",
+    name: "Demo",
+    credentials: {},
+    authorize() {
+      return { id: "local-demo-operator", email: "demo@stack.local", name: "Stack OS Demo" };
+    },
+  });
+}
+
+const providers: Provider[] = [];
+if (googleAuthConfigured()) providers.push(Google);
+if (credentialAuthEnabled()) providers.push(passwordProvider());
+// Demo fallback only when nothing else is configured (dev convenience).
+if (providers.length === 0 && demoAuthEnabled()) providers.push(demoProvider());
 
 export const { handlers, signIn, signOut, auth: nextAuth } = NextAuth({
   providers,
@@ -76,10 +105,12 @@ export const { handlers, signIn, signOut, auth: nextAuth } = NextAuth({
     jwt({ token, user, profile }) {
       if (profile?.sub) token.sub = profile.sub;
       else if (user?.id) token.sub = user.id;
+      if (user?.role) token.role = user.role;
       return token;
     },
     session({ session, token }) {
       if (session.user && token.sub) session.user.id = token.sub;
+      if (session.user && typeof token.role === "string") session.user.role = token.role;
       return session;
     },
   },

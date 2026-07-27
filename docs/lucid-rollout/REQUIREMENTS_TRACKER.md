@@ -29,20 +29,20 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 ## AUTH — credential auth & session
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
-| AUTH-001 | Username/email + password login (all 3 actors) | P0 | M1 | Ready | — | replace stub `auth.ts:47-59` | LR-001/002 | first slice |
-| AUTH-002 | Argon2id/bcrypt hashing, never plaintext | P0 | M1 | Ready | — | no hash dep today | AUTH-001 | |
-| AUTH-003 | Secure HTTP-only cookie sessions | P0 | M1 | Deployed | prod | NextAuth JWT `auth.ts:65`; HMAC cookies `tenant-auth.ts:32-38` | | reuse existing; add for credentials |
-| AUTH-004 | Rate limiting + brute-force lockout | P0 | M1 | Backlog | — | none today | AUTH-001 | per-IP + per-account |
-| AUTH-005 | Password reset + admin-assisted reset | P0 | M1 | Backlog | — | sign-up is a redirect stub | AUTH-001 | reuse magic-link issuance |
-| AUTH-006 | First-login / set-password provisioning | P0 | M1 | Backlog | — | — | AUTH-005, IDN-002 | invite token → set-password |
-| AUTH-007 | Logout / session revocation | P1 | M1 | Deployed | prod | tenant signout route exists | AUTH-001 | add operator credential signout |
-| AUTH-008 | No account-existence disclosure on errors | P0 | M1 | Backlog | — | — | AUTH-001 | generic error copy |
+| AUTH-001 | Username/email + password login (all 3 actors) | P0 | M1 | In review | — | `auth.ts` password provider + `credentials.ts` + sign-in form (flag `CREDENTIAL_AUTH`) | LR-001/002 | operator+technician DONE + tested; **tenant** credential login next |
+| AUTH-002 | Argon2id/bcrypt hashing, never plaintext | P0 | M1 | In review | — | `lib/server/password.ts` (bcrypt cost 12) | AUTH-001 | Argon2id = documented future swap |
+| AUTH-003 | Secure HTTP-only cookie sessions | P0 | M1 | Deployed | prod | NextAuth JWT; HMAC cookies `tenant-auth.ts:32-38` | | reused for credentials |
+| AUTH-004 | Rate limiting + brute-force lockout | P0 | M1 | In review | — | per-account lockout (5/15min) `credentials.ts` | AUTH-001 | **per-IP deferred** (needs Redis) |
+| AUTH-005 | Password reset + admin-assisted reset | P0 | M1 | In progress | — | `setStaffPassword` (admin-assisted) `credentials.ts` | AUTH-001 | self-serve reset route pending |
+| AUTH-006 | First-login / set-password provisioning | P0 | M1 | In progress | — | `provisionStaffAccount` `credentials.ts` | AUTH-005, IDN-002 | invite→set-password UI pending |
+| AUTH-007 | Logout / session revocation | P1 | M1 | Deployed | prod | tenant signout route; NextAuth signOut | AUTH-001 | |
+| AUTH-008 | No account-existence disclosure on errors | P0 | M1 | In review | — | generic null + timing mitigation `password.ts`/`credentials.ts`; tested | AUTH-001 | |
 
 ## IDN — individual identity & provisioning
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
 | IDN-001 | Individual identity attached to each submission | P0 | M1 | Partial→Ready | prod | `createdByTenantUserId` set `tenant-work-orders.ts:76`; display gaps | AUTH-001 | show submitter name+email in ops+tech |
-| IDN-002 | Account provisioning + deactivation | P0 | M1 | Backlog | — | invite exists for tenant/vendor | AUTH-005 | operator/tech provisioning |
+| IDN-002 | Account provisioning + deactivation | P0 | M1 | In review | — | `provisionStaffAccount`; `status='deactivated'` blocks login (tested) `credentials.ts` | AUTH-005 | admin UI pending |
 | IDN-003 | No shared generic Lucid identity in prod | P0 | M1 | Ready | — | current Lucid tenants are individual rows | IDN-001 | enforce individual creds |
 | IDN-004 | Audit history for account/permission changes | P1 | M1 | Backlog | — | `audit_log` exists, not used for accounts | SEC-002 | log role/status changes |
 
@@ -50,8 +50,8 @@ Priorities/milestones trace to [`ROADMAP.md`](./ROADMAP.md); gaps to
 | ID | Requirement | Pri | M | Status | Deploy | Code / Evidence | Deps | Notes |
 |---|---|---|---|---|---|---|---|---|
 | SEC-001 | Server-side authorization (not UI-only) | P0 | M1 | Deployed | prod | `withStaffScope`/RLS `db.ts:68-85` | | verify for new surfaces |
-| SEC-002 | Role model + RBAC read of `users.role` | P0 | M1 | Not-impl | — | role written, never read `users.ts:18` | AUTH-001 | RBAC guards |
-| SEC-003 | `technician` role added + enforced | P0 | M1 | Backlog | — | no technician role | SEC-002, LR-005 | |
+| SEC-002 | Role model + RBAC read of `users.role` | P0 | M1 | In review | — | `lib/server/roles.ts` + `loadStaffRole` + session `role`; tests | AUTH-001 | surface-gating (admin pages/tech surface) wired in M3/M4 |
+| SEC-003 | `technician` role added + enforced | P0 | M1 | In review | — | `technician` role value + predicates `roles.ts`; `users.role` supports it; tests | SEC-002, LR-005 | enforcement wiring M3/M4 |
 | SEC-004 | Tenant/building isolation (RLS) for new model | P0 | M3 | Ready | — | RLS solid `rls-policies.sql` | LOC-008 | extend to LOC tables |
 | SEC-005 | CSP + security headers | P1 | M1 | Partial | prod | headers set, no CSP `next.config.ts:32` | | add CSP |
 | SEC-006 | Secrets management (no committed creds/keys) | P0 | M0 | In review | — | CI env-file guard; `scripts/_prod-guard.ts`; `.gitignore` quarantine | | no committed env files; 5 prod one-offs git-ignored (local-only guards, NOT committed); 1 read-only generalized to a committed tool |

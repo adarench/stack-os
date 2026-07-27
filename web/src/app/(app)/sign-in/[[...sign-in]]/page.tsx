@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { demoAuthEnabled, googleAuthConfigured, signIn } from "@/auth";
+import { credentialAuthEnabled, demoAuthEnabled, googleAuthConfigured, signIn } from "@/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,7 @@ export default async function SignInPage({
   const { error } = await searchParams;
   const hasGoogleAuth = googleAuthConfigured();
   const hasDemoAuth = demoAuthEnabled();
+  const hasCredentialAuth = credentialAuthEnabled();
   return (
     <main className="flex min-h-dvh items-center justify-center bg-muted/30 p-6">
       <div className="w-full max-w-sm">
@@ -34,8 +35,49 @@ export default async function SignInPage({
             <div className="mt-5 rounded-md border border-urgency-overdue/30 bg-urgency-overdue/5 px-3 py-2 text-center text-[13px] text-urgency-overdue">
               {error === "Configuration"
                 ? "Google sign-in is not configured for this environment."
-                : "That account is not set up for this workspace."}
+                : error === "CredentialsSignin"
+                  ? "Invalid username or password."
+                  : "That account is not set up for this workspace."}
             </div>
+          )}
+
+          {hasCredentialAuth && (
+            <form
+              action={async (formData: FormData) => {
+                "use server";
+                const identifier = String(formData.get("identifier") ?? "");
+                const password = String(formData.get("password") ?? "");
+                await signIn("password", {
+                  identifier,
+                  password,
+                  redirectTo: await redirectToHome(),
+                });
+              }}
+              className="mt-6 space-y-3"
+            >
+              <input
+                name="identifier"
+                type="text"
+                autoComplete="username"
+                required
+                placeholder="Username or email"
+                className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground shadow-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+              />
+              <input
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                placeholder="Password"
+                className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground shadow-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+              />
+              <button
+                type="submit"
+                className="flex h-11 w-full items-center justify-center rounded-lg bg-foreground text-sm font-medium text-background shadow-sm transition-colors hover:bg-foreground/90"
+              >
+                Sign in
+              </button>
+            </form>
           )}
 
           {hasGoogleAuth && (
@@ -73,7 +115,7 @@ export default async function SignInPage({
             </form>
           )}
 
-          {!hasGoogleAuth && !hasDemoAuth && (
+          {!hasGoogleAuth && !hasDemoAuth && !hasCredentialAuth && (
             <p className="mt-6 text-center text-sm text-muted-foreground">
               Sign-in is not configured for this environment.
             </p>

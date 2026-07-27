@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, numeric, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, numeric, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { id, orgId, timestamps, complianceStatusEnum } from "./_shared";
 
 export const vendorCois = pgTable(
@@ -60,6 +60,13 @@ export const tenantUsers = pgTable(
     magicLinkExpiresAt: timestamp("magic_link_expires_at", { withTimezone: true }),
     lastSignedInAt: timestamp("last_signed_in_at", { withTimezone: true }),
     status: text("status").notNull().default("invited"), // invited | active | revoked
+
+    // --- Credential auth (M1). Tenants log in with email + password; magic-link
+    // stays for invite/reset. Additive + nullable. ---
+    passwordHash: text("password_hash"),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    failedLoginCount: integer("failed_login_count").notNull().default(0),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
 
     ...timestamps,
   },
