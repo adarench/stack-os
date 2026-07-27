@@ -1,7 +1,8 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { notifications, notificationPreferences } from "@db/schema/notifications";
 import { sendEmail } from "./email";
+import { renderNotificationEmail, absoluteUrl } from "./email-templates";
 import { sendSms } from "./sms";
 import {
   loadPushSubscriptions,
@@ -39,6 +40,8 @@ export interface DispatchInput {
   targetType?: PolymorphicTarget;
   targetId?: string;
   payload?: Record<string, unknown>;
+  /** EML-009 dedupe key (unique per org). A repeat insert is a no-op. */
+  idempotencyKey?: string | null;
 }
 
 /**
@@ -47,11 +50,15 @@ export interface DispatchInput {
  * Caller decides who and how (channel). Use {@link emitNotification} to send
  * an event that Inngest fans out to multiple channels by reading
  * notification_preferences.
+ *
+ * Returns `null` when an `idempotencyKey` collides with an already-recorded
+ * notification — the caller should treat that channel as already dispatched and
+ * skip the send (EML-009: no double-send on retry).
  */
 export async function recordNotification(
   tx: ScopedDB,
   input: DispatchInput,
-): Promise<{ id: string }> {
+): Promise<{ id: string } | null> {
   const r = await tx
     .insert(notifications)
     .values({
@@ -66,10 +73,15 @@ export async function recordNotification(
       targetType: input.targetType ?? null,
       targetId: input.targetId ?? null,
       payload: (input.payload ?? null) as never,
+      idempotencyKey: input.idempotencyKey ?? null,
       status: "pending",
     })
+    .onConflictDoNothing({
+      target: [notifications.orgId, notifications.idempotencyKey],
+      where: sql`${notifications.idempotencyKey} is not null`,
+    })
     .returning({ id: notifications.id });
-  return { id: r[0]!.id };
+  return r[0] ? { id: r[0].id } : null;
 }
 
 /**
@@ -169,8 +181,14 @@ export async function emitNotification(args: {
   recipientPhone?: string | null;
   targetType?: PolymorphicTarget;
   targetId?: string;
-  /** Deep link override for push (e.g. the tenant route). */
+  /** Deep link override for push/email (e.g. the tenant route). */
   url?: string;
+  /**
+   * EML-009 dedupe seed. Combined with the channel to guard against a repeat
+   * dispatch (Inngest retry / double emit) resending. Omit for events that may
+   * legitimately fire more than once for the same target.
+   */
+  dedupeKey?: string | null;
   actor?: { type: ActorType; userId?: string | null };
 }): Promise<void> {
   // Reachable iff we have an address OR a push-capable recipient id (staff /
@@ -229,9 +247,15 @@ export async function dispatchInline(args: {
   targetType?: PolymorphicTarget;
   targetId?: string;
   url?: string;
+  dedupeKey?: string | null;
 }): Promise<{ sent: NotificationChannel[]; failed: NotificationChannel[] }> {
   const sent: NotificationChannel[] = [];
   const failed: NotificationChannel[] = [];
+
+  // Per-channel dedupe key: the same event dispatched twice (Inngest retry)
+  // collides on the unique index and the second send is skipped (EML-009).
+  const keyFor = (channel: NotificationChannel): string | null =>
+    args.dedupeKey ? `${args.dedupeKey}:${channel}` : null;
 
   await withScope({ orgId: args.orgId, actorType: "system" }, async (tx) => {
     const channels = await enabledChannels(tx, args.orgId, {
@@ -255,7 +279,7 @@ export async function dispatchInline(args: {
           : await loadTenantPushSubscriptions(tx, args.orgId, args.recipientTenantUserId!);
         if (subs.length === 0) continue;
 
-        const { id } = await recordNotification(tx, {
+        const rec = await recordNotification(tx, {
           orgId: args.orgId,
           recipientUserId: args.recipientUserId,
           recipientVendorUserId: args.recipientVendorUserId,
@@ -266,7 +290,10 @@ export async function dispatchInline(args: {
           body: args.body,
           targetType: args.targetType,
           targetId: args.targetId,
+          idempotencyKey: keyFor("push"),
         });
+        if (!rec) continue; // already dispatched (dedupe)
+        const { id } = rec;
 
         const payload: PushPayload = {
           title: args.subject,
@@ -300,7 +327,7 @@ export async function dispatchInline(args: {
         continue;
       }
       if (channel === "in_app") {
-        const { id } = await recordNotification(tx, {
+        const rec = await recordNotification(tx, {
           orgId: args.orgId,
           recipientUserId: args.recipientUserId,
           recipientVendorUserId: args.recipientVendorUserId,
@@ -311,13 +338,15 @@ export async function dispatchInline(args: {
           body: args.body,
           targetType: args.targetType,
           targetId: args.targetId,
+          idempotencyKey: keyFor("in_app"),
         });
-        await markNotificationStatus(tx, id, { status: "sent" });
+        if (!rec) continue; // already dispatched (dedupe)
+        await markNotificationStatus(tx, rec.id, { status: "sent" });
         sent.push("in_app");
         continue;
       }
 
-      const { id } = await recordNotification(tx, {
+      const rec = await recordNotification(tx, {
         orgId: args.orgId,
         recipientUserId: args.recipientUserId,
         recipientVendorUserId: args.recipientVendorUserId,
@@ -328,15 +357,25 @@ export async function dispatchInline(args: {
         body: args.body,
         targetType: args.targetType,
         targetId: args.targetId,
+        idempotencyKey: keyFor(channel),
       });
+      if (!rec) continue; // already dispatched (dedupe)
+      const { id } = rec;
 
       try {
         if (channel === "email" && args.recipientEmail) {
+          // Branded template + an absolute deep link (EML templates/deep links).
+          const deepLink = args.url ?? targetUrl(args.targetType, args.targetId);
+          const { html, text } = renderNotificationEmail({
+            heading: args.subject,
+            body: args.body,
+            url: absoluteUrl(deepLink),
+          });
           const r = await sendEmail({
             to: args.recipientEmail,
             subject: args.subject,
-            html: `<p>${escapeHtml(args.body)}</p>`,
-            text: args.body,
+            html,
+            text,
           });
           await markNotificationStatus(tx, id, {
             status: "sent",
@@ -369,13 +408,6 @@ export async function dispatchInline(args: {
   });
 
   return { sent, failed };
-}
-
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }
 
 /**

@@ -1,38 +1,20 @@
 import { inngest } from "../client";
 import { dispatchInline } from "@/lib/server/notifications";
 
-interface NotificationEventData {
-  orgId: string;
-  recipientUserId?: string | null;
-  recipientVendorUserId?: string | null;
-  kind:
-    | "wo_assigned"
-    | "wo_blocked"
-    | "wo_resolved"
-    | "wo_verified"
-    | "template_spawned";
-  subject: string;
-  body: string;
-  recipientEmail?: string | null;
-  recipientPhone?: string | null;
-  targetType?:
-    | "work_order"
-    | "inspection"
-    | "inspection_finding"
-    | "project"
-    | "vendor"
-    | "vendor_coi"
-    | "tenant_insurance_policy"
-    | "task_template"
-    | "property"
-    | "unit";
-  targetId?: string;
-}
+/**
+ * Event payload mirrors {@link dispatchInline}'s argument exactly, so tenant
+ * recipients, deep-link overrides, and the EML-009 dedupe key all survive the
+ * hop through Inngest (the old hand-maintained interface silently dropped them).
+ */
+type NotificationEventData = Parameters<typeof dispatchInline>[0];
 
 /**
  * Event-triggered dispatcher: reads notification_preferences for the
- * recipient, sends email via Resend, SMS stub for now (Twilio A2P 10DLC
- * deferred), records a notifications row per channel.
+ * recipient, sends email via Resend (branded template + deep link), SMS/push
+ * per channel, records a notifications row per channel.
+ *
+ * Idempotency: `dispatchInline`'s per-channel dedupe key makes a retried step —
+ * or a redelivered event — a no-op instead of a double-send (EML-009).
  */
 export const dispatchNotification = inngest.createFunction(
   { id: "dispatch-notification" },

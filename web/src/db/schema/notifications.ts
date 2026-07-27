@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { pgTable, text, uuid, timestamp, jsonb, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import {
   id,
@@ -33,6 +34,13 @@ export const notifications = pgTable(
     providerMessageId: text("provider_message_id"),
 
     payload: jsonb("payload"),
+
+    // Dedupe guard (EML-009): a stable per-(logical-notification, channel) key.
+    // A partial unique index makes a repeat dispatch of the same event — e.g. an
+    // Inngest retry — a no-op instead of a double-send. Null for legacy rows and
+    // any dispatch that opts out of deduping.
+    idempotencyKey: text("idempotency_key"),
+
     ...timestamps,
   },
   (t) => ({
@@ -40,6 +48,9 @@ export const notifications = pgTable(
     recipientUserIdx: index("notifications_recipient_user_idx").on(t.recipientUserId),
     recipientVendorIdx: index("notifications_recipient_vendor_idx").on(t.recipientVendorUserId),
     statusIdx: index("notifications_status_idx").on(t.status),
+    idempotencyUnique: uniqueIndex("notifications_idempotency_unique")
+      .on(t.orgId, t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} is not null`),
   }),
 );
 

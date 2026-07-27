@@ -247,7 +247,7 @@ export async function updateWorkOrderStatus(
     const userId = await ensureUserRow(tx, ctx.orgId, ctx.userId);
     const current = await getRow(tx, ctx.orgId, parsed.id);
     if (!current) throw new Error("work_order_not_found");
-    if (current.status === parsed.to) return { wo: current, prev: current.status, fired: false, orgId: ctx.orgId, tenant: null };
+    if (current.status === parsed.to) return { wo: current, prev: current.status, fired: false, orgId: ctx.orgId, tenant: null, creator: null };
     if (!canTransition(current.status as WorkOrderStatus, parsed.to)) {
       throw new Error(`invalid_transition:${current.status}->${parsed.to}`);
     }
@@ -296,12 +296,24 @@ export async function updateWorkOrderStatus(
         .limit(1);
       tenant = t ?? null;
     }
+    // EML-004: resolve the staff creator's email in-scope so the status email
+    // actually has a recipient (previously left null → in_app only).
+    let creator: { id: string; email: string | null } | null = null;
+    if (updated[0]!.createdByUserId) {
+      const [c] = await tx
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(and(eq(users.orgId, ctx.orgId), eq(users.id, updated[0]!.createdByUserId)))
+        .limit(1);
+      creator = c ?? null;
+    }
     return {
       wo: updated[0]!,
       prev: current.status as WorkOrderStatus,
       fired: true,
       orgId: ctx.orgId,
       tenant,
+      creator,
     };
   });
 
@@ -316,17 +328,19 @@ export async function updateWorkOrderStatus(
         verified: "wo_verified",
       } as const;
       const kind = kindMap[result.wo.status as keyof typeof kindMap];
+      // Stable across Inngest retries of this same emit (dedupe), unique per
+      // transition (updatedAt is set once per status change) and per recipient.
+      const stamp = result.wo.updatedAt.toISOString();
       await emitNotification({
         orgId: result.orgId,
         recipientUserId: result.wo.createdByUserId,
+        recipientEmail: result.creator?.email ?? null, // EML-004
         kind,
         subject: `WO-${result.wo.number} → ${result.wo.status}`,
         body: `Status changed: ${result.prev} → ${result.wo.status}. Title: ${result.wo.title}`,
         targetType: "work_order",
         targetId: result.wo.id,
-        // recipientEmail intentionally null here — we don't have it in scope
-        // and resolving it would require another query. For now this records
-        // an in_app notification only. P5 will add user-email lookup.
+        dedupeKey: `wo_status:${result.wo.id}:${stamp}:staff`,
       });
     }
     // Resident notification: tenant-reported WOs get plain-language status
@@ -353,6 +367,7 @@ export async function updateWorkOrderStatus(
           targetType: "work_order",
           targetId: result.wo.id,
           url: `/tenant/WO-${result.wo.number}`,
+          dedupeKey: `wo_status:${result.wo.id}:${result.wo.updatedAt.toISOString()}:tenant`,
           actor: { type: "user" },
         });
       }
