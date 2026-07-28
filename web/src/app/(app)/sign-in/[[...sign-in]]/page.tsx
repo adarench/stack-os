@@ -80,7 +80,10 @@ export default async function SignInPage({
             </form>
           )}
 
-          {hasGoogleAuth && (
+          {/* Google is disabled as a path when first-party credentials are on —
+              it's unreliable on the client network and only creates confusion.
+              Re-enabled automatically if CREDENTIAL_AUTH is turned off. */}
+          {hasGoogleAuth && !hasCredentialAuth && (
             <form
               action={async () => {
                 "use server";

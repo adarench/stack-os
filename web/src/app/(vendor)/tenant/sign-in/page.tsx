@@ -83,15 +83,17 @@ export default async function TenantSignIn({
         </form>
       )}
 
-      {/* Full-page navigation into the OAuth flow (an API route, not a page) —
-          Link would client-route and break the redirect. */}
-      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-      <a
-        href="/api/tenant/auth/google/start"
-        className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-card px-5 text-body font-medium text-foreground shadow-sm transition-colors hover:bg-muted/40"
-      >
-        Sign in with Google
-      </a>
+      {/* Google is disabled when password login is on (unreliable on the
+          client network). Shown only as a fallback when credentials are off. */}
+      {!passwordLogin && (
+        // eslint-disable-next-line @next/next/no-html-link-for-pages
+        <a
+          href="/api/tenant/auth/google/start"
+          className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-card px-5 text-body font-medium text-foreground shadow-sm transition-colors hover:bg-muted/40"
+        >
+          Sign in with Google
+        </a>
+      )}
 
       <p className="mt-4 text-meta text-muted-foreground">
         {passwordLogin
