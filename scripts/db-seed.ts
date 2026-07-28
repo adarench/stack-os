@@ -78,7 +78,7 @@ const PHANTOM_STAFF: StaffSeed[] = [
   {
     clerkUserId: "seed_phantom_fernando_reyes",
     email: "fernando@stackdemo.test",
-    name: "Fernando Reyes",
+    name: "Fernando Salazar",
     role: "manager",
     initials: "FR",
     phone: "+13855550142",
@@ -86,7 +86,7 @@ const PHANTOM_STAFF: StaffSeed[] = [
   {
     clerkUserId: "seed_phantom_oscar_diaz",
     email: "oscar@stackdemo.test",
-    name: "Oscar Diaz",
+    name: "Oscar Banuelos",
     role: "staff",
     initials: "OD",
     phone: "+13855550178",
