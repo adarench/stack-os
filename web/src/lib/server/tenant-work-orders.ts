@@ -17,7 +17,7 @@ import { WORK_ORDER_CATEGORIES } from "@contracts/work-order-category";
 import { WORK_ORDER_PRIORITIES } from "@contracts/state-machines/work-order";
 import { nextWorkOrderNumber } from "./sequence";
 import { writeAudit } from "./audit";
-import { emitNotification } from "./notifications";
+import { emitNotification, notifyOpsTeam } from "./notifications";
 import { saveTenantPushSubscription } from "./push";
 import type { TenantSession } from "./tenant-auth";
 
@@ -151,6 +151,20 @@ export async function createWorkOrderFromTenant(
       actor: { type: "system" },
     });
   }
+
+  // Notify the ops team about every new request (email + push + in_app) so they
+  // don't have to keep checking — except the assigned tech, who's already pinged.
+  await notifyOpsTeam({
+    orgId: session.orgId,
+    excludeUserId: result.tech?.id ?? null,
+    kind: "wo_submitted",
+    subject: `New request WO-${result.row.number}: ${result.row.title}`,
+    body: `A resident reported an issue (${parsed.category}).`,
+    targetType: "work_order",
+    targetId: result.row.id,
+    url: `/work-orders/${result.row.id}`,
+    dedupeKey: `wo_submitted:${result.row.id}`,
+  });
 
   return result.row;
 }

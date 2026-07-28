@@ -21,7 +21,7 @@ import { withStaffScope, type ScopedDB } from "./db";
 import { writeAudit } from "./audit";
 import { nextWorkOrderNumber } from "./sequence";
 import { ensureUserRow } from "./sync-user";
-import { emitNotification } from "./notifications";
+import { emitNotification, notifyOpsTeam } from "./notifications";
 import { buildCompletionSummary } from "./completion";
 
 /**
@@ -341,6 +341,22 @@ export async function updateWorkOrderStatus(
         targetType: "work_order",
         targetId: result.wo.id,
         dedupeKey: `wo_status:${result.wo.id}:${stamp}:staff`,
+      });
+    }
+    // When a job is done, tell the ops team what was completed (name the WO so
+    // they don't have to dig — "it needs to be specific about what the work
+    // order was"). Skip the creator, already notified just above.
+    if (result.wo.status === "resolved") {
+      await notifyOpsTeam({
+        orgId: result.orgId,
+        excludeUserId: result.wo.createdByUserId,
+        kind: "wo_resolved",
+        subject: `Completed: WO-${result.wo.number} — ${result.wo.title}`,
+        body: `“${result.wo.title}” was marked complete.`,
+        targetType: "work_order",
+        targetId: result.wo.id,
+        url: `/work-orders/${result.wo.id}`,
+        dedupeKey: `wo_resolved_ops:${result.wo.id}:${result.wo.updatedAt.toISOString()}`,
       });
     }
     // Resident notification: tenant-reported WOs get plain-language status

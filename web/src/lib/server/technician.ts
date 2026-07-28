@@ -13,7 +13,8 @@ import { withStaffScope, type ScopedDB } from "./db";
 import { ensureUserRow } from "./sync-user";
 import { parseWoNumber, updateWorkOrderStatus } from "./work-orders";
 import { createComment } from "./comments";
-import { signReadUrl } from "./storage";
+import { createAttachment } from "./attachments";
+import { signReadUrl, uploadObject } from "./storage";
 import { allowedNext, type WorkOrderStatus } from "@contracts/state-machines/work-order";
 
 /**
@@ -312,4 +313,35 @@ export async function techAddNote(ref: string, body: string): Promise<void> {
 export async function techReplyToRequester(ref: string, body: string): Promise<void> {
   const { id } = await requireMyWo(ref);
   await createComment({ targetType: "work_order", targetId: id, body, visibility: "external" });
+}
+
+/**
+ * Technician attaches a photo/video to their assigned WO (from the field —
+ * "send pictures from Oscar/Fernando side"). Assignment-guarded via requireMyWo;
+ * stores the object then records an after_photo attachment (shown on the WO for
+ * ops + the requester's timeline).
+ */
+export async function techAttachPhoto(
+  ref: string,
+  orgId: string,
+  file: { bytes: Uint8Array; filename: string; contentType: string; sizeBytes: number },
+): Promise<void> {
+  const { id } = await requireMyWo(ref); // only a WO assigned to me
+  const stored = await uploadObject({
+    orgId,
+    targetType: "work_order",
+    targetId: id,
+    filename: file.filename,
+    contentType: file.contentType,
+    body: file.bytes,
+  });
+  await createAttachment({
+    targetType: "work_order",
+    targetId: id,
+    storageKey: stored.key,
+    contentType: file.contentType,
+    filename: file.filename,
+    sizeBytes: file.sizeBytes,
+    kind: "after_photo",
+  });
 }

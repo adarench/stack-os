@@ -10,6 +10,7 @@ import {
   replyAction,
   noteAction,
 } from "../_actions";
+import { TechPhotoUpload } from "./_photo-upload";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +106,7 @@ export default async function TechDetailPage({
             <button type="submit" className={BTN_PRIMARY}>Mark complete</button>
           </form>
         )}
+        <TechPhotoUpload woRef={wo.ref} />
       </div>
 
       {/* Thread */}

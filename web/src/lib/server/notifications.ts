@@ -1,6 +1,8 @@
 import "server-only";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, inArray } from "drizzle-orm";
 import { notifications, notificationPreferences } from "@db/schema/notifications";
+import { users } from "@db/schema/users";
+import { OPERATOR_ROLES } from "./roles";
 import { sendEmail } from "./email";
 import { renderNotificationEmail, absoluteUrl } from "./email-templates";
 import { sendSms } from "./sms";
@@ -226,6 +228,51 @@ export async function emitNotification(args: {
     await dispatchInline(args);
   } catch (e) {
     logError("notify.dispatch_failed", e, { kind: args.kind, orgId: args.orgId });
+  }
+}
+
+/**
+ * Notify the whole operator team about a work order (email + push + in_app),
+ * skipping one user — the assignee doesn't need the "new WO" ping about their
+ * own job ("send an email to all three of us… except if it's Oscar's, he
+ * wouldn't get it"). Technicians are excluded by role, so the covering tech is
+ * never on this list; `excludeUserId` also drops an operator who is the actor.
+ */
+export async function notifyOpsTeam(args: {
+  orgId: string;
+  excludeUserId?: string | null;
+  kind: NotificationKind;
+  subject: string;
+  body: string;
+  targetType?: PolymorphicTarget;
+  targetId?: string;
+  url?: string;
+  dedupeKey?: string | null;
+}): Promise<void> {
+  const recipients = await withScope({ orgId: args.orgId, actorType: "system" }, (tx) =>
+    tx
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(and(eq(users.orgId, args.orgId), inArray(users.role, [...OPERATOR_ROLES]))),
+  );
+  // De-dupe by user id (some orgs have historical duplicate rows).
+  const seen = new Set<string>();
+  for (const r of recipients) {
+    if (seen.has(r.id) || (args.excludeUserId && r.id === args.excludeUserId)) continue;
+    seen.add(r.id);
+    await emitNotification({
+      orgId: args.orgId,
+      recipientUserId: r.id,
+      recipientEmail: r.email,
+      kind: args.kind,
+      subject: args.subject,
+      body: args.body,
+      targetType: args.targetType,
+      targetId: args.targetId,
+      url: args.url,
+      dedupeKey: args.dedupeKey ? `${args.dedupeKey}:${r.id}` : null,
+      actor: { type: "system" },
+    });
   }
 }
 
