@@ -12,10 +12,10 @@ import { setTenantSessionCookie } from "@/lib/server/tenant-auth";
 export async function signInTenant(formData: FormData): Promise<void> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const orgId = process.env.STACK_ORG_ID;
-  if (!orgId) redirect("/tenant/sign-in?error=config");
 
-  const user = await verifyTenantCredentials(orgId, email, password);
+  // STACK_ORG_ID is only a hint — the org is resolved from the email, so login
+  // works even when the pin is unset (which it is on this deployment).
+  const user = await verifyTenantCredentials(process.env.STACK_ORG_ID ?? null, email, password);
   if (!user) redirect("/tenant/sign-in?error=bad_credentials");
 
   await setTenantSessionCookie({ orgId: user.orgId, tenantUserId: user.tenantUserId });

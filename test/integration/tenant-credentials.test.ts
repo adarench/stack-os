@@ -64,6 +64,18 @@ describe.skipIf(skip)("tenant credential auth", () => {
     expect(ci).not.toBeNull();
   }, 30_000);
 
+  it("logs in with an empty or wrong org hint (org resolved from email)", async () => {
+    await setTenantPassword(ORG, ids.tenantId, PASSWORD);
+    // Empty hint (STACK_ORG_ID unset) — the real bug on the deployment.
+    const noHint = await verifyTenantCredentials(null, EMAIL, PASSWORD);
+    expect(noHint).not.toBeNull();
+    expect(noHint!.orgId).toBe(ORG);
+    // A wrong hint org still resolves to the account's real org by email.
+    const wrongHint = await verifyTenantCredentials("org_not_real", EMAIL, PASSWORD);
+    expect(wrongHint).not.toBeNull();
+    expect(wrongHint!.tenantUserId).toBe(ids.tenantId);
+  }, 20_000);
+
   it("wrong password returns null (no session)", async () => {
     const bad = await verifyTenantCredentials(ORG, EMAIL, "not-the-password");
     expect(bad).toBeNull();

@@ -22,14 +22,48 @@ export interface TenantSessionUser extends TenantSession {
   email: string;
 }
 
-/** Verify email + password for a resident account. */
+/**
+ * Resolve which org a resident email belongs to. Single-org deployments often
+ * leave STACK_ORG_ID unset/empty, so we can't rely on a caller-supplied org.
+ * The `tenant_users_system_lookup` RLS policy grants the system actor an
+ * org-agnostic SELECT, so we can find the account by email alone. Prefers a
+ * match inside the hint org when one is given.
+ */
+async function resolveTenantOrg(email: string, hint: string | null): Promise<string | null> {
+  const scopeOrg = hint && hint.length > 0 ? hint : "_";
+  return withScope({ orgId: scopeOrg, actorType: "system" }, async (tx) => {
+    if (hint && hint.length > 0) {
+      const [inHint] = await tx
+        .select({ orgId: tenantUsers.orgId })
+        .from(tenantUsers)
+        .where(and(eq(tenantUsers.orgId, hint), eq(sql`lower(${tenantUsers.email})`, email)))
+        .limit(1);
+      if (inHint) return inHint.orgId;
+    }
+    const [any] = await tx
+      .select({ orgId: tenantUsers.orgId })
+      .from(tenantUsers)
+      .where(eq(sql`lower(${tenantUsers.email})`, email))
+      .limit(1);
+    return any?.orgId ?? null;
+  });
+}
+
+/**
+ * Verify email + password for a resident account. `orgHint` is an optional
+ * pin (STACK_ORG_ID); the real org is resolved from the email so login works
+ * even when the hint is empty or wrong.
+ */
 export async function verifyTenantCredentials(
-  orgId: string,
+  orgHint: string | null,
   identifier: string,
   password: string,
 ): Promise<TenantSessionUser | null> {
   const email = (identifier ?? "").trim().toLowerCase();
   if (!email || !password) return null;
+
+  const orgId = await resolveTenantOrg(email, orgHint ?? null);
+  if (!orgId) return null;
 
   return withScope({ orgId, actorType: "system" }, async (tx) => {
     const [u] = await tx
