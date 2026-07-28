@@ -70,6 +70,54 @@ export async function verifyTenantCredentials(
   });
 }
 
+/**
+ * Provision a credential-backed resident account (admin "add a Lucid user").
+ * Returns the tenant_users id. Reuses an existing row for the same email (so
+ * re-adding sets a fresh password rather than duplicating the person).
+ */
+export async function provisionTenantAccount(
+  orgId: string,
+  opts: { email: string; name?: string; unitId?: string | null; password: string },
+): Promise<string> {
+  const email = opts.email.trim().toLowerCase();
+  const passwordHash = await hashPassword(opts.password);
+  return withScope({ orgId, actorType: "system" }, async (tx) => {
+    const [existing] = await tx
+      .select({ id: tenantUsers.id })
+      .from(tenantUsers)
+      .where(and(eq(tenantUsers.orgId, orgId), eq(sql`lower(${tenantUsers.email})`, email)))
+      .limit(1);
+    if (existing) {
+      await tx
+        .update(tenantUsers)
+        .set({
+          name: opts.name ?? undefined,
+          unitId: opts.unitId ?? undefined,
+          passwordHash,
+          status: "active",
+          emailVerifiedAt: new Date(),
+          failedLoginCount: 0,
+          lockedUntil: null,
+        })
+        .where(eq(tenantUsers.id, existing.id));
+      return existing.id;
+    }
+    const [row] = await tx
+      .insert(tenantUsers)
+      .values({
+        orgId,
+        email: opts.email,
+        name: opts.name ?? null,
+        unitId: opts.unitId ?? null,
+        status: "active",
+        passwordHash,
+        emailVerifiedAt: new Date(),
+      })
+      .returning({ id: tenantUsers.id });
+    return row!.id;
+  });
+}
+
 /** Set/replace a resident's password (admin-assisted / first login). Activates. */
 export async function setTenantPassword(
   orgId: string,

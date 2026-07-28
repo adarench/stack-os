@@ -1,10 +1,11 @@
-import { listStaffUsers } from "@/lib/server/properties";
+import { listStaffUsers, listUnits } from "@/lib/server/properties";
 import { smsConfigured } from "@/lib/server/sms";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Input } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { setUserPhoneAction } from "../_actions";
+import { AddPerson } from "./_add-person";
 
 export const dynamic = "force-dynamic";
 
@@ -14,14 +15,17 @@ export const dynamic = "force-dynamic";
  * configured, which needs A2P 10DLC registration).
  */
 export default async function AdminTeamPage() {
-  const [staff, smsOn] = await Promise.all([
+  const [staff, smsOn, units] = await Promise.all([
     listStaffUsers(),
     Promise.resolve(smsConfigured()),
+    listUnits(),
   ]);
 
   return (
     <Page width="default">
       <PageHeader title="Team" backHref="/work" />
+
+      <AddPerson units={units.map((u) => ({ id: u.id, label: u.label }))} />
 
       <div
         className={`mb-4 rounded-md border px-3 py-2 text-label ${

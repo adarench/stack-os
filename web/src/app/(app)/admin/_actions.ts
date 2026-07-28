@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import {
   createProperty,
@@ -9,6 +10,53 @@ import {
 } from "@/lib/server/properties";
 import { createVendor } from "@/lib/server/vendors";
 import { inviteVendorUser } from "@/lib/server/vendor-invite";
+import { auth } from "@/lib/server/auth";
+import { isOperatorRole } from "@/lib/server/roles";
+import { provisionStaffAccount } from "@/lib/server/credentials";
+import { provisionTenantAccount } from "@/lib/server/tenant-credentials";
+
+/**
+ * Add a person and hand back an initial username/password to share
+ * ("add a tech" / "everybody at Lucid gets their own login"). Operator-gated —
+ * provisioning runs under a system scope, so the caller's role is checked here.
+ * Returns the one-time credential; the admin copies it to the new user.
+ */
+export async function addPersonAction(input: {
+  type: "technician" | "resident";
+  email: string;
+  name: string;
+  unitId?: string;
+}): Promise<{ ok: boolean; email?: string; password?: string; error?: string }> {
+  const { userId, orgId, role } = await auth();
+  if (!userId || !orgId) return { ok: false, error: "Not signed in." };
+  if (!isOperatorRole(role)) return { ok: false, error: "You don't have permission to add people." };
+
+  const email = input.email.trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Enter a valid email." };
+  const password = `Stack-${randomBytes(4).toString("hex")}`; // 14 chars, typeable
+
+  try {
+    if (input.type === "technician") {
+      await provisionStaffAccount(orgId, {
+        email,
+        name: input.name.trim() || undefined,
+        role: "technician",
+        password,
+      });
+    } else {
+      await provisionTenantAccount(orgId, {
+        email,
+        name: input.name.trim() || undefined,
+        unitId: input.unitId || null,
+        password,
+      });
+    }
+    revalidatePath("/admin/team");
+    return { ok: true, email, password };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
 
 export async function setUserPhoneAction(formData: FormData) {
   await setUserPhone(
