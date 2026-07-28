@@ -67,6 +67,9 @@ export const tenantUsers = pgTable(
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     failedLoginCount: integer("failed_login_count").notNull().default(0),
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    // Password reset (hashed, single-use, expiring). Additive + nullable.
+    passwordResetTokenHash: text("password_reset_token_hash"),
+    passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
 
     ...timestamps,
   },

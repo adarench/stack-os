@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { readTenantSession } from "@/lib/server/tenant-auth";
 import { credentialAuthEnabled } from "@/auth";
@@ -9,13 +10,13 @@ export const dynamic = "force-dynamic";
 export default async function TenantSignIn({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
   // Already signed in → straight to the portal.
   const session = await readTenantSession();
   if (session) redirect("/tenant");
 
-  const { error } = await searchParams;
+  const { error, reset } = await searchParams;
   const message =
     error === "bad_credentials"
       ? "That email and password don't match. Check them and try again."
@@ -50,6 +51,12 @@ export default async function TenantSignIn({
         </p>
       )}
 
+      {reset && (
+        <p className="mt-3 max-w-xs text-sm text-urgency-done" role="status">
+          Password updated. Sign in with your new password.
+        </p>
+      )}
+
       {passwordLogin && (
         <form action={signInTenant} className="mt-6 flex w-full max-w-xs flex-col gap-2 text-left">
           <label className="text-label font-medium text-foreground" htmlFor="email">
@@ -80,6 +87,9 @@ export default async function TenantSignIn({
           >
             Sign in
           </button>
+          <Link href="/tenant/forgot" className="mt-1 text-center text-label text-muted-foreground underline">
+            Forgot password?
+          </Link>
         </form>
       )}
 

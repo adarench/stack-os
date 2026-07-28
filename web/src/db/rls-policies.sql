@@ -242,6 +242,14 @@ DROP POLICY IF EXISTS tenant_users_system_lookup ON tenant_users;
 CREATE POLICY tenant_users_system_lookup ON tenant_users FOR SELECT TO PUBLIC
 USING (current_actor_type() = 'system');
 
+-- system org-agnostic lookup for staff credential login + password-reset by
+-- token (the org isn't known from a reset link). System scope is set only by
+-- trusted server code; the query itself filters by token hash / email. Mirrors
+-- tenant_users_system_lookup. Writes still require an org match (staff_org).
+DROP POLICY IF EXISTS users_system_lookup ON users;
+CREATE POLICY users_system_lookup ON users FOR SELECT TO PUBLIC
+USING (current_actor_type() = 'system');
+
 -- Tenant scope on their own insurance policies.
 DROP POLICY IF EXISTS tenant_insurance_self ON tenant_insurance_policies;
 CREATE POLICY tenant_insurance_self ON tenant_insurance_policies FOR SELECT TO PUBLIC

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { credentialAuthEnabled, demoAuthEnabled, googleAuthConfigured, signIn } from "@/auth";
 
@@ -11,9 +12,9 @@ export const dynamic = "force-dynamic";
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, reset } = await searchParams;
   const hasGoogleAuth = googleAuthConfigured();
   const hasDemoAuth = demoAuthEnabled();
   const hasCredentialAuth = credentialAuthEnabled();
@@ -38,6 +39,12 @@ export default async function SignInPage({
                 : error === "CredentialsSignin"
                   ? "Invalid username or password."
                   : "That account is not set up for this workspace."}
+            </div>
+          )}
+
+          {reset && (
+            <div className="mt-5 rounded-md border border-urgency-done/30 bg-urgency-done/5 px-3 py-2 text-center text-[13px] text-foreground">
+              Password updated. Sign in with your new password.
             </div>
           )}
 
@@ -77,6 +84,9 @@ export default async function SignInPage({
               >
                 Sign in
               </button>
+              <Link href="/forgot" className="block text-center text-xs text-muted-foreground underline">
+                Forgot password?
+              </Link>
             </form>
           )}
 

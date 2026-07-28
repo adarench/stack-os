@@ -27,6 +27,11 @@ export const users = pgTable(
     failedLoginCount: integer("failed_login_count").notNull().default(0),
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
     status: text("status").notNull().default("active"), // active | invited | deactivated
+    // Password reset (hashed, single-use, expiring — never the raw token) + last
+    // successful login for account management. Additive + nullable.
+    passwordResetTokenHash: text("password_reset_token_hash"),
+    passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
 
     ...timestamps,
   },
