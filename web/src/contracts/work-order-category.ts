@@ -10,6 +10,12 @@ export const WORK_ORDER_CATEGORIES = [
   "hvac",
   "appliance",
   "locks_doors",
+  // Commercial categories (Lucid) — frequent requests so tenants tap instead of
+  // re-describing every time.
+  "cleaning",
+  "supplies",
+  "restroom_supplies",
+  "beverage",
   "general",
 ] as const;
 
@@ -21,6 +27,10 @@ export const WORK_ORDER_CATEGORY_LABELS: Record<WorkOrderCategory, string> = {
   hvac: "Heat / AC",
   appliance: "Appliance",
   locks_doors: "Locks & doors",
+  cleaning: "Cleaning",
+  supplies: "Supplies",
+  restroom_supplies: "Restroom / soap out",
+  beverage: "Beverage / soda machine",
   general: "Something else",
 };
 

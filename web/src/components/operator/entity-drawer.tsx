@@ -1081,7 +1081,13 @@ function TimelineFeed({
                     {c.actorName ?? c.actorType}
                   </span>
                   <span>·</span>
-                  <span>{c.visibility === "external" ? "with vendor" : "internal"}</span>
+                  <span>
+                    {c.visibility === "external"
+                      ? data.tenantContext
+                        ? "visible to requester"
+                        : "with vendor"
+                      : "internal"}
+                  </span>
                   <TimeSince at={c.at} className="ml-auto" />
                 </div>
                 <p className="whitespace-pre-wrap text-sm">{c.body}</p>

@@ -7,6 +7,10 @@ import {
   WashingMachine,
   KeyRound,
   CircleHelp,
+  SprayCan,
+  Package,
+  ShowerHead,
+  CupSoda,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -22,6 +26,10 @@ const ICONS: Record<WorkOrderCategory, LucideIcon> = {
   hvac: Thermometer,
   appliance: WashingMachine,
   locks_doors: KeyRound,
+  cleaning: SprayCan,
+  supplies: Package,
+  restroom_supplies: ShowerHead,
+  beverage: CupSoda,
   general: CircleHelp,
 };
 

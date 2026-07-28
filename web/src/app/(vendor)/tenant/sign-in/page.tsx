@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { readTenantSession } from "@/lib/server/tenant-auth";
+import { credentialAuthEnabled } from "@/auth";
 import { Page } from "@/components/ui/page";
+import { signInTenant } from "./_actions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +17,19 @@ export default async function TenantSignIn({
 
   const { error } = await searchParams;
   const message =
-    error === "not_registered"
-      ? "That Google account isn't on the resident list for this property. Ask your property manager to add you."
-      : error === "google"
-        ? "Google sign-in didn't complete. Please try again."
-        : error
-          ? "Something went wrong signing in. Please try again."
-          : null;
+    error === "bad_credentials"
+      ? "That email and password don't match. Check them and try again."
+      : error === "not_registered"
+        ? "That Google account isn't on the resident list for this property. Ask your property manager to add you."
+        : error === "google"
+          ? "Google sign-in didn't complete. Please try again."
+          : error === "config"
+            ? "Sign-in isn't configured yet. Please contact your property manager."
+            : error
+              ? "Something went wrong signing in. Please try again."
+              : null;
+
+  const passwordLogin = credentialAuthEnabled();
 
   return (
     <Page
@@ -42,18 +50,53 @@ export default async function TenantSignIn({
         </p>
       )}
 
+      {passwordLogin && (
+        <form action={signInTenant} className="mt-6 flex w-full max-w-xs flex-col gap-2 text-left">
+          <label className="text-label font-medium text-foreground" htmlFor="email">
+            Email
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            className="h-11 rounded-md border border-border bg-card px-3 text-body text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <label className="mt-1 text-label font-medium text-foreground" htmlFor="password">
+            Password
+          </label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            className="h-11 rounded-md border border-border bg-card px-3 text-body text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <button
+            type="submit"
+            className="mt-3 inline-flex h-11 items-center justify-center rounded-md bg-foreground px-5 text-body font-medium text-background transition-colors hover:bg-foreground/90"
+          >
+            Sign in
+          </button>
+        </form>
+      )}
+
       {/* Full-page navigation into the OAuth flow (an API route, not a page) —
           Link would client-route and break the redirect. */}
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
       <a
         href="/api/tenant/auth/google/start"
-        className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-card px-5 text-body font-medium text-foreground shadow-sm transition-colors hover:bg-muted/40"
+        className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-card px-5 text-body font-medium text-foreground shadow-sm transition-colors hover:bg-muted/40"
       >
         Sign in with Google
       </a>
 
       <p className="mt-4 text-meta text-muted-foreground">
-        Use the Google account for the email your property manager invited.
+        {passwordLogin
+          ? "Use the email and password your property manager set up for you."
+          : "Use the Google account for the email your property manager invited."}
       </p>
     </Page>
   );
