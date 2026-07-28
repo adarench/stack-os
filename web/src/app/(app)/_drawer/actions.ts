@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createComment } from "@/lib/server/comments";
-import { updateWorkOrderStatus, assignVendor } from "@/lib/server/work-orders";
+import { updateWorkOrderStatus, assignVendor, assignTechnician } from "@/lib/server/work-orders";
 import { decideApproval } from "@/lib/server/approvals";
 import { loadEntityDetail } from "@/lib/server/entity-detail";
 
@@ -94,6 +94,34 @@ export async function assignVendorAction(
       vendorUserId: parsed.vendorUserId,
       overrideCoi: parsed.overrideCoi,
     });
+    revalidatePath("/now");
+    revalidatePath("/work");
+    return { ok: true as const };
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : "assign_failed",
+    };
+  }
+}
+
+/* ------------------ assign technician ------------------ */
+
+const assignTechnicianActionInput = z.object({
+  ref: z.string(),
+  userId: z.string().uuid(),
+});
+
+export async function assignTechnicianAction(
+  input: z.input<typeof assignTechnicianActionInput>,
+) {
+  const parsed = assignTechnicianActionInput.parse(input);
+  const detail = await loadEntityDetail(parsed.ref);
+  if (!detail || detail.type !== "wo") {
+    return { ok: false as const, error: "not_a_work_order" };
+  }
+  try {
+    await assignTechnician({ workOrderId: detail.id, userId: parsed.userId });
     revalidatePath("/now");
     revalidatePath("/work");
     return { ok: true as const };

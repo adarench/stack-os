@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, type SQL } from "drizzle-orm";
 import { workOrders } from "@db/schema/work-orders";
 import { assignments } from "@db/schema/assignments";
 import { vendorUsers } from "@db/schema/vendor-users";
@@ -505,6 +505,91 @@ export async function assignVendor(input: z.infer<typeof assignVendorInput>) {
       kind: "wo_assigned",
       subject: `WO-${wo.number}: ${wo.title}`,
       body: `You've been assigned WO-${wo.number} "${wo.title}". Open the vendor portal to view details.`,
+      targetType: "work_order",
+      targetId: wo.id,
+    });
+  }
+}
+
+export const assignTechnicianInput = z.object({
+  workOrderId: z.string().uuid(),
+  userId: z.string().uuid(),
+});
+
+/**
+ * Operator assigns a WO to an internal technician (no vendor). Single-owner:
+ * retires any active user assignment first. Advances new/triaged → assigned so
+ * the tech can pick it up from `/tech`, and notifies them.
+ */
+export async function assignTechnician(input: z.infer<typeof assignTechnicianInput>) {
+  const parsed = assignTechnicianInput.parse(input);
+  const result = await withStaffScope(async (tx, ctx) => {
+    const actorId = await ensureUserRow(tx, ctx.orgId, ctx.userId);
+    const [tech] = await tx
+      .select({ id: users.id, email: users.email, phone: users.phone, name: users.name })
+      .from(users)
+      .where(and(eq(users.orgId, ctx.orgId), eq(users.id, parsed.userId)))
+      .limit(1);
+    if (!tech) throw new Error("user_not_in_org");
+
+    // One active owner — retire any current user assignment before adding this.
+    await tx
+      .update(assignments)
+      .set({ unassignedAt: new Date() })
+      .where(
+        and(
+          eq(assignments.orgId, ctx.orgId),
+          eq(assignments.targetType, "work_order"),
+          eq(assignments.targetId, parsed.workOrderId),
+          eq(assignments.assigneeType, "user"),
+          isNull(assignments.unassignedAt),
+        ),
+      );
+    await tx.insert(assignments).values({
+      orgId: ctx.orgId,
+      targetType: "work_order",
+      targetId: parsed.workOrderId,
+      assigneeType: "user",
+      assigneeId: parsed.userId,
+      assignedByUserId: actorId,
+    });
+
+    const current = await getRow(tx, ctx.orgId, parsed.workOrderId);
+    if (current && (current.status === "new" || current.status === "triaged")) {
+      await tx
+        .update(workOrders)
+        .set({ status: "assigned", updatedAt: new Date() })
+        .where(eq(workOrders.id, parsed.workOrderId));
+      await writeAudit(tx, {
+        orgId: ctx.orgId,
+        targetType: "work_order",
+        targetId: parsed.workOrderId,
+        action: "status_changed",
+        actorUserId: actorId,
+        diff: { from: { status: current.status }, to: { status: "assigned" } },
+      });
+    }
+    await writeAudit(tx, {
+      orgId: ctx.orgId,
+      targetType: "work_order",
+      targetId: parsed.workOrderId,
+      action: "assigned",
+      actorUserId: actorId,
+      diff: { to: { assigneeUserId: parsed.userId } },
+    });
+    return { orgId: ctx.orgId, tech, workOrder: current };
+  });
+
+  if (result.workOrder) {
+    const wo = result.workOrder;
+    await emitNotification({
+      orgId: result.orgId,
+      recipientUserId: result.tech.id,
+      recipientEmail: result.tech.email,
+      recipientPhone: result.tech.phone,
+      kind: "wo_assigned",
+      subject: `WO-${wo.number}: ${wo.title}`,
+      body: `You've been assigned WO-${wo.number} "${wo.title}". Open it in My Work.`,
       targetType: "work_order",
       targetId: wo.id,
     });

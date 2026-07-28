@@ -19,6 +19,7 @@ import {
 import {
   addCommentAction,
   assignVendorAction,
+  assignTechnicianAction,
   decideApprovalAction,
   setStatusAction,
 } from "@/app/(app)/_drawer/actions";
@@ -456,10 +457,96 @@ function WorkOverview({
       )}
 
       {data.type === "wo" && (
+        <Field label="Assign to technician">
+          <AssignTechnicianMenu entityRef={data.ref} onMutated={onMutated} />
+        </Field>
+      )}
+
+      {data.type === "wo" && (
         <Field label="Assign vendor">
           <AssignVendorMenu entityRef={data.ref} onMutated={onMutated} />
         </Field>
       )}
+    </div>
+  );
+}
+
+/**
+ * Assign a WO to an internal technician (no vendor needed). Lazy-loads the
+ * technician list; advancing a new/triaged WO to "assigned" happens server-side.
+ */
+function AssignTechnicianMenu({
+  entityRef,
+  onMutated,
+}: {
+  entityRef: string;
+  onMutated: () => void;
+}) {
+  const [items, setItems] = React.useState<
+    { id: string; name: string | null; email: string }[] | null
+  >(null);
+  const [loading, setLoading] = React.useState(false);
+  const [userId, setUserId] = React.useState<string>("");
+  const [pending, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    if (items !== null) return;
+    setLoading(true);
+    fetch("/api/me/technicians", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: { items: { id: string; name: string | null; email: string }[] }) => {
+        setItems(data.items ?? []);
+      })
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [items]);
+
+  const submit = () => {
+    if (!userId) return;
+    startTransition(async () => {
+      const r = await assignTechnicianAction({ ref: entityRef, userId });
+      if (r.ok) {
+        toast.success("Assigned to technician");
+        setUserId("");
+        onMutated();
+      } else {
+        toast.error(`Couldn't assign: ${r.error}`);
+      }
+    });
+  };
+
+  if (loading && items === null) {
+    return <p className="text-xs text-muted-foreground">Loading technicians…</p>;
+  }
+  if ((items ?? []).length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        No technicians yet. Add one from{" "}
+        <Link href="/admin/team" className="underline">
+          /admin/team
+        </Link>
+        .
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <select
+        value={userId}
+        onChange={(e) => setUserId(e.target.value)}
+        className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
+      >
+        <option value="">— pick a technician —</option>
+        {(items ?? []).map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.name || u.email}
+          </option>
+        ))}
+      </select>
+      <Button type="button" size="sm" disabled={!userId || pending} onClick={submit}>
+        {pending ? "Assigning…" : "Assign"}
+      </Button>
     </div>
   );
 }

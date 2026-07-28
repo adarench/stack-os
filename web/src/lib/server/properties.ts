@@ -68,6 +68,17 @@ export async function listStaffUsers() {
   );
 }
 
+/** Technicians assignable to a work order from the operator drawer. */
+export async function listAssignableTechnicians() {
+  return withStaffScope(async (tx, ctx) =>
+    tx
+      .select({ id: users.id, name: users.name, email: users.email })
+      .from(users)
+      .where(and(eq(users.orgId, ctx.orgId), eq(users.role, "technician")))
+      .orderBy(asc(users.name)),
+  );
+}
+
 /**
  * Set (or clear) a staff user's mobile number for SMS dispatch. New-assignment
  * texts only fire for techs with a number on file.
