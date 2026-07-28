@@ -80,13 +80,28 @@ export function SubmitForm() {
     }
     if (picks.length > 0) {
       setPhase("uploading");
-      // Photos are best-effort — the request is already filed.
+      // The request is already filed; attach photos with one retry for transient
+      // failures. If any still fail, tell the resident rather than dropping them
+      // silently — a lost photo shouldn't look like a success.
+      let failed = 0;
       for (const p of picks) {
         try {
           await uploadPick(created.id, p);
         } catch {
-          /* ignore individual upload failures */
+          try {
+            await uploadPick(created.id, p);
+          } catch {
+            failed++;
+          }
         }
+      }
+      if (failed > 0) {
+        setError(
+          `Your request was filed, but ${failed === 1 ? "a photo" : `${failed} photos`} didn't upload. Please reopen the request and try adding ${failed === 1 ? "it" : "them"} again.`,
+        );
+        setPhase("idle");
+        router.refresh();
+        return;
       }
     }
     setPhase("done");
