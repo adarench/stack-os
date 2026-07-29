@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { readTenantSession } from "@/lib/server/tenant-auth";
+import { tenantMustChangePassword } from "@/lib/server/tenant-credentials";
 import { loadTenantRequests } from "@/lib/server/tenant-requests";
 import { RequestCard } from "@/components/tenant/request-card";
 import { PushOptIn } from "@/components/tenant/push-opt-in";
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function TenantHome() {
   const session = await readTenantSession();
   if (!session) redirect("/tenant/sign-in");
+  if (await tenantMustChangePassword(session)) redirect("/tenant/change-password");
 
   const requests = await loadTenantRequests(session);
   // Action-needed first, then open, then closed — each newest-first (already

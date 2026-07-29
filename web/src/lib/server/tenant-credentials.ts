@@ -152,6 +152,29 @@ export async function provisionTenantAccount(
   });
 }
 
+/** Does this resident still need to set their own password (temp onboarding)? */
+export async function tenantMustChangePassword(session: TenantSession): Promise<boolean> {
+  return withScope({ orgId: session.orgId, actorType: "system" }, async (tx) => {
+    const [u] = await tx
+      .select({ m: tenantUsers.mustChangePassword })
+      .from(tenantUsers)
+      .where(and(eq(tenantUsers.orgId, session.orgId), eq(tenantUsers.id, session.tenantUserId)))
+      .limit(1);
+    return !!u?.m;
+  });
+}
+
+/** Resident sets their own password (forced change) — clears the flag. */
+export async function setOwnTenantPassword(session: TenantSession, plain: string): Promise<void> {
+  const passwordHash = await hashPassword(plain);
+  await withScope({ orgId: session.orgId, actorType: "system" }, (tx) =>
+    tx
+      .update(tenantUsers)
+      .set({ passwordHash, mustChangePassword: false, failedLoginCount: 0, lockedUntil: null, emailVerifiedAt: new Date() })
+      .where(and(eq(tenantUsers.orgId, session.orgId), eq(tenantUsers.id, session.tenantUserId))),
+  );
+}
+
 /** Set/replace a resident's password (admin-assisted / first login). Activates. */
 export async function setTenantPassword(
   orgId: string,

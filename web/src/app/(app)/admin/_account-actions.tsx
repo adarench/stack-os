@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { setPersonActiveAction, adminResetPasswordAction } from "./_actions";
+import { setPersonActiveAction, adminResetPasswordAction, adminSendInviteAction } from "./_actions";
 
 /** Deactivate/reactivate + admin password reset for a staff or resident account. */
 export function AccountActions({
@@ -16,8 +16,18 @@ export function AccountActions({
 }) {
   const [pending, start] = useTransition();
   const [tempPw, setTempPw] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const router = useRouter();
+
+  const invite = () =>
+    start(async () => {
+      setErr(null);
+      setSent(false);
+      const r = await adminSendInviteAction({ type, id });
+      if (r.ok) setSent(true);
+      else setErr(r.error ?? "Failed");
+    });
 
   const toggle = () =>
     start(async () => {
@@ -41,6 +51,14 @@ export function AccountActions({
       <div className="flex items-center gap-2">
         <button
           type="button"
+          onClick={invite}
+          disabled={pending}
+          className="rounded-md border border-border px-2.5 py-1 text-label text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+        >
+          Send invite
+        </button>
+        <button
+          type="button"
           onClick={reset}
           disabled={pending}
           className="rounded-md border border-border px-2.5 py-1 text-label text-foreground transition-colors hover:bg-muted disabled:opacity-60"
@@ -60,6 +78,7 @@ export function AccountActions({
           {active ? "Deactivate" : "Reactivate"}
         </button>
       </div>
+      {sent && <p className="text-meta text-urgency-done">Invite email sent.</p>}
       {tempPw && (
         <p className="font-mono text-meta text-foreground">
           Temp password (share once): <span className="font-semibold">{tempPw}</span>

@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/server/auth";
+import { staffMustChangePassword } from "@/lib/server/credentials";
 import { AppShell } from "@/components/operator/app-shell";
 import { NEW_SHELL } from "@/lib/feature-flags";
 import { loadShellSummary, type ShellSummary } from "@/lib/server/shell";
@@ -20,6 +22,9 @@ export default async function AppLayout({
   if (NEW_SHELL) {
     const { userId, orgId } = await auth();
     if (userId && orgId) {
+      // Force a temp-password user to set their own before using the console
+      // (/change-password is top-level, so this never loops).
+      if (await staffMustChangePassword(orgId, userId)) redirect("/change-password");
       try {
         summary = await loadShellSummary();
       } catch {

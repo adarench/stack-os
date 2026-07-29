@@ -13,6 +13,7 @@ export type AuthEventKind =
   | "role_changed"
   | "account_deactivated"
   | "account_reactivated"
+  | "invitation_issued"
   | "provisioned";
 
 /**

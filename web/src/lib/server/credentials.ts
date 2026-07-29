@@ -99,6 +99,29 @@ export async function loadStaffRole(orgId: string, subject: string): Promise<str
   });
 }
 
+/** Does this staff user still need to set their own password (temp onboarding)? */
+export async function staffMustChangePassword(orgId: string, subject: string): Promise<boolean> {
+  return withScope({ orgId, actorType: "system" }, async (tx) => {
+    const [u] = await tx
+      .select({ m: users.mustChangePassword })
+      .from(users)
+      .where(and(eq(users.orgId, orgId), eq(users.clerkUserId, subject)))
+      .limit(1);
+    return !!u?.m;
+  });
+}
+
+/** Staff user sets their own password (forced change) — clears the flag. */
+export async function setOwnStaffPassword(orgId: string, subject: string, plain: string): Promise<void> {
+  const passwordHash = await hashPassword(plain);
+  await withScope({ orgId, actorType: "system" }, (tx) =>
+    tx
+      .update(users)
+      .set({ passwordHash, mustChangePassword: false, failedLoginCount: 0, lockedUntil: null, emailVerifiedAt: new Date() })
+      .where(and(eq(users.orgId, orgId), eq(users.clerkUserId, subject))),
+  );
+}
+
 /** Set/replace a staff account's password (admin-assisted reset / first login). */
 export async function setStaffPassword(orgId: string, usersId: string, plain: string): Promise<void> {
   const passwordHash = await hashPassword(plain);

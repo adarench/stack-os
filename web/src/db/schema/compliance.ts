@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, numeric, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, numeric, integer, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { id, orgId, timestamps, complianceStatusEnum } from "./_shared";
 
 export const vendorCois = pgTable(
@@ -70,6 +70,8 @@ export const tenantUsers = pgTable(
     // Password reset (hashed, single-use, expiring). Additive + nullable.
     passwordResetTokenHash: text("password_reset_token_hash"),
     passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
+    // Force a password change on next login (temp-password onboarding).
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
 
     ...timestamps,
   },

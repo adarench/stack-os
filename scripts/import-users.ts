@@ -75,13 +75,13 @@ async function main() {
           status=${active ? "active" : "deactivated"} where id=${existing.id}`;
         if (!existing.hp) {
           const pw = tempPassword();
-          await sql`update users set password_hash=${await bcrypt.hash(pw, 12)}, email_verified_at=now() where id=${existing.id}`;
+          await sql`update users set password_hash=${await bcrypt.hash(pw, 12)}, must_change_password=true, email_verified_at=now() where id=${existing.id}`;
           created.push({ email, role, password: pw });
         } else updated++;
       } else {
         const pw = tempPassword();
-        await sql`insert into users (org_id, clerk_user_id, email, name, username, role, password_hash, status, email_verified_at)
-          values (${orgId}, ${"local:" + randomBytes(8).toString("hex")}, ${email}, ${r.name || null}, ${r.username || null}, ${role}, ${await bcrypt.hash(pw, 12)}, ${active ? "active" : "deactivated"}, now())`;
+        await sql`insert into users (org_id, clerk_user_id, email, name, username, role, password_hash, status, must_change_password, email_verified_at)
+          values (${orgId}, ${"local:" + randomBytes(8).toString("hex")}, ${email}, ${r.name || null}, ${r.username || null}, ${role}, ${await bcrypt.hash(pw, 12)}, ${active ? "active" : "deactivated"}, true, now())`;
         created.push({ email, role, password: pw });
       }
       // Technician coverage → covering tech on the named properties.
@@ -106,13 +106,13 @@ async function main() {
           status=${active ? "active" : "revoked"} where id=${existing.id}`;
         if (!existing.hp) {
           const pw = tempPassword();
-          await sql`update tenant_users set password_hash=${await bcrypt.hash(pw, 12)}, email_verified_at=now() where id=${existing.id}`;
+          await sql`update tenant_users set password_hash=${await bcrypt.hash(pw, 12)}, must_change_password=true, email_verified_at=now() where id=${existing.id}`;
           created.push({ email, role, password: pw });
         } else updated++;
       } else {
         const pw = tempPassword();
-        await sql`insert into tenant_users (org_id, unit_id, email, name, status, password_hash, email_verified_at)
-          values (${orgId}, ${unitId}, ${email}, ${r.name || null}, ${active ? "active" : "revoked"}, ${await bcrypt.hash(pw, 12)}, now())`;
+        await sql`insert into tenant_users (org_id, unit_id, email, name, status, password_hash, must_change_password, email_verified_at)
+          values (${orgId}, ${unitId}, ${email}, ${r.name || null}, ${active ? "active" : "revoked"}, ${await bcrypt.hash(pw, 12)}, true, now())`;
         created.push({ email, role, password: pw });
       }
     } else {

@@ -19,6 +19,7 @@ import { withScope } from "@/lib/server/db";
 import { users } from "@db/schema/users";
 import { tenantUsers } from "@db/schema/compliance";
 import { recordAuthEvent } from "@/lib/server/auth-events";
+import { requestPasswordReset } from "@/lib/server/password-reset";
 
 async function requireOperator(): Promise<{ orgId: string } | { error: string }> {
   const { userId, orgId, role } = await auth();
@@ -68,6 +69,12 @@ export async function adminResetPasswordAction(input: {
   try {
     if (input.type === "staff") await setStaffPassword(orgId, input.id, password);
     else await setTenantPassword(orgId, input.id, password);
+    // Temp password → force the user to set their own on next login.
+    await withScope({ orgId, actorType: "system" }, (tx) =>
+      input.type === "staff"
+        ? tx.update(users).set({ mustChangePassword: true }).where(and(eq(users.orgId, orgId), eq(users.id, input.id)))
+        : tx.update(tenantUsers).set({ mustChangePassword: true }).where(and(eq(tenantUsers.orgId, orgId), eq(tenantUsers.id, input.id))),
+    );
     await recordAuthEvent({
       event: "password_changed",
       orgId,
@@ -78,6 +85,28 @@ export async function adminResetPasswordAction(input: {
     revalidatePath("/admin/team");
     revalidatePath("/admin/residents");
     return { ok: true, password };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "failed" };
+  }
+}
+
+/** Email a person a "set your password" invite link (no shared secret). */
+export async function adminSendInviteAction(input: {
+  type: "staff" | "tenant";
+  id: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const gate = await requireOperator();
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { orgId } = gate;
+  try {
+    const [row] = await withScope({ orgId, actorType: "system" }, (tx) =>
+      input.type === "staff"
+        ? tx.select({ email: users.email }).from(users).where(and(eq(users.orgId, orgId), eq(users.id, input.id))).limit(1)
+        : tx.select({ email: tenantUsers.email }).from(tenantUsers).where(and(eq(tenantUsers.orgId, orgId), eq(tenantUsers.id, input.id))).limit(1),
+    );
+    if (!row?.email) return { ok: false, error: "No email on file." };
+    await requestPasswordReset(input.type, row.email, { invite: true });
+    return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "failed" };
   }
@@ -125,19 +154,23 @@ export async function addPersonAction(input: {
 
   try {
     if (input.type === "technician") {
-      await provisionStaffAccount(orgId, {
+      const id = await provisionStaffAccount(orgId, {
         email,
         name: input.name.trim() || undefined,
         role: "technician",
         password,
       });
+      await withScope({ orgId, actorType: "system" }, (tx) =>
+        tx.update(users).set({ mustChangePassword: true }).where(eq(users.id, id)));
     } else {
-      await provisionTenantAccount(orgId, {
+      const id = await provisionTenantAccount(orgId, {
         email,
         name: input.name.trim() || undefined,
         unitId: input.unitId || null,
         password,
       });
+      await withScope({ orgId, actorType: "system" }, (tx) =>
+        tx.update(tenantUsers).set({ mustChangePassword: true }).where(eq(tenantUsers.id, id)));
     }
     revalidatePath("/admin/team");
     return { ok: true, email, password };

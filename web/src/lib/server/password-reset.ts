@@ -24,8 +24,13 @@ export type Actor = "staff" | "tenant";
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /** Request a reset link. Always behaves identically whether or not the email
- *  matches an account — the caller shows one generic message. */
-export async function requestPasswordReset(actor: Actor, email: string): Promise<void> {
+ *  matches an account — the caller shows one generic message. `invite` frames
+ *  the email as a first-time account setup rather than a reset. */
+export async function requestPasswordReset(
+  actor: Actor,
+  email: string,
+  opts?: { invite?: boolean },
+): Promise<void> {
   const e = (email ?? "").trim().toLowerCase();
   if (!e) return;
   const raw = generateToken();
@@ -47,7 +52,7 @@ export async function requestPasswordReset(actor: Actor, email: string): Promise
             .where(eq(users.id, u.id)),
         );
         recipient = { email: u.email };
-        await recordAuthEvent({ event: "reset_requested", orgId: u.orgId, actorType: "user", subjectUserId: u.id, subjectEmail: u.email, ip: await clientIp() });
+        await recordAuthEvent({ event: opts?.invite ? "invitation_issued" : "reset_requested", orgId: u.orgId, actorType: "user", subjectUserId: u.id, subjectEmail: u.email, ip: await clientIp() });
       }
     } else {
       const found = await withScope({ orgId: "_", actorType: "system" }, (tx) =>
@@ -62,7 +67,7 @@ export async function requestPasswordReset(actor: Actor, email: string): Promise
             .where(eq(tenantUsers.id, u.id)),
         );
         recipient = { email: u.email };
-        await recordAuthEvent({ event: "reset_requested", orgId: u.orgId, actorType: "tenant", subjectTenantUserId: u.id, subjectEmail: u.email, ip: await clientIp() });
+        await recordAuthEvent({ event: opts?.invite ? "invitation_issued" : "reset_requested", orgId: u.orgId, actorType: "tenant", subjectTenantUserId: u.id, subjectEmail: u.email, ip: await clientIp() });
       }
     }
   } catch (err) {
@@ -79,16 +84,18 @@ export async function requestPasswordReset(actor: Actor, email: string): Promise
 
   const path = actor === "tenant" ? "/tenant/reset" : "/reset";
   const link = absoluteUrl(`${path}?token=${raw}`);
+  const invite = !!opts?.invite;
+  const subject = invite ? "Set up your Stack OS account" : "Reset your Stack OS password";
   const { html, text } = renderNotificationEmail({
-    heading: "Reset your Stack OS password",
-    body:
-      "We received a request to reset your Stack OS password. This link expires in 1 hour. " +
-      "If you didn't request it, you can safely ignore this email.",
+    heading: invite ? "Welcome to Stack OS" : "Reset your Stack OS password",
+    body: invite
+      ? "Your Stack OS account is ready. Tap below to choose your password and sign in. This link expires in 1 hour."
+      : "We received a request to reset your Stack OS password. This link expires in 1 hour. If you didn't request it, you can safely ignore this email.",
     url: link,
-    ctaLabel: "Reset password",
+    ctaLabel: invite ? "Choose your password" : "Reset password",
   });
   try {
-    await sendEmail({ to: recipient.email, subject: "Reset your Stack OS password", html, text });
+    await sendEmail({ to: recipient.email, subject, html, text });
     logger.info("pwreset.email_sent", { actor });
   } catch (err) {
     logger.warn("pwreset.email_failed", { actor, err });
@@ -128,6 +135,7 @@ export async function completePasswordReset(
           failedLoginCount: 0,
           lockedUntil: null,
           emailVerifiedAt: new Date(),
+          mustChangePassword: false,
         })
         .where(eq(users.id, row.id)),
     );

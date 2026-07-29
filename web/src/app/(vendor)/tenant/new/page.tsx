@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { readTenantSession } from "@/lib/server/tenant-auth";
+import { tenantMustChangePassword } from "@/lib/server/tenant-credentials";
 import { SubmitForm } from "@/components/tenant/submit-form";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function NewTenantRequestPage() {
   const session = await readTenantSession();
   if (!session) redirect("/tenant/sign-in");
+  if (await tenantMustChangePassword(session)) redirect("/tenant/change-password");
 
   return (
     <div>

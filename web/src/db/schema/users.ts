@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, integer, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { id, orgId, timestamps } from "./_shared";
 
 // Staff/technician identity, scoped to an org. Historically a mirror of the
@@ -33,6 +33,8 @@ export const users = pgTable(
     passwordResetTokenHash: text("password_reset_token_hash"),
     passwordResetExpiresAt: timestamp("password_reset_expires_at", { withTimezone: true }),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    // Force a password change on next login (temp-password onboarding).
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
 
     ...timestamps,
   },
