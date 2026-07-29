@@ -58,13 +58,25 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || "/tenant";
   event.waitUntil(
-    self.clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((list) => {
-        for (const client of list) {
-          if (client.url.includes("/tenant") && "focus" in client) return client.focus();
+    (async () => {
+      const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      // Focus an existing tenant window AND route it to the deep link, so tapping
+      // "Update on your request" lands on that specific work order — not just the
+      // last screen the app happened to be on.
+      for (const client of list) {
+        if (client.url.includes("/tenant")) {
+          await client.focus();
+          if ("navigate" in client) {
+            try {
+              await client.navigate(url);
+            } catch {
+              /* cross-origin/again: fall through to focus-only */
+            }
+          }
+          return;
         }
-        if (self.clients.openWindow) return self.clients.openWindow(url);
-      }),
+      }
+      if (self.clients.openWindow) await self.clients.openWindow(url);
+    })(),
   );
 });

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Plus, LogOut } from "lucide-react";
+import { unsubscribePush } from "@/lib/push-client";
 import {
   Sheet,
   SheetContent,
@@ -86,7 +87,7 @@ export function MoreSheet({
           <div className="mt-2 border-t border-border pt-2">
             <button
               type="button"
-              onClick={() => signOut({ redirectTo: "/sign-in" })}
+              onClick={async () => { await unsubscribePush("/api/me/push/subscribe"); signOut({ redirectTo: "/sign-in" }); }}
               className="flex w-full items-center gap-3 rounded-md px-2 py-2.5 text-body text-foreground hover:bg-accent"
             >
               <LogOut className="size-4 shrink-0 text-muted-foreground" />

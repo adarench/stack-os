@@ -18,7 +18,8 @@ import { WORK_ORDER_PRIORITIES } from "@contracts/state-machines/work-order";
 import { nextWorkOrderNumber } from "./sequence";
 import { writeAudit } from "./audit";
 import { emitNotification, notifyOpsTeam } from "./notifications";
-import { saveTenantPushSubscription } from "./push";
+import { saveTenantPushSubscription, pruneTenantPushSubscription } from "./push";
+import { tenantPushSubscriptions } from "@db/schema/push-subscriptions";
 import type { TenantSession } from "./tenant-auth";
 
 export const tenantSubmitInput = z.object({
@@ -535,5 +536,22 @@ export async function subscribeTenantPush(
       auth: sub.auth,
       userAgent: sub.userAgent ?? null,
     });
+  });
+}
+
+/** Drop a resident's push subscription by endpoint (sign-out on this device). */
+export async function unsubscribeTenantPush(session: TenantSession, endpoint: string) {
+  return withTenantScope(session, async (tx) => {
+    const [row] = await tx
+      .select({ id: tenantPushSubscriptions.id })
+      .from(tenantPushSubscriptions)
+      .where(
+        and(
+          eq(tenantPushSubscriptions.orgId, session.orgId),
+          eq(tenantPushSubscriptions.endpoint, endpoint),
+        ),
+      )
+      .limit(1);
+    if (row) await pruneTenantPushSubscription(tx, row.id);
   });
 }

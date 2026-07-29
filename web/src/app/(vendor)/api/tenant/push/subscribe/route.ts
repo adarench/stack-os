@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readTenantSession } from "@/lib/server/tenant-auth";
-import { subscribeTenantPush } from "@/lib/server/tenant-work-orders";
+import { subscribeTenantPush, unsubscribeTenantPush } from "@/lib/server/tenant-work-orders";
 
 const body = z.object({
   endpoint: z.string().url(),
@@ -24,5 +24,21 @@ export async function POST(req: Request) {
     auth: parsed.keys.auth,
     userAgent: req.headers.get("user-agent"),
   });
+  return NextResponse.json({ ok: true });
+}
+
+/** Drop this device's subscription (sign-out) so a shared device stops
+ *  receiving the previous resident's notifications. */
+export async function DELETE(req: Request) {
+  const session = await readTenantSession();
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  let endpoint: string | undefined;
+  try {
+    endpoint = (await req.json())?.endpoint;
+  } catch {
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+  }
+  if (!endpoint) return NextResponse.json({ error: "endpoint required" }, { status: 400 });
+  await unsubscribeTenantPush(session, endpoint);
   return NextResponse.json({ ok: true });
 }

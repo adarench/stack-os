@@ -31,6 +31,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   // Do not disable zoom — pinch-to-zoom is a WCAG 2.1 AA requirement (SC 1.4.4)
   // and a mobile-web-app "feel" does not require locking scale on modern iOS/Android.
+  // viewportFit:cover lets `env(safe-area-inset-*)` resolve to real values so the
+  // bottom nav + fixed bars clear the notch and the iOS home-indicator strip.
+  viewportFit: "cover",
   themeColor: "#0a0a0a",
 };
 

@@ -1,5 +1,6 @@
 import * as React from "react";
 import { BottomNav } from "./bottom-nav";
+import { SignOutLink } from "./sign-out-link";
 import type { TenantHeader } from "@/lib/server/tenant-requests";
 
 /**
@@ -27,14 +28,9 @@ export function TenantShell({
               : (header?.name ?? header?.email ?? "Signed in")}
           </p>
         </div>
-        {/* Full navigation to the signout route (clears the cookie, redirects). */}
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a
-          href="/api/tenant/auth/signout"
-          className="shrink-0 pt-0.5 text-label text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Sign out
-        </a>
+        {/* Signout route clears the cookie + redirects; the client link also drops
+            this device's push subscription first. */}
+        <SignOutLink className="shrink-0 pt-0.5 text-label text-muted-foreground transition-colors hover:text-foreground" />
       </header>
       <main className="flex-1 px-4 py-4">{children}</main>
       <BottomNav />

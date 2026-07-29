@@ -41,7 +41,7 @@ export function PushOptIn() {
       return;
     }
     navigator.serviceWorker
-      .getRegistration("/tenant-sw.js")
+      .getRegistration()
       .then(async (reg) => {
         const sub = reg ? await reg.pushManager.getSubscription() : null;
         setState(sub ? "on" : "off");

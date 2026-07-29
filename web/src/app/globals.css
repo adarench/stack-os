@@ -3,6 +3,19 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* iOS Safari zooms the viewport (and strands the user zoomed-in) whenever a
+   focused control has font-size < 16px. Our controls are 13px by design, so on
+   small screens force 16px on focusable inputs — the single biggest "this is a
+   web page" tell on a phone. Unlayered so it beats the Tailwind text-* utility;
+   desktop density is unchanged. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 :root {
   --radius: 0.5rem;
 

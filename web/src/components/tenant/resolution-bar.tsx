@@ -21,22 +21,28 @@ export function ResolutionBar({
   const router = useRouter();
   const [mode, setMode] = useState<"ask" | "reopen">("ask");
   const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   function confirm() {
+    setError(null);
     start(async () => {
       const r = await confirmResolvedAction(refId, workOrderId);
       if (r.ok) router.refresh();
+      else setError(r.error ?? "Couldn't save — check your connection and try again.");
     });
   }
   function reopen() {
     if (!note.trim()) return;
+    setError(null);
     start(async () => {
       const r = await reopenRequestAction(refId, workOrderId, note);
       if (r.ok) {
         setNote("");
         setMode("ask");
         router.refresh();
+      } else {
+        setError(r.error ?? "Couldn't save — check your connection and try again.");
       }
     });
   }
@@ -45,6 +51,7 @@ export function ResolutionBar({
     <div className="rounded-lg border border-urgency-done/40 bg-urgency-done/10 p-3.5">
       <p className="text-body font-medium text-foreground">The team marked this complete.</p>
       <p className="mt-0.5 text-label text-muted-foreground">Is the issue actually fixed?</p>
+      {error && <p className="mt-2 text-label text-urgency-overdue" role="alert">{error}</p>}
 
       {mode === "ask" ? (
         <div className="mt-3 flex gap-2">
