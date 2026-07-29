@@ -29,10 +29,35 @@ const REDIRECTS = [
 ];
 
 /**
- * Baseline security headers. Conservative (no CSP yet — that needs testing
- * against the inline styles/OAuth flows) but covers the checks a client's IT
- * reviewer will run: clickjacking, MIME-sniffing, referrer leakage, HSTS, and
- * a locked-down permissions policy (camera allowed for photo capture only).
+ * Content-Security-Policy — shipped **report-only** first (SEC/D4). Report-only
+ * never blocks a request; the browser just reports what *would* have been
+ * refused, so we can watch for violations before switching to enforcing without
+ * risking a broken page. `script-src`/`style-src` keep `'unsafe-inline'` for now
+ * because the App Router injects an inline hydration bootstrap and Tailwind/inline
+ * styles are pervasive; the enforce step is a follow-up that adds per-request
+ * nonces. Even report-only, the value is real: it documents the intended policy
+ * and surfaces regressions. `img-src`/`connect-src` allow `https:` because photos
+ * are served from and uploaded to R2 signed URLs on a Cloudflare host.
+ */
+const CSP_REPORT_ONLY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'self'",
+  "form-action 'self'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline'",
+  "connect-src 'self' https:",
+  "worker-src 'self'",
+  "manifest-src 'self'",
+].join("; ");
+
+/**
+ * Baseline security headers. Covers the checks a client's IT reviewer will run:
+ * clickjacking, MIME-sniffing, referrer leakage, HSTS, a locked-down permissions
+ * policy (camera allowed for photo capture only), and a report-only CSP.
  */
 const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
@@ -43,6 +68,7 @@ const SECURITY_HEADERS = [
     key: "Permissions-Policy",
     value: "camera=(self), microphone=(), geolocation=()",
   },
+  { key: "Content-Security-Policy-Report-Only", value: CSP_REPORT_ONLY },
 ];
 
 const nextConfig: NextConfig = {

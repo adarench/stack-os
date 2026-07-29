@@ -261,10 +261,22 @@ WITH CHECK (current_actor_type() = 'system');
 
 ALTER TABLE auth_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth_events FORCE ROW LEVEL SECURITY;
+-- D5: a staff ('user') actor may only touch auth_events in their own org — an
+-- operator reading the audit log for support must not see another org's events.
+-- 'system' (login/reset write events where the org may be '_' or NULL) and
+-- 'inngest' (jobs) stay org-agnostic, as they legitimately cross orgs. All
+-- recordAuthEvent() writes run under a 'system' scope, so this only tightens the
+-- 'user' read/write path; it does not affect audit recording.
 DROP POLICY IF EXISTS auth_events_access ON auth_events;
 CREATE POLICY auth_events_access ON auth_events FOR ALL TO PUBLIC
-USING (current_actor_type() IN ('system', 'user', 'inngest'))
-WITH CHECK (current_actor_type() IN ('system', 'user', 'inngest'));
+USING (
+  current_actor_type() IN ('system', 'inngest')
+  OR (current_actor_type() = 'user' AND org_id = current_org_id())
+)
+WITH CHECK (
+  current_actor_type() IN ('system', 'inngest')
+  OR (current_actor_type() = 'user' AND org_id = current_org_id())
+);
 
 -- Tenant scope on their own insurance policies.
 DROP POLICY IF EXISTS tenant_insurance_self ON tenant_insurance_policies;
