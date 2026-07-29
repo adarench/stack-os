@@ -61,7 +61,15 @@ export async function listProperties() {
 export async function listStaffUsers() {
   return withStaffScope(async (tx, ctx) =>
     tx
-      .select({ id: users.id, name: users.name, email: users.email, phone: users.phone })
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        phone: users.phone,
+        role: users.role,
+        status: users.status,
+        lastLoginAt: users.lastLoginAt,
+      })
       .from(users)
       .where(eq(users.orgId, ctx.orgId))
       .orderBy(asc(users.name)),
@@ -182,6 +190,27 @@ export async function listTenants() {
       })
       .from(tenantUsers)
       .where(and(eq(tenantUsers.orgId, ctx.orgId), ne(tenantUsers.status, "revoked")))
+      .orderBy(asc(tenantUsers.email)),
+  );
+}
+
+/** All residents (incl. revoked) with their unit + status, for admin management. */
+export async function listResidentsAdmin() {
+  return withStaffScope(async (tx, ctx) =>
+    tx
+      .select({
+        id: tenantUsers.id,
+        name: tenantUsers.name,
+        email: tenantUsers.email,
+        status: tenantUsers.status,
+        unitId: tenantUsers.unitId,
+        unitLabel: units.label,
+        propertyName: properties.name,
+      })
+      .from(tenantUsers)
+      .leftJoin(units, eq(units.id, tenantUsers.unitId))
+      .leftJoin(properties, eq(properties.id, units.propertyId))
+      .where(eq(tenantUsers.orgId, ctx.orgId))
       .orderBy(asc(tenantUsers.email)),
   );
 }

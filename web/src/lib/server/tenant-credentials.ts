@@ -97,7 +97,7 @@ export async function verifyTenantCredentials(
 
     await tx
       .update(tenantUsers)
-      .set({ failedLoginCount: 0, lockedUntil: null })
+      .set({ failedLoginCount: 0, lockedUntil: null, lastSignedInAt: new Date() })
       .where(eq(tenantUsers.id, u.id));
     logger.info("tenant_auth.login_ok", { tenantUserId: u.id });
     return { orgId, tenantUserId: u.id, name: u.name, email: u.email };

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { setUserPhoneAction } from "../_actions";
 import { AddPerson } from "./_add-person";
+import { AccountActions } from "../_account-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -53,33 +54,33 @@ export default async function AdminTeamPage() {
         />
       ) : (
         <ul className="divide-y divide-border/50">
-          {staff.map((u) => (
-            <li key={u.id} className="px-2 py-2.5 text-body">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="font-medium text-foreground">
-                  {u.name ?? u.email}
-                </span>
-                <span className="text-label text-muted-foreground">{u.email}</span>
-              </div>
-              <form
-                action={setUserPhoneAction}
-                className="mt-2 flex items-center gap-2"
-              >
-                <input type="hidden" name="userId" value={u.id} />
-                <label className="text-label text-muted-foreground">Mobile</label>
-                <Input
-                  name="phone"
-                  type="tel"
-                  defaultValue={u.phone ?? ""}
-                  placeholder="+1 555 555 0123"
-                  className="flex-1 font-mono"
-                />
-                <Button type="submit" variant="outline" size="sm">
-                  Save
-                </Button>
-              </form>
-            </li>
-          ))}
+          {staff.map((u) => {
+            const activeAcct = u.status !== "deactivated";
+            return (
+              <li key={u.id} className={`px-2 py-2.5 text-body ${activeAcct ? "" : "opacity-60"}`}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium text-foreground">{u.name ?? u.email}</span>
+                  <span className="text-label text-muted-foreground">{u.email}</span>
+                </div>
+                <div className="mt-0.5 flex items-center gap-2 text-meta text-muted-foreground">
+                  <span className="uppercase tracking-wider">{u.role}</span>
+                  {!activeAcct && <span className="text-urgency-blocked">· deactivated</span>}
+                  <span>
+                    · {u.lastLoginAt ? `last login ${new Date(u.lastLoginAt).toLocaleDateString()}` : "never signed in"}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
+                  <form action={setUserPhoneAction} className="flex flex-1 items-center gap-2">
+                    <input type="hidden" name="userId" value={u.id} />
+                    <label className="text-label text-muted-foreground">Mobile</label>
+                    <Input name="phone" type="tel" defaultValue={u.phone ?? ""} placeholder="+1 555 555 0123" className="flex-1 font-mono" />
+                    <Button type="submit" variant="outline" size="sm">Save</Button>
+                  </form>
+                  <AccountActions type="staff" id={u.id} active={activeAcct} />
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Page>

@@ -10,10 +10,98 @@ import {
 } from "@/lib/server/properties";
 import { createVendor } from "@/lib/server/vendors";
 import { inviteVendorUser } from "@/lib/server/vendor-invite";
+import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/server/auth";
 import { isOperatorRole } from "@/lib/server/roles";
-import { provisionStaffAccount } from "@/lib/server/credentials";
-import { provisionTenantAccount } from "@/lib/server/tenant-credentials";
+import { provisionStaffAccount, setStaffPassword } from "@/lib/server/credentials";
+import { provisionTenantAccount, setTenantPassword } from "@/lib/server/tenant-credentials";
+import { withScope } from "@/lib/server/db";
+import { users } from "@db/schema/users";
+import { tenantUsers } from "@db/schema/compliance";
+import { recordAuthEvent } from "@/lib/server/auth-events";
+
+async function requireOperator(): Promise<{ orgId: string } | { error: string }> {
+  const { userId, orgId, role } = await auth();
+  if (!userId || !orgId) return { error: "Not signed in." };
+  if (!isOperatorRole(role)) return { error: "You don't have permission." };
+  return { orgId };
+}
+
+/** Activate / deactivate a staff or resident account (server-enforced). */
+export async function setPersonActiveAction(input: {
+  type: "staff" | "tenant";
+  id: string;
+  active: boolean;
+}): Promise<{ ok: boolean; error?: string }> {
+  const gate = await requireOperator();
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { orgId } = gate;
+  try {
+    await withScope({ orgId, actorType: "system" }, (tx) =>
+      input.type === "staff"
+        ? tx.update(users).set({ status: input.active ? "active" : "deactivated" }).where(and(eq(users.orgId, orgId), eq(users.id, input.id)))
+        : tx.update(tenantUsers).set({ status: input.active ? "active" : "revoked" }).where(and(eq(tenantUsers.orgId, orgId), eq(tenantUsers.id, input.id))),
+    );
+    await recordAuthEvent({
+      event: input.active ? "account_reactivated" : "account_deactivated",
+      orgId,
+      actorType: "user",
+      ...(input.type === "staff" ? { subjectUserId: input.id } : { subjectTenantUserId: input.id }),
+    });
+    revalidatePath("/admin/team");
+    revalidatePath("/admin/residents");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "failed" };
+  }
+}
+
+/** Admin-triggered password reset — sets a temporary password to hand over. */
+export async function adminResetPasswordAction(input: {
+  type: "staff" | "tenant";
+  id: string;
+}): Promise<{ ok: boolean; password?: string; error?: string }> {
+  const gate = await requireOperator();
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { orgId } = gate;
+  const password = `Stack-${randomBytes(4).toString("hex")}`;
+  try {
+    if (input.type === "staff") await setStaffPassword(orgId, input.id, password);
+    else await setTenantPassword(orgId, input.id, password);
+    await recordAuthEvent({
+      event: "password_changed",
+      orgId,
+      actorType: "user",
+      ...(input.type === "staff" ? { subjectUserId: input.id } : { subjectTenantUserId: input.id }),
+      meta: { admin_reset: true },
+    });
+    revalidatePath("/admin/team");
+    revalidatePath("/admin/residents");
+    return { ok: true, password };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "failed" };
+  }
+}
+
+/** Correct a resident's unit association. */
+export async function reassignTenantUnitAction(input: {
+  tenantId: string;
+  unitId: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const gate = await requireOperator();
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { orgId } = gate;
+  try {
+    await withScope({ orgId, actorType: "system" }, (tx) =>
+      tx.update(tenantUsers).set({ unitId: input.unitId }).where(and(eq(tenantUsers.orgId, orgId), eq(tenantUsers.id, input.tenantId))),
+    );
+    await recordAuthEvent({ event: "role_changed", orgId, actorType: "user", subjectTenantUserId: input.tenantId, meta: { unit_reassigned: true } });
+    revalidatePath("/admin/residents");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "failed" };
+  }
+}
 
 /**
  * Add a person and hand back an initial username/password to share

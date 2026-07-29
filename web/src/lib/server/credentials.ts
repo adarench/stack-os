@@ -71,10 +71,10 @@ export async function verifyStaffCredentials(
       return null;
     }
 
-    // Success — reset throttle state.
+    // Success — reset throttle state + stamp last login.
     await tx
       .update(users)
-      .set({ failedLoginCount: 0, lockedUntil: null })
+      .set({ failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() })
       .where(eq(users.id, u.id));
     logger.info("auth.login_ok", { usersId: u.id, role: u.role });
     return {
