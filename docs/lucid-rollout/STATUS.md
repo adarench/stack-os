@@ -37,11 +37,19 @@ not the same as a real person doing it in prod.**
 | Credential UI (Google hidden) | **Production-verified (unauth)** | `curl` of `/sign-in` + `/tenant/sign-in`: password field present, Google absent, forgot-password present |
 | Full WO loop (submit→assign→complete→notify→reopen) | **Auto-verified** | `at-canonical` + m2/m4/m5 integration tests; **not** re-run on a real device this pass |
 | RLS cross-tenant isolation | **Auto-verified + CI-enforced** | `rls`/`tenant-rls`/`auth-matrix` pass as `app_user`; `rls-coverage` fails CI if any table lacks RLS |
-| Web push (browser) | **Configured, runtime-unverified** | VAPID set in prod + code wired end-to-end; no subscription/delivery ever observed; vendor push not wired |
-| Native iOS push (APNs) | **Not implemented** | plugin declared only; no native project, entitlement, token store, or APNs send path |
-| iOS app | **Source-only** | `capacitor.config.ts` + assets exist; never built/signed/installed |
+| Web push (browser) | **Configured, code-correct, runtime-unverified** | VAPID set in prod; audited end-to-end (no payload/VAPID bugs); deep-link + logout-cleanup **fixed 2026-07-29**; a real device delivery still not observed; vendor push not wired |
+| Native iOS push (APNs) | **Not implemented** | no device-token store or APNs send path; design in IOS_APP.md; needs Apple `.p8` |
+| iOS app | **Generated + pods resolved** | `cap add ios` now generates the Xcode project + `pod install` resolves (config-parse bug fixed); **build blocked on full Xcode.app** (this Mac has only CLT) |
 
 ## Shipped since M0–M10 (2026-07-28 → 07-29)
+- **Mobile & push sprint (2026-07-29, prod `13b9193`):** two audits (tenant mobile UX +
+  web-push end-to-end) → fixes: iOS zoom-on-focus (16px inputs), `viewport-fit=cover`
+  (safe areas now active), tenant loading skeletons, silent-failure errors on
+  send/confirm/reopen, installed-PWA `start_url` routes tenants to `/tenant`. **Web push:**
+  tenant notification tap now opens the deep-linked WO; push no longer leaks on logout
+  (staff + tenant unsubscribe). **iOS:** `typescript` dep fix → `cap add ios` generates the
+  Xcode project + `pod install` resolves; native-push design in IOS_APP.md; matrix in
+  [`NOTIFICATION_ARCHITECTURE.md`](./NOTIFICATION_ARCHITECTURE.md). `tenant-push-unsubscribe.test.ts`; suite 291/291.
 - **Auth reset — credential auth LIVE:** individual email+password for all three actor types; Google hidden
   behind `CREDENTIAL_AUTH`; tenant-auth failure root-caused (empty `STACK_ORG_ID` — org now resolved from
   email) and fixed (also unblocked tenant photo upload). `bcrypt` (cost 12), per-account lockout, per-IP rate

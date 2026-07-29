@@ -1,10 +1,26 @@
 # Stack OS — Tenant iOS App: Packaging & App Store Submission
 
-**Owner:** Stack OS · **Status:** repo-complete; needs a Mac + Apple Developer account to build/sign/submit · **Date:** 2026-07-29
+**Owner:** Stack OS · **Status:** native project **generates cleanly**; needs **full Xcode** (build) + an **Apple Developer account** (sign/APNs/submit) · **Date:** 2026-07-29
 
 Everything that can be built without the client's Apple account is in the repo
 (`mobile/`). This is the packaging approach, the exact build steps, the App Store
 metadata, and precisely what Stack must supply.
+
+## 0. Build validation (2026-07-29) — how far it actually got
+
+Run on this macOS machine (Command Line Tools only — **no** Xcode.app):
+
+| Step | Result |
+|---|---|
+| `npm install` in `mobile/` | ✓ all Capacitor deps resolve (`ios`, `camera`, `push-notifications`) |
+| `npx cap --version` (parse `capacitor.config.ts`) | ✓ **after** adding a `typescript` devDep — the CLI needs it to parse a `.ts` config (fixed in `mobile/package.json`) |
+| `npx cap add ios` | ✓ generates `ios/App/App.xcodeproj` + `App.xcworkspace` + `AppDelegate.swift` + `Info.plist` |
+| `pod install` (CocoaPods) | ✓ pods resolve |
+| Simulator / device build | ✗ **blocked** — requires **full Xcode.app** (only CLT installed here); no simulators |
+
+**Build stage reached: `generated` (project + pods).** The next stage
+(`simulator-build`) needs a Mac with Xcode.app — not just Command Line Tools.
+`mobile/ios/` is gitignored (regenerate with `npm run add:ios` on the build Mac).
 
 ## 1. Packaging approach (and why)
 
@@ -113,6 +129,36 @@ diagnostics. Not used for tracking. Not sold. Used to operate the service.
 5. The **actual Archive → submit** action from the authorized account.
 
 **Not done / not claimed:** the app has **not** been built into an `.ipa`, signed,
-uploaded, or submitted — those require the Apple account + a Mac with Xcode. The
-repo (`mobile/`) contains the config, assets, deps, and these exact steps so a
-developer can complete it in an afternoon once the account exists.
+uploaded, or submitted — those require the Apple account + a Mac with **Xcode.app**
+(Command Line Tools are not enough). The repo (`mobile/`) contains the config,
+assets, deps, and these exact steps, and the native project now **generates +
+resolves pods cleanly**, so a developer can complete it in an afternoon once the
+account exists.
+
+## 8. Native push implementation plan (APNs) — design, not yet built
+
+Native push is **not implemented** (see the notification matrix). It is not needed
+for the pilot — the installable PWA delivers web push on iOS 16.4+ once added to the
+Home Screen — but here is the turnkey plan for when the Apple account exists:
+
+1. **Capability + entitlement:** in Xcode add **Push Notifications** + **Background
+   Modes → Remote notifications**; the generated `Info.plist`/entitlements get
+   `aps-environment`.
+2. **Registration (shell):** on launch/login, `PushNotifications.requestPermissions()`
+   → `register()` → the `registration` event yields the APNs **device token**.
+3. **Token storage (backend, new):** a `device_tokens` table
+   (`org_id, tenant_user_id | user_id, token, platform, last_seen_at, deleted_at`),
+   RLS-scoped like `tenant_push_subscriptions`; a `POST /api/tenant/push/apns`
+   route (session-gated) upserts by token; **delete on logout** (mirror the web-push
+   cleanup already shipped).
+4. **Send path (backend, new):** an APNs HTTP/2 sender authenticated with the **`.p8`
+   key** (JWT `ES256`), added as a channel in `dispatchInline` alongside web push,
+   reusing the same `{title, body, url, tag}` payload → `aps` + a `data.url` for the
+   deep link.
+5. **Deep link:** the shell handles `pushNotificationActionPerformed` and routes the
+   WKWebView to `data.url` (`/tenant/WO-<n>`).
+6. **Token refresh / multi-device:** re-register on each launch (tokens rotate);
+   store per-device; prune on APNs `410`/`Unregistered`.
+
+**Requires from Apple (cannot proceed without):** APNs auth key (`.p8`) + Key ID +
+Team ID. Everything else above is ordinary app + backend code.

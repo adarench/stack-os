@@ -118,7 +118,7 @@ Links built from `NEXT_PUBLIC_APP_URL` (localhost fallback if unset). Reset toke
 
 ### B. Web push (browser / VAPID) — **Implemented + Configured, runtime-unverified**
 
-Service worker registration (`/sw.js`, `/tenant-sw.js`), permission + subscribe flows (staff `/my`, tenant `/tenant`), persistence (`push_subscriptions`, `tenant_push_subscriptions`), and `web-push` send are all wired and invoked in the notification dispatcher. `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` are present in prod. **But:** no subscription is known to exist, no push has been observed delivered on any browser, and the only automated test (`push.test.ts`) exercises the *stub* no-op. iOS Safari web push additionally requires the PWA be installed to the Home Screen — untested. **Vendor push is not wired.** Verdict: not "live."
+Service worker registration (`/sw.js`, `/tenant-sw.js`), permission + subscribe flows (staff `/my`, tenant `/tenant`), persistence (`push_subscriptions`, `tenant_push_subscriptions`), and `web-push` send are all wired and invoked in the notification dispatcher. `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` are present in prod. A 2026-07-29 forensic trace confirmed the code is **correct end-to-end** — no payload-shape mismatch (backend `{title,body,url,tag}` = both SW handlers), correct VAPID key conversion, dispatch invoked for staff + tenant, 404/410 pruning. **Two real bugs were fixed 2026-07-29:** the tenant notification tap now opens the deep-linked WO (was focus-only), and subscriptions are torn down on logout (staff + tenant) instead of leaking on a shared device. **Still:** no subscription/delivery has been observed on a real device, `push.test.ts` exercises only the stub, iOS Safari web push needs Home-Screen install (untested), and vendor push is not wired. Verdict: **code-correct + configured, not device-verified.**
 
 ### C. Native iOS push (APNs) — **Not implemented**
 
@@ -132,7 +132,15 @@ Real inbox: `/inbox` page + top-bar bell with a 60s-polling unread badge, backed
 
 ## 7. iOS build state
 
-**Highest stage reached: `source-files-created`.** Present: `capacitor.config.ts` (appId **`us.stackstorage.tenant`**, `server.url = https://stack-os-six.vercel.app/tenant`), `package.json` (deps declared incl. camera + push, **not installed**), `www/index.html` loading shell, and 5 source brand PNGs. Absent (dispositive): no `ios/` project, no `.xcodeproj`/`.xcworkspace`, no `Podfile`, no `Info.plist`, no entitlements, no asset catalog, no build output. Nothing has been compiled, run in a simulator, signed, archived, uploaded, or submitted. `docs/lucid-rollout/IOS_APP.md` states this accurately.
+**Highest stage reached (updated 2026-07-29): `generated` (project + pods).** On this
+Mac (Command Line Tools only): `npm install` resolves all Capacitor deps ✓; a
+`typescript` devDep was added to fix a CLI config-parse crash ✓; `npx cap add ios`
+generates `ios/App/App.xcodeproj` + `App.xcworkspace` + `AppDelegate.swift` + `Info.plist` ✓;
+`pod install` resolves ✓. **Blocked at the build:** a simulator/device build needs full
+**Xcode.app** (not just CLT) — none installed, no simulators. So the stage is past
+`source-files-created` and `generated`, but **not** `simulator-build` / signed / TestFlight /
+App Store. `mobile/ios/` is gitignored (regenerate on the build Mac). appId
+**`us.stackstorage.tenant`**, `server.url = https://stack-os-six.vercel.app/tenant`.
 
 ---
 
