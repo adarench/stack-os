@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { pgTable, text, integer, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { id, orgId, timestamps } from "./_shared";
 
@@ -41,5 +42,7 @@ export const users = pgTable(
     // existing OAuth rows without a username never collide).
     usernameOrgUnique: uniqueIndex("users_username_org_unique").on(t.orgId, t.username),
     orgIdx: index("users_org_idx").on(t.orgId),
+    // Canonical identity: one staff account per email per org (case-insensitive).
+    emailLowerOrgUnique: uniqueIndex("users_email_lower_org_unique").on(t.orgId, sql`lower(${t.email})`),
   }),
 );

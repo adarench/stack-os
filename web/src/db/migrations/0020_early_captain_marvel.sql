@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "users_email_lower_org_unique" ON "users" USING btree ("org_id",lower("email"));
