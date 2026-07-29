@@ -241,6 +241,8 @@ export async function emitNotification(args: {
 export async function notifyOpsTeam(args: {
   orgId: string;
   excludeUserId?: string | null;
+  /** Drop several operators at once (e.g. the creator AND the assignee). */
+  excludeUserIds?: (string | null | undefined)[];
   kind: NotificationKind;
   subject: string;
   body: string;
@@ -255,10 +257,13 @@ export async function notifyOpsTeam(args: {
       .from(users)
       .where(and(eq(users.orgId, args.orgId), inArray(users.role, [...OPERATOR_ROLES]))),
   );
+  const excluded = new Set<string>();
+  if (args.excludeUserId) excluded.add(args.excludeUserId);
+  for (const id of args.excludeUserIds ?? []) if (id) excluded.add(id);
   // De-dupe by user id (some orgs have historical duplicate rows).
   const seen = new Set<string>();
   for (const r of recipients) {
-    if (seen.has(r.id) || (args.excludeUserId && r.id === args.excludeUserId)) continue;
+    if (seen.has(r.id) || excluded.has(r.id)) continue;
     seen.add(r.id);
     await emitNotification({
       orgId: args.orgId,

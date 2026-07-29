@@ -164,7 +164,7 @@ Credential path is otherwise sound: `bcrypt.compare`, dummy-hash timing equaliza
 | D4 | No CSP header (§8.6) | Medium (security) | Offered — needs a report-only rollout first |
 | D5 | `auth_events` policy missing `org_id` predicate (§8.4) | Low (single-org) | Offered — bundle with next migration |
 | D6 | RLS list not schema-derived (§8.5) | Low (latent) | Offered — add a CI assertion |
-| D7 | Tenant-created WO status changes never email staff; assigned tech never emailed on status change (§6A) | Medium (product) | Offered — notification-routing change, needs tests |
+| D7 | Tenant-created WO status changes never email staff; assigned tech never emailed on status change (§6A) | Medium (product) | **FIXED this pass** — status changes now notify the WO creator **and** the assigned technician (deduped, no self-ping); a tenant WO with no assignee falls back to an ops-team alert; the `resolved` ops broadcast excludes the creator, assignee, and actor (no double-pings). `d7-notify-routing.test.ts` (2). Deployed. |
 
 Per your go-ahead, D2+D3 were fixed and deployed this pass (with tests). The rest are offered, not applied.
 
