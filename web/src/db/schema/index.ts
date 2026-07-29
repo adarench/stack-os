@@ -22,3 +22,4 @@ export * from "./commercial";
 export * from "./financials";
 export * from "./follow-ups";
 export * from "./saved-views";
+export * from "./auth-infra";

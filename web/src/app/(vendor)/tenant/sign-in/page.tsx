@@ -18,9 +18,11 @@ export default async function TenantSignIn({
 
   const { error, reset } = await searchParams;
   const message =
-    error === "bad_credentials"
-      ? "That email and password don't match. Check them and try again."
-      : error === "not_registered"
+    error === "rate_limited"
+      ? "Too many attempts. Please wait a few minutes and try again."
+      : error === "bad_credentials"
+        ? "That email and password don't match. Check them and try again."
+        : error === "not_registered"
         ? "That Google account isn't on the resident list for this property. Ask your property manager to add you."
         : error === "google"
           ? "Google sign-in didn't complete. Please try again."

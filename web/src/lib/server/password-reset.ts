@@ -7,6 +7,8 @@ import { hashPassword, verifyPassword, passwordMeetsPolicy } from "./password";
 import { generateToken, hashToken, tokenExpiry } from "@/lib/tokens";
 import { sendEmail } from "./email";
 import { renderNotificationEmail, absoluteUrl } from "./email-templates";
+import { recordAuthEvent } from "./auth-events";
+import { clientIp } from "./rate-limit";
 import { logger } from "./logger";
 
 /**
@@ -45,6 +47,7 @@ export async function requestPasswordReset(actor: Actor, email: string): Promise
             .where(eq(users.id, u.id)),
         );
         recipient = { email: u.email };
+        await recordAuthEvent({ event: "reset_requested", orgId: u.orgId, actorType: "user", subjectUserId: u.id, subjectEmail: u.email, ip: await clientIp() });
       }
     } else {
       const found = await withScope({ orgId: "_", actorType: "system" }, (tx) =>
@@ -59,6 +62,7 @@ export async function requestPasswordReset(actor: Actor, email: string): Promise
             .where(eq(tenantUsers.id, u.id)),
         );
         recipient = { email: u.email };
+        await recordAuthEvent({ event: "reset_requested", orgId: u.orgId, actorType: "tenant", subjectTenantUserId: u.id, subjectEmail: u.email, ip: await clientIp() });
       }
     }
   } catch (err) {
@@ -128,6 +132,7 @@ export async function completePasswordReset(
         .where(eq(users.id, row.id)),
     );
     logger.info("pwreset.completed", { actor, usersId: row.id });
+    await recordAuthEvent({ event: "reset_completed", orgId: row.orgId, actorType: "user", subjectUserId: row.id, ip: await clientIp() });
     return { ok: true };
   }
 
@@ -151,6 +156,7 @@ export async function completePasswordReset(
       .where(eq(tenantUsers.id, row.id)),
   );
   logger.info("pwreset.completed", { actor, tenantUserId: row.id });
+  await recordAuthEvent({ event: "reset_completed", orgId: row.orgId, actorType: "tenant", subjectTenantUserId: row.id, ip: await clientIp() });
   return { ok: true };
 }
 

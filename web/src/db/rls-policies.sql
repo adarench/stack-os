@@ -250,6 +250,22 @@ DROP POLICY IF EXISTS users_system_lookup ON users;
 CREATE POLICY users_system_lookup ON users FOR SELECT TO PUBLIC
 USING (current_actor_type() = 'system');
 
+-- Auth infrastructure (rate limiter + auth audit). System-written; operators may
+-- read auth_events for support. RLS-forced like every other table.
+ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rate_limits FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS rate_limits_system ON rate_limits;
+CREATE POLICY rate_limits_system ON rate_limits FOR ALL TO PUBLIC
+USING (current_actor_type() = 'system')
+WITH CHECK (current_actor_type() = 'system');
+
+ALTER TABLE auth_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth_events FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS auth_events_access ON auth_events;
+CREATE POLICY auth_events_access ON auth_events FOR ALL TO PUBLIC
+USING (current_actor_type() IN ('system', 'user', 'inngest'))
+WITH CHECK (current_actor_type() IN ('system', 'user', 'inngest'));
+
 -- Tenant scope on their own insurance policies.
 DROP POLICY IF EXISTS tenant_insurance_self ON tenant_insurance_policies;
 CREATE POLICY tenant_insurance_self ON tenant_insurance_policies FOR SELECT TO PUBLIC

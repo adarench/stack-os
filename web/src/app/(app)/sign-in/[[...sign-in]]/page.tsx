@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { credentialAuthEnabled, demoAuthEnabled, googleAuthConfigured, signIn } from "@/auth";
+import { rateLimit, clientIp } from "@/lib/server/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +40,9 @@ export default async function SignInPage({
                 ? "Google sign-in is not configured for this environment."
                 : error === "CredentialsSignin"
                   ? "Invalid username or password."
-                  : "That account is not set up for this workspace."}
+                  : error === "rate_limited"
+                    ? "Too many attempts. Please wait a few minutes and try again."
+                    : "That account is not set up for this workspace."}
             </div>
           )}
 
@@ -54,6 +58,10 @@ export default async function SignInPage({
                 "use server";
                 const identifier = String(formData.get("identifier") ?? "");
                 const password = String(formData.get("password") ?? "");
+                const ip = await clientIp();
+                const ipOk = await rateLimit(`login:ip:${ip}`, 20, 10 * 60 * 1000);
+                const idOk = await rateLimit(`login:staff:${identifier.toLowerCase()}`, 10, 10 * 60 * 1000);
+                if (!ipOk.allowed || !idOk.allowed) redirect("/sign-in?error=rate_limited");
                 await signIn("password", {
                   identifier,
                   password,
