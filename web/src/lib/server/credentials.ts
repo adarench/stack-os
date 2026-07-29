@@ -99,6 +99,40 @@ export async function loadStaffRole(orgId: string, subject: string): Promise<str
   });
 }
 
+/**
+ * Resolve a staff role for authorization when the session carries none.
+ * Credential (password) logins embed the role in the session; OAuth (Google)
+ * logins do NOT — so role-gated actions must read it from the DB or a Google
+ * operator would be wrongly denied (role=null) while a technician slips checks
+ * that only test the email allow-list. Matches by session subject
+ * (`clerk_user_id`) OR canonical email, so it holds regardless of how the row
+ * was reconciled. Returns null when no staff row matches.
+ */
+export async function resolveStaffRole(
+  orgId: string,
+  subject: string | null,
+  email: string | null,
+): Promise<string | null> {
+  const idn = email?.trim().toLowerCase() || null;
+  if (!subject && !idn) return null;
+  return withScope({ orgId, actorType: "system" }, async (tx) => {
+    const [u] = await tx
+      .select({ role: users.role })
+      .from(users)
+      .where(
+        and(
+          eq(users.orgId, orgId),
+          or(
+            ...(subject ? [eq(users.clerkUserId, subject)] : []),
+            ...(idn ? [eq(sql`lower(${users.email})`, idn)] : []),
+          ),
+        ),
+      )
+      .limit(1);
+    return u?.role ?? null;
+  });
+}
+
 /** Does this staff user still need to set their own password (temp onboarding)? */
 export async function staffMustChangePassword(orgId: string, subject: string): Promise<boolean> {
   return withScope({ orgId, actorType: "system" }, async (tx) => {

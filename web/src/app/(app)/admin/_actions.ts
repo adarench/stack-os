@@ -13,7 +13,7 @@ import { inviteVendorUser } from "@/lib/server/vendor-invite";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/server/auth";
 import { isOperatorRole } from "@/lib/server/roles";
-import { provisionStaffAccount, setStaffPassword } from "@/lib/server/credentials";
+import { provisionStaffAccount, setStaffPassword, resolveStaffRole } from "@/lib/server/credentials";
 import { provisionTenantAccount, setTenantPassword } from "@/lib/server/tenant-credentials";
 import { withScope } from "@/lib/server/db";
 import { users } from "@db/schema/users";
@@ -22,10 +22,20 @@ import { recordAuthEvent } from "@/lib/server/auth-events";
 import { requestPasswordReset } from "@/lib/server/password-reset";
 
 async function requireOperator(): Promise<{ orgId: string } | { error: string }> {
-  const { userId, orgId, role } = await auth();
+  const { userId, orgId, email, role } = await auth();
   if (!userId || !orgId) return { error: "Not signed in." };
-  if (!isOperatorRole(role)) return { error: "You don't have permission." };
+  // Credential logins embed the role; OAuth (Google) sessions don't — read it
+  // from the DB so a Google operator isn't wrongly denied and a technician is
+  // still blocked (server-side authz, not a client role claim).
+  const effectiveRole = role ?? (await resolveStaffRole(orgId, userId, email));
+  if (!isOperatorRole(effectiveRole)) return { error: "You don't have permission." };
   return { orgId };
+}
+
+/** Operator gate for FormData actions (which can only throw, not return). */
+async function assertOperator(): Promise<void> {
+  const gate = await requireOperator();
+  if ("error" in gate) throw new Error(gate.error);
 }
 
 /** Activate / deactivate a staff or resident account (server-enforced). */
@@ -144,9 +154,9 @@ export async function addPersonAction(input: {
   name: string;
   unitId?: string;
 }): Promise<{ ok: boolean; email?: string; password?: string; error?: string }> {
-  const { userId, orgId, role } = await auth();
-  if (!userId || !orgId) return { ok: false, error: "Not signed in." };
-  if (!isOperatorRole(role)) return { ok: false, error: "You don't have permission to add people." };
+  const gate = await requireOperator();
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { orgId } = gate;
 
   const email = input.email.trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Enter a valid email." };
@@ -180,6 +190,7 @@ export async function addPersonAction(input: {
 }
 
 export async function setUserPhoneAction(formData: FormData) {
+  await assertOperator();
   await setUserPhone(
     String(formData.get("userId")),
     String(formData.get("phone") ?? "") || null,
@@ -188,6 +199,7 @@ export async function setUserPhoneAction(formData: FormData) {
 }
 
 export async function createPropertyAction(formData: FormData) {
+  await assertOperator();
   await createProperty({
     name: String(formData.get("name")),
     addressLine1: String(formData.get("addressLine1") ?? "") || undefined,
@@ -199,6 +211,7 @@ export async function createPropertyAction(formData: FormData) {
 }
 
 export async function setPropertyAssigneeAction(formData: FormData) {
+  await assertOperator();
   const userId = String(formData.get("userId") ?? "");
   await setPropertyAssignee(
     String(formData.get("propertyId")),
@@ -208,6 +221,7 @@ export async function setPropertyAssigneeAction(formData: FormData) {
 }
 
 export async function createUnitAction(formData: FormData) {
+  await assertOperator();
   await createUnit({
     propertyId: String(formData.get("propertyId")),
     label: String(formData.get("label")),
@@ -218,6 +232,7 @@ export async function createUnitAction(formData: FormData) {
 }
 
 export async function createVendorAction(formData: FormData) {
+  await assertOperator();
   await createVendor({
     name: String(formData.get("name")),
     trade: String(formData.get("trade") ?? "") || undefined,
@@ -230,6 +245,7 @@ export async function createVendorAction(formData: FormData) {
 }
 
 export async function inviteVendorUserAction(formData: FormData): Promise<void> {
+  await assertOperator();
   const result = await inviteVendorUser({
     vendorId: String(formData.get("vendorId")),
     email: String(formData.get("email")),
