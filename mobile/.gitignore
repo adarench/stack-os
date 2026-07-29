@@ -1,0 +1,5 @@
+# Capacitor-generated native project + deps (regenerate with `npm run add:ios`)
+/ios/
+/node_modules/
+/www/js/
+.DS_Store

@@ -1,0 +1,24 @@
+{
+  "name": "stack-os-tenant-ios",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stack OS — tenant iOS app (Capacitor shell around the production tenant PWA)",
+  "scripts": {
+    "add:ios": "cap add ios",
+    "sync": "cap sync ios",
+    "open": "cap open ios",
+    "assets": "capacitor-assets generate --ios --iconBackgroundColor '#0a0a0a' --splashBackgroundColor '#0a0a0a'"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/camera": "^6.1.0",
+    "@capacitor/push-notifications": "^6.0.2",
+    "@capacitor/splash-screen": "^6.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/assets": "^3.0.5"
+  }
+}
