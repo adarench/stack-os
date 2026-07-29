@@ -2,22 +2,66 @@
 
 **Executive control surface. Update this in the same change that materially moves any requirement.**
 
-- **Overall state:** **M0–M10 DEPLOYED to production (2026-07-27)** — `redesign/operator-shell` @ `6fc639e`,
-  Vercel `dpl_CmJ4o6Ni`, aliased to stack-os-six.vercel.app; `/api/health/ready` = ok. New features ship
-  **flag-off / degrade-safe** (`CREDENTIAL_AUTH` off → Google auth unchanged; email stubs w/o Resend; push
-  dormant w/o VAPID). PWA install assets live. **Not yet in pilot.** Remaining = **gates, not code**: set
-  feature env (Resend/VAPID/`NEXT_PUBLIC_APP_URL`), fix `APP_ENV=development`→`production`, real-device push
-  validation, real Lucid data, provision credentialed accounts + flip `CREDENTIAL_AUTH`, acceptance sign-off.
-- **Rollback target:** Vercel promote `dpl_iZWj6h8wMgMPqseNEkJLmwEqfmBj` (M0, `1de22f22`); migrations additive → no schema revert.
-- **Current milestone:** **Deployed; pre-pilot hardening.** Roadmap code-complete (M0–M10) and live behind flags. Next: feature env + real-device validation + acceptance ([`DEPLOY_RUNBOOK.md`](./DEPLOY_RUNBOOK.md) §5–§8).
-- **Last updated:** 2026-07-27
-- **Prod DB schema note:** per owner decision (2026-07-27), migrations **0014–0017** are applied to
-  the shared `neondb` (all additive/forward-compatible; the deployed M0 app references none of them).
-  A future code deploy therefore needs the **merges only**, not the migrations. `stack_os_ci` mirrors it.
-- **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `6fc639e` (M0–M10 deployed 2026-07-27, `dpl_CmJ4o6Ni`; `/api/health/ready` = ok)
-- **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md)
+- **Overall state:** **Live in production, pre-pilot** — `redesign/operator-shell` @ `eef139d`, deployed
+  2026-07-29 (Vercel `stack-gufcqqcpv`), aliased to stack-os-six.vercel.app. **Credential auth is ON**
+  (email+password for operators, technicians, and tenants; Google hidden on both sign-in pages — verified
+  live). Migrations `0000`–`0021` applied to prod. A strict **evidence-based verification pass (2026-07-29)**
+  replaced the earlier broad "live/done" claims with graded status — full detail in
+  [`VERIFICATION_REPORT.md`](./VERIFICATION_REPORT.md). **Bottom line:** tenant login + transactional email are
+  **production-verified**; **no operator/technician has ever logged in** (Oscar/Fernando accounts exist,
+  `last_login` NULL); web push is wired + configured but **runtime-unverified**; native iOS push is **not
+  implemented**; the iOS app is **source-only** (never built). **Not yet in pilot.**
+- **Rollback target:** Vercel promote the prior deployment on this branch; migrations 0018–0021 additive → no schema revert.
+- **Current milestone:** **Live; pre-pilot hardening.** Recent: onboarding, auth-reset (credential auth live),
+  verification pass + fixes (OAuth-role authz, notification routing, CSP, RLS). **Next:** a real person logs in
+  as Oscar/Fernando and as a Lucid tenant on a physical phone (turns Auto-verified → User/Device-verified);
+  Apple enrollment for the native iOS track.
+- **Last updated:** 2026-07-29
+- **Prod DB schema note:** migrations **0014–0021** are applied to the shared `neondb` (all additive/reversible;
+  0018 reset cols · 0019 rate_limits + auth_events · 0020 email uniqueness · 0021 must_change_password).
+  `stack_os_ci` mirrors it and is the isolated target for the automated suite.
+- **Production:** https://stack-os-six.vercel.app · **Branch:** `redesign/operator-shell` · **Prod commit:** `eef139d` (deployed 2026-07-29, `stack-gufcqqcpv`)
+- **Docs:** this folder (`docs/lucid-rollout/`) · IDs in [`REQUIREMENTS_TRACKER.md`](./REQUIREMENTS_TRACKER.md) · audit in [`VERIFICATION_REPORT.md`](./VERIFICATION_REPORT.md)
 
-## Completed this period
+## Verification status (2026-07-29)
+
+Graded per the vocabulary in [`VERIFICATION_REPORT.md`](./VERIFICATION_REPORT.md). "Live" is never used
+without an environment + channel + verification level. **Auto-verified = a passing automated test; it is
+not the same as a real person doing it in prod.**
+
+| Capability | Level | Evidence |
+|---|---|---|
+| Tenant email+password login | **Production-verified** | 3 Lucid accounts (Sam, Ben, Janet) with real sign-in timestamps Jul 22–23 |
+| Operator / technician login | **Provisioned, not user-verified** | accounts + passwords exist; `last_login` NULL for **all** staff — Oscar/Fernando have never logged in |
+| Transactional email (reset + invite) | **Production-verified (delivered)** | Resend log: reset Jul 28 + invite Jul 29, both `delivered` from `ops@stackstorage.us` (domain verified) |
+| Credential UI (Google hidden) | **Production-verified (unauth)** | `curl` of `/sign-in` + `/tenant/sign-in`: password field present, Google absent, forgot-password present |
+| Full WO loop (submit→assign→complete→notify→reopen) | **Auto-verified** | `at-canonical` + m2/m4/m5 integration tests; **not** re-run on a real device this pass |
+| RLS cross-tenant isolation | **Auto-verified + CI-enforced** | `rls`/`tenant-rls`/`auth-matrix` pass as `app_user`; `rls-coverage` fails CI if any table lacks RLS |
+| Web push (browser) | **Configured, runtime-unverified** | VAPID set in prod + code wired end-to-end; no subscription/delivery ever observed; vendor push not wired |
+| Native iOS push (APNs) | **Not implemented** | plugin declared only; no native project, entitlement, token store, or APNs send path |
+| iOS app | **Source-only** | `capacitor.config.ts` + assets exist; never built/signed/installed |
+
+## Shipped since M0–M10 (2026-07-28 → 07-29)
+- **Auth reset — credential auth LIVE:** individual email+password for all three actor types; Google hidden
+  behind `CREDENTIAL_AUTH`; tenant-auth failure root-caused (empty `STACK_ORG_ID` — org now resolved from
+  email) and fixed (also unblocked tenant photo upload). `bcrypt` (cost 12), per-account lockout, per-IP rate
+  limit, generic errors, auth audit events. Migrations 0018–0021 applied to prod.
+- **Onboarding (M20):** admin "Send invite" (branded set-password link, no shared secret) + force-change-on-
+  first-login fallback (`must_change_password`, migration 0021). Invite flow **production-verified** (Jul 29
+  delivery + `invitation_issued` audit row).
+- **Evidence-based verification pass** → [`VERIFICATION_REPORT.md`](./VERIFICATION_REPORT.md): reclassified every
+  prior "live/done" claim; found 7 defects.
+- **Fixes shipped (all deployed, with tests):**
+  - **D2+D3 authz** — OAuth (Google) operators had `role=null` and 6 admin mutations were email-allow-list-only.
+    `resolveStaffRole` reads role from the DB (subject or email); `assertOperator` gates all six. `authz-role-resolution.test.ts`.
+  - **D7 notifications** — status changes now reach the assigned technician (not just the creator); tenant WOs
+    with no assignee fall back to ops; no double-pings. `d7-notify-routing.test.ts`.
+  - **D4 CSP** — `Content-Security-Policy-Report-Only` shipped (report-only; enforce+nonces later). Verified live.
+  - **D5 RLS** — `auth_events` `user` actor scoped to its own org (system/inngest stay broad). Applied to prod + live-verified.
+  - **D6 RLS coverage** — `rls-coverage.test.ts` fails CI if any public table lacks ENABLE/FORCE/policy.
+- **Tests:** **290/290 across 50 files** on the isolated `stack_os_ci` DB (verified target, not prod).
+
+## M0–M10 build record (through 2026-07-27)
 - **M10 native evaluation — recommendation memo:** [`NATIVE_EVALUATION.md`](./NATIVE_EVALUATION.md).
   **Recommendation: ship the installable PWA for the pilot; defer native** (LR-010). Documents the
   one real gap (iOS push needs Home-Screen install), a mitigation (guided install), cost of native,
@@ -107,33 +151,35 @@
   consistent. **212/212 tests pass across 3 consecutive full-suite runs**
   (`pnpm --filter web test`) after the `template-spawn` determinism fix.
 
-## In progress
-- **DB-backed CI configured + passing on PR #2** (variable `CI_DB_ENABLED=true` + secrets
-  `CI_DATABASE_URL`/`CI_DATABASE_URL_UNPOOLED` → an **isolated `stack_os_ci` database** on the
-  authorized Neon endpoint; production `neondb` data untouched). Awaiting: human review/merge and
-  branch protection (plan-gated) to make the DB check a *required* merge gate. Deferred: Clerk
-  demo-stub removal (M1), Sentry vendor (manual), migration-on-deploy decision (LR-013).
+## In progress / pending verification
+- **Real-user login** for Oscar, Fernando, and a Lucid tenant on a physical phone — the loop is auto-verified
+  but not yet User/Device-verified.
+- **Web push** delivery — configured + wired, never observed end-to-end.
+- Branch protection still plan-gated: the DB/RLS CI check runs green but isn't yet a *required* merge gate.
 
 ## Next actions
-1. **Execute the coordinated deploy** — follow [`DEPLOY_RUNBOOK.md`](./DEPLOY_RUNBOOK.md):
-   set new env vars (Resend/VAPID/`NEXT_PUBLIC_APP_URL`), merge PR chain #5→#11 (fast-forwards
-   onto `redesign/operator-shell`), trigger + verify the prod deploy (M0→M10), then flag the
-   M1 auth cutover when accounts exist. **Deploying also ships M1+M2** (merged, never live).
-2. Collect Lucid inputs (users/buildings/routing/categories) — send the
-   [`CLIENT_INPUTS.md`](./CLIENT_INPUTS.md) request block.
-3. Real-device push validation + Resend domain verification (the two infra gates).
+1. **Real-human validation (no Apple needed):** hand Oscar + Fernando their credentials; have each sign in and
+   run a WO end-to-end on a real phone, and a Lucid tenant do the full submit→complete loop. This is the single
+   biggest gap between "tested" and "proven."
+2. **iOS track (blocked on Apple):** enroll Apple Developer (Meso ID) → `cap add ios` on a Mac → simulator →
+   device build → APNs + TestFlight. See [`IOS_APP.md`](./IOS_APP.md) + VERIFICATION_REPORT §11–§12.
+3. **Web push:** validate a real subscription + delivery on desktop and on a Home-Screen-installed iOS PWA.
+4. Collect remaining Lucid inputs (buildings/routing/categories) — [`CLIENT_INPUTS.md`](./CLIENT_INPUTS.md).
+5. Offered, not applied: CSP **enforce** step (per-request nonces); D1 local-env cleanup.
 
 ## Blockers
-- **Branch protection is plan-gated** on this private repo — the DB integration/RLS check runs
-  green on PR #2 but is not yet a *required* merge gate (needs GitHub Team/Pro or a public repo).
-- **Client inputs** for M3 (buildings/floors/suites/companies/routing) — not yet requested. See CLIENT_INPUTS.
-- **Infra unverified:** Resend prod domain (M6), VAPID keys + test devices (M7), Inngest prod keys.
+- **No real operator/technician login yet** — Oscar/Fernando provisioned but `last_login` NULL; needs the real
+  people to sign in with their handed-over credentials.
+- **iOS: an Apple Developer account (Meso ID) + a Mac with Xcode** — blocks build/sign/APNs/TestFlight/submission.
+- **Physical devices + testers** — blocks Device/User verification of the mobile web + push flows.
+- **Web push runtime** — configured but never observed delivering.
 
 ## Decisions needed
+- **CSP enforce** — move from report-only to enforcing (needs per-request nonces for Next's inline scripts). When?
 - **Migration-on-deploy strategy** (build-time vs gated release step) — currently manual (LR-013).
-- Error-tracking vendor (Sentry) — optional; adopt now or stay on Vercel-log baseline?
-- Confirm Argon2id vs bcrypt on the Vercel runtime (M1) — recommend Argon2id.
-- Confirm whether Google sign-in is retained as an operator convenience post-cutover (optional).
+- Error-tracking vendor (Sentry) — optional; adopt now or stay on the Vercel-log baseline?
+- Keep Google sign-in as an operator fallback (currently hidden but still wired) or remove it?
+- _Resolved:_ hashing = **bcrypt cost 12** (shipped); credential auth = **on** for all three actor types.
 
 ## Client inputs needed
 CI-01..03 (users/roles) for M1; CI-04..12 (techs/buildings/routing/categories) for
@@ -142,35 +188,40 @@ M2/M3; CI-13/14 (recipients/domain) for M6; CI-15 (VAPID/devices) for M7; CI-20
 [`CLIENT_INPUTS.md`](./CLIENT_INPUTS.md).
 
 ## Risks
-Auth cutover (H) · commercial-hierarchy backfill (M) · routing-config completeness
-(M) · iOS push/PWA quirks (M) · email deliverability (M). Mitigations in
+First real operator/technician login untested (M) · native iOS/APNs not built, Apple-blocked (H) · web-push on
+iOS Safari requires Home-Screen install (M) · commercial-data backfill (M) · routing-config completeness (M).
+Email deliverability now **de-risked** (verified delivering to an external inbox). Mitigations in
 [`ROADMAP.md`](./ROADMAP.md).
 
 ## Test summary
-212/212 tests pass locally (3 consecutive runs) **and in CI**: the DB integration + RLS job
-runs against the isolated `stack_os_ci` database and passes (30 files / 212 tests, including
-`rls.test.ts` + `tenant-rls.test.ts`). Non-DB CI (typecheck/lint/`lint:tokens`/unit/build) also
-green (OBS-001). Playwright e2e stays local. **AT-CANONICAL is now authored as code** —
-`test/integration/at-canonical.test.ts` runs the full loop green in CI (7 steps); production
-sign-off with real accounts/devices is the remaining *acceptance* step (not code).
+**290/290 across 50 files** on the isolated `stack_os_ci` DB (2026-07-29; verified target, not prod),
+including `rls`/`tenant-rls`/`auth-matrix`/`rls-coverage` (RLS + coverage), `credential-auth`/
+`authz-role-resolution` (authz), `d7-notify-routing`/`m6-email` (notifications), `onboarding`,
+`password-reset`, and `at-canonical` (full loop). typecheck/lint/`lint:tokens`/build green. Playwright e2e
+stays local. Physical-device + real-user passes are the remaining *acceptance* steps (not code).
+> Harness note: a `&` in the Neon URL was breaking the isolated-DB env sourcing, so some earlier runs
+> silently hit `neondb` (contained: unique `org_*` ids, cleaned up). Fixed + guarded; the 290/290 is a
+> confirmed `stack_os_ci` run.
 
 ## Deployment summary
-Prod on Vercel at `ba13375` (pre-rollout baseline) — **unchanged; M0 not deployed.**
-M0 changes are additive, flag-free, and reversible (new files + additive log lines; no
-schema, no behavior change). Deployment = Vercel git-push; migrations remain manual
-(auto-apply-on-deploy deferred — LR-013).
+Prod on Vercel at `eef139d` (deployed 2026-07-29, `stack-gufcqqcpv`; aliased stack-os-six.vercel.app).
+Deploy is manual `vercel deploy --prod --yes` (auto-deploy off) via a fast-forward push to
+`redesign/operator-shell`. Migrations 0014–0021 applied to `neondb`; RLS policies re-applied idempotently
+(`db:rls:apply`). Security headers live incl. `Content-Security-Policy-Report-Only`.
 
 ## Accepted requirements
-**None yet** (Accepted requires acceptance test + sign-off). Note: several
-capabilities are **Deployed** (in prod) but not **Accepted** for Lucid — e.g. RLS
-boundary, state machine, authoritative completion, COI. See the tracker.
+**None formally accepted** (Accepted needs the canonical acceptance test run on prod with real accounts +
+stakeholder sign-off). **Now production-verified** (one step below acceptance): tenant credential login,
+transactional email delivery (reset + invite), and the credential-UI cutover (Google hidden). RLS boundary is
+auto-verified **and** CI-enforced. Full grading in [`VERIFICATION_REPORT.md`](./VERIFICATION_REPORT.md).
 
 ## Outstanding launch blockers (P0)
-Credential auth (AUTH-*) · individual identity (IDN-001) · **MSG-001** message
-visibility · **ASN-001** tenant auto-assign · RBAC + technician role (SEC-002/003)
-· commercial model + routing (LOC-*, ASN-*) · technician mobile workflow (TEC-*) ·
-completion summary (SUM-001/002) · email (EML-*) · **push + installable PWA (PUSH-*,
-PWA-*, launch gate)** · AT-CANONICAL accepted on prod. Live count in the tracker.
+- **Real operator/technician + tenant login on a physical device** — Oscar/Fernando have never logged in.
+- **Push on real devices** — web-push delivery unproven; native iOS push not implemented.
+- **iOS app** — source-only; blocked on Apple enrollment + a Mac.
+- **AT-CANONICAL accepted on prod** with real Lucid accounts + stakeholder sign-off.
+Code for the operator/web loop (AUTH/IDN/MSG/ASN/RBAC/LOC/TEC/SUM/EML) is **deployed**; the remaining
+blockers are **verification + Apple/device, not code**. Live count in the tracker.
 
 ---
 *Keep this concise; link to detail. One line per section update; move detail into
