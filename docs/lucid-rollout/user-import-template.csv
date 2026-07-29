@@ -1,0 +1,7 @@
+name,email,username,role,property,unit,coverage,active
+Jen Meeks,jen@stackwithus.com,,admin,,,,true
+Oscar Banuelos,oscar@stackwithus.com,,technician,,,Sojo North;Sojo South,true
+Fernando Salazar,fernando@stackwithus.com,,technician,,,,true
+Sam Lumpkins,slumpkins@lucidchart.com,,tenant,Lucid Demo,Suite 1200,,true
+Ben James,bjames@lucidchart.com,,tenant,Lucid Demo,Suite 1200,,true
+Janet,janet@lucid.co,,tenant,Lucid Demo,Suite 1200,,true
