@@ -1,6 +1,7 @@
 import { readTenantSession } from "@/lib/server/tenant-auth";
 import { loadTenantHeader } from "@/lib/server/tenant-requests";
 import { TenantShell } from "@/components/tenant/tenant-shell";
+import { NativePushRegister } from "@/components/tenant/native-push-register";
 
 export const dynamic = "force-dynamic";
 
@@ -17,5 +18,11 @@ export default async function TenantLayout({
   const session = await readTenantSession();
   if (!session) return <>{children}</>;
   const header = await loadTenantHeader(session);
-  return <TenantShell header={header}>{children}</TenantShell>;
+  return (
+    <TenantShell header={header}>
+      {/* Native-only (Capacitor iOS): registers APNs; inert on the web PWA. */}
+      <NativePushRegister />
+      {children}
+    </TenantShell>
+  );
 }

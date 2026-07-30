@@ -19,7 +19,8 @@ import { nextWorkOrderNumber } from "./sequence";
 import { writeAudit } from "./audit";
 import { emitNotification, notifyOpsTeam } from "./notifications";
 import { saveTenantPushSubscription, pruneTenantPushSubscription } from "./push";
-import { tenantPushSubscriptions } from "@db/schema/push-subscriptions";
+import { saveTenantDeviceToken, pruneTenantDeviceToken } from "./apns";
+import { tenantPushSubscriptions, tenantDeviceTokens } from "@db/schema/push-subscriptions";
 import type { TenantSession } from "./tenant-auth";
 
 export const tenantSubmitInput = z.object({
@@ -553,5 +554,33 @@ export async function unsubscribeTenantPush(session: TenantSession, endpoint: st
       )
       .limit(1);
     if (row) await pruneTenantPushSubscription(tx, row.id);
+  });
+}
+
+/** Register a resident's native (APNs) device token from the iOS app. */
+export async function registerTenantDeviceToken(
+  session: TenantSession,
+  input: { token: string; platform?: string; userAgent?: string | null },
+) {
+  return withTenantScope(session, async (tx) => {
+    await saveTenantDeviceToken(tx, {
+      orgId: session.orgId,
+      tenantUserId: session.tenantUserId,
+      token: input.token,
+      platform: input.platform ?? "ios",
+      userAgent: input.userAgent ?? null,
+    });
+  });
+}
+
+/** Drop a resident's device token (sign-out / uninstall on this device). */
+export async function unregisterTenantDeviceToken(session: TenantSession, token: string) {
+  return withTenantScope(session, async (tx) => {
+    const [row] = await tx
+      .select({ id: tenantDeviceTokens.id })
+      .from(tenantDeviceTokens)
+      .where(and(eq(tenantDeviceTokens.orgId, session.orgId), eq(tenantDeviceTokens.token, token)))
+      .limit(1);
+    if (row) await pruneTenantDeviceToken(tx, row.id);
   });
 }

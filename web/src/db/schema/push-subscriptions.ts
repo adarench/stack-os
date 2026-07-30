@@ -57,3 +57,27 @@ export const tenantPushSubscriptions = pgTable(
     endpointUnique: uniqueIndex("tenant_push_subs_endpoint_unique").on(t.endpoint),
   }),
 );
+
+/**
+ * Native APNs device tokens for tenant (resident) users — the iOS app
+ * (Capacitor shell around the tenant PWA) registers one APNs token per install.
+ * Mirrors tenant_push_subscriptions but for native push: a `token` instead of a
+ * web endpoint + keys. Sent via lib/server/apns.ts. `platform` leaves room for
+ * android/FCM later. RLS: tenant-self policy + system read (see rls-policies.sql).
+ */
+export const tenantDeviceTokens = pgTable(
+  "tenant_device_tokens",
+  {
+    id: id(),
+    orgId: orgId(),
+    tenantUserId: uuid("tenant_user_id").notNull(),
+    token: text("token").notNull(),
+    platform: text("platform").notNull().default("ios"),
+    userAgent: text("user_agent"),
+    ...timestamps,
+  },
+  (t) => ({
+    orgTenantIdx: index("tenant_device_tokens_org_tenant_idx").on(t.orgId, t.tenantUserId),
+    tokenUnique: uniqueIndex("tenant_device_tokens_token_unique").on(t.token),
+  }),
+);

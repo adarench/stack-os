@@ -14,6 +14,7 @@ import {
   sendWebPush,
   type PushPayload,
 } from "./push";
+import { sendApns, loadTenantDeviceTokens, pruneTenantDeviceToken } from "./apns";
 import { withScope, type ScopedDB } from "./db";
 import type { ActorType, NotificationChannel, PolymorphicTarget } from "@contracts/polymorphic";
 import { inngest } from "@/lib/inngest-client";
@@ -321,15 +322,20 @@ export async function dispatchInline(args: {
       if (channel === "email" && !args.recipientEmail) continue;
       if (channel === "sms" && !args.recipientPhone) continue;
       if (channel === "push") {
-        // Web-push to every device the recipient (staff OR tenant) registered.
-        // Records one aggregate notifications row; prunes any subscription the
-        // push service reports as gone (404/410). Vendor push isn't wired.
+        // Push to every device the recipient registered: web-push to browsers
+        // (staff OR tenant) AND native APNs to the tenant iOS app. Records one
+        // aggregate notifications row; prunes any endpoint/token the service
+        // reports as gone (404/410). Vendor push isn't wired.
         const isTenant = !args.recipientUserId && !!args.recipientTenantUserId;
         if (!args.recipientUserId && !args.recipientTenantUserId) continue;
         const subs = args.recipientUserId
           ? await loadPushSubscriptions(tx, args.orgId, args.recipientUserId)
           : await loadTenantPushSubscriptions(tx, args.orgId, args.recipientTenantUserId!);
-        if (subs.length === 0) continue;
+        // Native APNs tokens only exist for tenants (the iOS app is the tenant app).
+        const deviceTokens = isTenant
+          ? await loadTenantDeviceTokens(tx, args.orgId, args.recipientTenantUserId!)
+          : [];
+        if (subs.length === 0 && deviceTokens.length === 0) continue;
 
         const rec = await recordNotification(tx, {
           orgId: args.orgId,
@@ -364,6 +370,15 @@ export async function dispatchInline(args: {
               if (isTenant) await pruneTenantPushSubscription(tx, sub.id);
               else await prunePushSubscription(tx, sub.id);
             }
+          }
+        }
+        // Native APNs to the tenant's iOS devices (stub no-op until APNs keyed).
+        for (const dt of deviceTokens) {
+          const r = await sendApns(dt.token, payload);
+          if (r.ok) anyOk = true;
+          else {
+            lastError = r.error;
+            if (r.gone) await pruneTenantDeviceToken(tx, dt.id);
           }
         }
         if (anyOk) {
