@@ -30,6 +30,14 @@ export async function sendEmail(input: SendEmailInput): Promise<{ id: string | n
     html: input.html,
     text: input.text,
   });
+  // The Resend SDK reports API rejections in `result.error` and does NOT throw —
+  // an unverified sending domain, a suppressed address, or a bad key all came
+  // back as `{ data: null }` and read as a successful send. Callers are written
+  // around a throwing contract (notifications marks the row failed, the reset
+  // flow audits reset_email_failed), so surface it as one.
+  if (result.error) {
+    throw new Error(`resend: ${result.error.message ?? "send failed"}`);
+  }
   return { id: result.data?.id ?? null };
 }
 
