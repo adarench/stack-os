@@ -375,6 +375,9 @@ function WorkOverview({
       <TurnBlock turn={data.turn} onMutated={onMutated} />
       {/* Title already lives in the drawer header — don't repeat it. */}
       {subtitle && <Field label="Location">{subtitle}</Field>}
+      {/* Photos up front — see the request, not a file list (they're what the
+          resident actually sent). Non-image files stay in the Files tab. */}
+      <PhotoStrip files={data.files} />
       <div className="grid grid-cols-2 gap-3">
         <Field label="Status">
           <span className="inline-flex items-center gap-1.5">
@@ -1611,6 +1614,45 @@ function CostsList({ data }: { data: EntityDetail }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * Photo strip for the overview — renders image attachments as real thumbnails
+ * so opening a work order shows the resident's photos immediately (tap to open
+ * full-size). Non-image files are left to the Files tab. Renders nothing when
+ * there are no viewable images.
+ */
+function PhotoStrip({ files }: { files: EntityDetail["files"] }) {
+  const photos = files.filter((f) => f.url && f.contentType?.startsWith("image/"));
+  if (photos.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        Photos{photos.length > 1 ? ` · ${photos.length}` : ""}
+      </p>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {photos.map((p) => (
+          <a
+            key={p.id}
+            href={p.url!}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 transition-opacity hover:opacity-90"
+            title={p.filename ?? "Photo"}
+          >
+            {/* Signed R2 URL rotates → plain img (next/image needs a static host). */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={p.url!}
+              alt={p.filename ?? "Request photo"}
+              className="size-24 rounded-lg border border-border bg-muted object-cover"
+              loading="lazy"
+            />
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
