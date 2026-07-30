@@ -135,11 +135,27 @@ assets, deps, and these exact steps, and the native project now **generates +
 resolves pods cleanly**, so a developer can complete it in an afternoon once the
 account exists.
 
-## 8. Native push implementation plan (APNs) — design, not yet built
+## 8. Native push (APNs) — BUILT (stub-until-keyed); needs the Apple key + a device
 
-Native push is **not implemented** (see the notification matrix). It is not needed
-for the pilot — the installable PWA delivers web push on iOS 16.4+ once added to the
-Home Screen — but here is the turnkey plan for when the Apple account exists:
+**Status (2026-07-30): the backend + app registration are implemented and deployed.**
+`tenant_device_tokens` table (migration 0022, RLS-forced), `apns.ts` token-auth
+sender (ES256 JWT over HTTP/2), `/api/tenant/push/apns` register/unregister,
+dispatcher fan-out to device tokens, and `NativePushRegister` in the tenant shell.
+It runs as a **stub no-op until the APNs key is configured**, then goes live with
+**no code change**. Remaining to actually deliver a push to a phone:
+
+1. **In Xcode:** enable the **Push Notifications** capability + **Background Modes →
+   Remote notifications** (§3).
+2. **In the Apple developer portal:** create an **APNs auth key** → download the
+   `.p8`, note its **Key ID** + your **Team ID**.
+3. **Set env (Vercel, server-side):**
+   - `APNS_KEY` = the `.p8` file contents (PEM) · `APNS_KEY_ID` · `APNS_TEAM_ID`
+   - `APNS_BUNDLE_ID=us.stackstorage.tenant` · `APNS_PRODUCTION=1` (or leave unset for sandbox during dev)
+4. Run the app on a **physical iPhone** (simulators can't receive APNs), accept the
+   permission prompt, then trigger a WO status change → the push should arrive and
+   deep-link into the request.
+
+The original design (now implemented) followed below for reference:
 
 1. **Capability + entitlement:** in Xcode add **Push Notifications** + **Background
    Modes → Remote notifications**; the generated `Info.plist`/entitlements get

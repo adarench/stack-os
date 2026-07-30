@@ -39,7 +39,7 @@ not the same as a real person doing it in prod.**
 | RLS cross-tenant isolation | **Auto-verified + CI-enforced** | `rls`/`tenant-rls`/`auth-matrix` pass as `app_user`; `rls-coverage` fails CI if any table lacks RLS |
 | In-app (inbox/bell) | **Production-verified (staff)** | real `dispatchInline`→`loadInbox`/`loadInboxSummary` exercised against the **prod DB** 2026-07-29: in_app row written, surfaced with WO ref + unread count (`inbox-inapp.test.ts`). Staff-only; UI bell needs a staff login to see. |
 | Web push (browser) | **Automated + configured; not device-verified** | `web-push-send.test.ts` (6) drives the real send path (payload shape, subscription, 410→prune, dispatcher fan-out w/ deep link); VAPID set in prod; deep-link + logout-cleanup fixed; real on-device delivery still not observed; vendor push not wired |
-| Native iOS push (APNs) | **Not implemented** | no device-token store or APNs send path; design in IOS_APP.md; needs Apple `.p8` |
+| Native iOS push (APNs) | **Code-complete, stub-until-keyed** | `tenant_device_tokens` + `apns.ts` (ES256 JWT/HTTP2) + register route + dispatcher fan-out + `NativePushRegister` shipped 2026-07-30; **no-op until an Apple `.p8` key is set** (then live, no code change); delivery needs key + device (IOS_APP.md §8) |
 | iOS app | **Generated + pods resolved** | `cap add ios` now generates the Xcode project + `pod install` resolves (config-parse bug fixed); **build blocked on full Xcode.app** (this Mac has only CLT) |
 
 ## Shipped since M0–M10 (2026-07-28 → 07-29)

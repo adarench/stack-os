@@ -14,7 +14,7 @@ in [`VERIFICATION_REPORT.md`](./VERIFICATION_REPORT.md).
 | **A. Email** | Resend, sender `Stack OS <ops@stackstorage.us>` (domain verified) | **Production-verified (delivered)** | reset + invite observed delivered to an external inbox |
 | **B. In-app** | `notifications` table → `/inbox` + bell badge | **Production-verified (staff)** | real dispatch→inbox exercised against the prod DB (`inbox-inapp.test.ts`); staff-only — tenants/vendors get rows but no inbox UI; "unread" ≈ last 24h (no per-user read state) |
 | **C. Web push** | `web-push` + VAPID; `sw.js` / `tenant-sw.js` | **Automated + configured; not device-verified** | VAPID set in prod; real send path automated (`web-push-send.test.ts`); deep-link + logout-cleanup fixed 2026-07-29 |
-| **D. Native iOS push (APNs)** | — | **Not implemented** | plugin declared in `mobile/` only; no device-token store, no APNs send path |
+| **D. Native iOS push (APNs)** | ES256 token-auth over HTTP/2 | **Code-complete, stub-until-keyed** | `tenant_device_tokens` + `apns.ts` sender + `/api/tenant/push/apns` + dispatcher fan-out + `NativePushRegister` all shipped; **stub no-op until an Apple `.p8` key is set** (then live, no code change). Delivery needs the key + a device. |
 
 **One pipeline, many channels.** All events flow through `emitNotification()` →
 Inngest (`dispatch-notification.ts`) when `INNGEST_EVENT_KEY` is set, else an inline
