@@ -65,7 +65,8 @@ passwordless for tenants only.
 ---
 
 ## LR-004 — Technician experience is mobile web / PWA
-**Date:** 2026-07-23 · **Status:** Accepted.
+**Date:** 2026-07-23 · **Status:** Accepted · **Amended by LR-014** (that mobile
+experience is the responsive console, not a separate portal).
 **Decision.** Oscar/Fernando get a polished mobile-first responsive/PWA
 experience. Native App Store distribution is deferred (LR-010).
 **Revisit trigger.** Push/offline needs exceed PWA capability on their devices.
@@ -73,7 +74,8 @@ experience. Native App Store distribution is deferred (LR-010).
 ---
 
 ## LR-005 — Oscar/Fernando are internal technicians (`users` + `technician` role), NOT vendors
-**Date:** 2026-07-23 · **Status:** Accepted · **Amends:** ADR-003 scope.
+**Date:** 2026-07-23 · **Status:** Accepted · **Amends:** ADR-003 scope ·
+**Amended by LR-014** (the role drives routing/notifications, not console access).
 
 **Context.** `vendor_users` is the external, multi-PM, magic-link identity.
 Oscar/Fernando are internal staff; the seed already models them as `users`.
@@ -87,7 +89,8 @@ reuse screens.
 from external vendors; conflation would leak privilege or under-scope them.
 
 **Consequences.** Add `technician` to the role set; RBAC reads `users.role`;
-technician mobile surfaces are role-gated.
+technician mobile surfaces are scoped by *assignment*, not by role (LR-014 removed
+the role gate — a tech sees the same console as any operator).
 
 **Revisit trigger.** A future need to give internal techs multi-org identity.
 
@@ -236,6 +239,49 @@ the DB integration/RLS job **runs and passes on PR #2** (30 files / 212 tests).
 Branch-protection enforcement remains pending (GitHub plan-gated on this private repo).
 A dedicated Neon branch remains the cleaner long-term target (separate compute,
 resettable) — revisit if CI load on the prod compute or `stack_os_ci` drift becomes an issue.
+
+---
+
+## LR-014 — Technicians get the full console; the separate tech portal is not their home
+**Date:** 2026-07-30 · **Status:** Accepted · **Amends:** LR-004, LR-005 (consequences only).
+
+**Context.** Oscar and Fernando were sent to `/tech` — a one-job, chrome-less
+field view — while Jen (admin) got the whole console. In a three-person
+maintenance operation that reads as a demotion, not a design: the techs couldn't
+see the org-wide queue, the calendar, buildings, or reports, and the client
+raised it directly ("he's mad he can't see all the same stuff").
+
+**Decision.**
+1. **`technician` is a job, not a reduced access tier.** Every internal staff
+   role gets the same console. New gate: `hasConsoleAccess` (all of
+   `ALL_STAFF_ROLES`), used by `/` routing and the admin server actions.
+2. **No forced portal.** `/` lands every staff member on `/my` — already the
+   "what's on me" lens a tech lives in. The `(tech)` routes stay live as the
+   mobile one-job view that SMS/push/email deep links (`/tech/WO-123`) open, and
+   now carry a "Full console →" link out. They are a deep-link target, not a home.
+3. **`OPERATOR_ROLES` keeps its old membership** (staff/dispatcher/manager/admin,
+   techs excluded) but is now *only* the team-wide notification fan-out list
+   (`notifyOpsTeam`) — never an access check. Preserves the client's routing rule
+   ("email all of us, except the tech whose job it is") unchanged.
+4. **No role data change.** Oscar/Fernando stay `technician` in the DB, so
+   property coverage, auto-routing, the assignable-tech picker, and SMS dispatch
+   (all of which key off the role) keep working exactly as before.
+
+**Rationale.** The console was never role-gated at the data layer — RLS scopes by
+org, not role — so the restriction was two lines (a redirect + an action gate)
+buying nothing operationally. Half-parity is worse than either extreme: leaving
+Admin nav visible while its buttons error out reproduces the same complaint.
+
+**Consequences.** Technicians can run the admin server actions (add a person,
+reset a password, deactivate an account, edit buildings/units). That is a real
+privilege widening, accepted for a small internal team where everyone is trusted
+staff; every action still writes an audit/auth event with the actor. A separate
+"tech updates" tab remains an open idea, not a commitment.
+
+**Revisit trigger.** The team grows past trusted-internal size, an external or
+seasonal tech needs an account, or account/password management needs to be
+admin-only — at which point split `hasConsoleAccess` (view) from an
+`isAdminRole`-backed account-management gate rather than reinstating the portal.
 
 ---
 

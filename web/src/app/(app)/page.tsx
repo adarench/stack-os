@@ -6,7 +6,7 @@ import { readTenantSession } from "@/lib/server/tenant-auth";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const { userId, orgId, role } = await auth();
+  const { userId, orgId } = await auth();
   if (!userId) {
     // The PWA manifest start_url is "/", shared by both surfaces. A resident who
     // installed from /tenant (Android honors start_url) must land in their portal,
@@ -15,7 +15,8 @@ export default async function Home() {
     redirect("/sign-in");
   }
   if (!orgId) redirect("/select-org");
-  // Technicians land on their mobile field surface, not the operator cockpit (M4).
-  if (role === "technician") redirect("/tech");
+  // Every staff member — technicians included — lands in the console (LR-014).
+  // /my is already the "what's on me" lens a tech lives in; /tech stays as the
+  // stripped-down field view for notification deep links, not as their home.
   redirect(NEW_SHELL ? "/my" : "/work");
 }

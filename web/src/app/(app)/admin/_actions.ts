@@ -13,7 +13,7 @@ import { createVendor } from "@/lib/server/vendors";
 import { inviteVendorUser } from "@/lib/server/vendor-invite";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/server/auth";
-import { isOperatorRole } from "@/lib/server/roles";
+import { hasConsoleAccess } from "@/lib/server/roles";
 import { provisionStaffAccount, setStaffPassword, resolveStaffRole } from "@/lib/server/credentials";
 import { provisionTenantAccount, setTenantPassword } from "@/lib/server/tenant-credentials";
 import { withScope } from "@/lib/server/db";
@@ -23,20 +23,24 @@ import { recordAuthEvent } from "@/lib/server/auth-events";
 import { requestPasswordReset } from "@/lib/server/password-reset";
 import { normalizePhone } from "@/lib/server/phone";
 
-async function requireOperator(): Promise<{ orgId: string } | { error: string }> {
+/**
+ * Console gate. Any internal staff row — technicians included (LR-014) — may
+ * run these actions; an account with no staff row still gets nothing.
+ */
+async function requireStaff(): Promise<{ orgId: string } | { error: string }> {
   const { userId, orgId, email, role } = await auth();
   if (!userId || !orgId) return { error: "Not signed in." };
   // Credential logins embed the role; OAuth (Google) sessions don't — read it
-  // from the DB so a Google operator isn't wrongly denied and a technician is
-  // still blocked (server-side authz, not a client role claim).
+  // from the DB so a Google operator isn't wrongly denied (server-side authz,
+  // not a client role claim).
   const effectiveRole = role ?? (await resolveStaffRole(orgId, userId, email));
-  if (!isOperatorRole(effectiveRole)) return { error: "You don't have permission." };
+  if (!hasConsoleAccess(effectiveRole)) return { error: "You don't have permission." };
   return { orgId };
 }
 
-/** Operator gate for FormData actions (which can only throw, not return). */
-async function assertOperator(): Promise<void> {
-  const gate = await requireOperator();
+/** Same gate for FormData actions (which can only throw, not return). */
+async function assertStaff(): Promise<void> {
+  const gate = await requireStaff();
   if ("error" in gate) throw new Error(gate.error);
 }
 
@@ -46,7 +50,7 @@ export async function setPersonActiveAction(input: {
   id: string;
   active: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
-  const gate = await requireOperator();
+  const gate = await requireStaff();
   if ("error" in gate) return { ok: false, error: gate.error };
   const { orgId } = gate;
   try {
@@ -74,7 +78,7 @@ export async function adminResetPasswordAction(input: {
   type: "staff" | "tenant";
   id: string;
 }): Promise<{ ok: boolean; password?: string; error?: string }> {
-  const gate = await requireOperator();
+  const gate = await requireStaff();
   if ("error" in gate) return { ok: false, error: gate.error };
   const { orgId } = gate;
   const password = `Stack-${randomBytes(4).toString("hex")}`;
@@ -107,7 +111,7 @@ export async function adminSendInviteAction(input: {
   type: "staff" | "tenant";
   id: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const gate = await requireOperator();
+  const gate = await requireStaff();
   if ("error" in gate) return { ok: false, error: gate.error };
   const { orgId } = gate;
   try {
@@ -129,7 +133,7 @@ export async function reassignTenantUnitAction(input: {
   tenantId: string;
   unitId: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
-  const gate = await requireOperator();
+  const gate = await requireStaff();
   if ("error" in gate) return { ok: false, error: gate.error };
   const { orgId } = gate;
   try {
@@ -146,7 +150,7 @@ export async function reassignTenantUnitAction(input: {
 
 /**
  * Add a person and hand back an initial username/password to share
- * ("add a tech" / "everybody at Lucid gets their own login"). Operator-gated —
+ * ("add a tech" / "everybody at Lucid gets their own login"). Staff-gated —
  * provisioning runs under a system scope, so the caller's role is checked here.
  * Returns the one-time credential; the admin copies it to the new user.
  */
@@ -157,7 +161,7 @@ export async function addPersonAction(input: {
   unitId?: string;
   phone?: string;
 }): Promise<{ ok: boolean; email?: string; password?: string; error?: string }> {
-  const gate = await requireOperator();
+  const gate = await requireStaff();
   if ("error" in gate) return { ok: false, error: gate.error };
   const { orgId } = gate;
 
@@ -194,7 +198,7 @@ export async function addPersonAction(input: {
 }
 
 export async function setTenantPhoneAction(formData: FormData) {
-  await assertOperator();
+  await assertStaff();
   await setTenantPhone(
     String(formData.get("tenantId")),
     String(formData.get("phone") ?? "") || null,
@@ -203,7 +207,7 @@ export async function setTenantPhoneAction(formData: FormData) {
 }
 
 export async function setUserPhoneAction(formData: FormData) {
-  await assertOperator();
+  await assertStaff();
   await setUserPhone(
     String(formData.get("userId")),
     String(formData.get("phone") ?? "") || null,
@@ -212,7 +216,7 @@ export async function setUserPhoneAction(formData: FormData) {
 }
 
 export async function createPropertyAction(formData: FormData) {
-  await assertOperator();
+  await assertStaff();
   await createProperty({
     name: String(formData.get("name")),
     addressLine1: String(formData.get("addressLine1") ?? "") || undefined,
@@ -224,7 +228,7 @@ export async function createPropertyAction(formData: FormData) {
 }
 
 export async function setPropertyAssigneeAction(formData: FormData) {
-  await assertOperator();
+  await assertStaff();
   const userId = String(formData.get("userId") ?? "");
   await setPropertyAssignee(
     String(formData.get("propertyId")),
@@ -234,7 +238,7 @@ export async function setPropertyAssigneeAction(formData: FormData) {
 }
 
 export async function createUnitAction(formData: FormData) {
-  await assertOperator();
+  await assertStaff();
   await createUnit({
     propertyId: String(formData.get("propertyId")),
     label: String(formData.get("label")),
@@ -245,7 +249,7 @@ export async function createUnitAction(formData: FormData) {
 }
 
 export async function createVendorAction(formData: FormData) {
-  await assertOperator();
+  await assertStaff();
   await createVendor({
     name: String(formData.get("name")),
     trade: String(formData.get("trade") ?? "") || undefined,
@@ -258,7 +262,7 @@ export async function createVendorAction(formData: FormData) {
 }
 
 export async function inviteVendorUserAction(formData: FormData): Promise<void> {
-  await assertOperator();
+  await assertStaff();
   const result = await inviteVendorUser({
     vendorId: String(formData.get("vendorId")),
     email: String(formData.get("email")),

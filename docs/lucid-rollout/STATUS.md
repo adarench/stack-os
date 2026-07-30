@@ -16,7 +16,7 @@
   verification pass + fixes (OAuth-role authz, notification routing, CSP, RLS). **Next:** a real person logs in
   as Oscar/Fernando and as a Lucid tenant on a physical phone (turns Auto-verified → User/Device-verified);
   Apple enrollment for the native iOS track.
-- **Last updated:** 2026-07-29
+- **Last updated:** 2026-07-30
 - **Prod DB schema note:** migrations **0014–0021** are applied to the shared `neondb` (all additive/reversible;
   0018 reset cols · 0019 rate_limits + auth_events · 0020 email uniqueness · 0021 must_change_password).
   `stack_os_ci` mirrors it and is the isolated target for the automated suite.
@@ -42,7 +42,16 @@ not the same as a real person doing it in prod.**
 | Native iOS push (APNs) | **Code-complete, stub-until-keyed** | `tenant_device_tokens` + `apns.ts` (ES256 JWT/HTTP2) + register route + dispatcher fan-out + `NativePushRegister` shipped 2026-07-30; **no-op until an Apple `.p8` key is set** (then live, no code change); delivery needs key + device (IOS_APP.md §8) |
 | iOS app | **Generated + pods resolved** | `cap add ios` now generates the Xcode project + `pod install` resolves (config-parse bug fixed); **build blocked on full Xcode.app** (this Mac has only CLT) |
 
-## Shipped since M0–M10 (2026-07-28 → 07-29)
+## Shipped since M0–M10 (2026-07-28 → 07-30)
+- **Technicians get the full console (2026-07-30, LR-014):** client feedback — Oscar/Fernando were bounced to
+  the stripped-down `/tech` portal while Jen (admin) had the whole cockpit. `technician` is now a job, not a
+  reduced access tier: new `hasConsoleAccess` gate (all staff roles) drives `/` routing + the admin server
+  actions, `/` lands every staff member on `/my`, and the `(tech)` routes survive only as the one-job view
+  that notification deep links open (with a "Full console →" way out). `OPERATOR_ROLES` keeps its old
+  membership but is now *only* the `notifyOpsTeam` fan-out list, so the "email all of us except the tech whose
+  job it is" rule is unchanged. **No role data change** — coverage/auto-routing/SMS dispatch still key off
+  `technician`. Widens admin actions (add person, reset password, deactivate) to techs — accepted for a small
+  internal team; see LR-014's revisit trigger.
 - **Mobile & push sprint (2026-07-29, prod `13b9193`):** two audits (tenant mobile UX +
   web-push end-to-end) → fixes: iOS zoom-on-focus (16px inputs), `viewport-fit=cover`
   (safe areas now active), tenant loading skeletons, silent-failure errors on
