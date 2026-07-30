@@ -251,10 +251,12 @@ export async function notifyOpsTeam(args: {
   targetId?: string;
   url?: string;
   dedupeKey?: string | null;
+  /** Also text the ops team (default off — SMS is scoped to key events). */
+  sms?: boolean;
 }): Promise<void> {
   const recipients = await withScope({ orgId: args.orgId, actorType: "system" }, (tx) =>
     tx
-      .select({ id: users.id, email: users.email })
+      .select({ id: users.id, email: users.email, phone: users.phone })
       .from(users)
       .where(and(eq(users.orgId, args.orgId), inArray(users.role, [...OPERATOR_ROLES]))),
   );
@@ -270,6 +272,7 @@ export async function notifyOpsTeam(args: {
       orgId: args.orgId,
       recipientUserId: r.id,
       recipientEmail: r.email,
+      recipientPhone: args.sms ? r.phone : null,
       kind: args.kind,
       subject: args.subject,
       body: args.body,
@@ -454,9 +457,13 @@ export async function dispatchInline(args: {
           // real-send error throws → the outer catch marks this failed.
           // Brand the body so the text self-identifies as Stack — US 10DLC
           // can't set a sender name, so this is the only place to brand it.
+          // Same deep link email/push use, absolutized to NEXT_PUBLIC_APP_URL so
+          // the text is tappable straight into the app (tenant/tech/operator route
+          // per the caller's `url`).
+          const link = absoluteUrl(args.url ?? targetUrl(args.targetType, args.targetId));
           const r = await sendSms({
             to: args.recipientPhone,
-            body: `Stack OS · ${args.subject} — ${args.body}`,
+            body: `Stack OS · ${args.subject} — ${args.body}\n${link}`,
           });
           await markNotificationStatus(tx, id, {
             status: "sent",

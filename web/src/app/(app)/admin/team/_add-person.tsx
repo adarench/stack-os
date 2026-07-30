@@ -15,6 +15,7 @@ export function AddPerson({ units }: { units: { id: string; label: string }[] })
   const [type, setType] = useState<"technician" | "resident">("technician");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [unitId, setUnitId] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ email: string; password: string } | null>(null);
@@ -30,6 +31,7 @@ export function AddPerson({ units }: { units: { id: string; label: string }[] })
       type,
       email,
       name,
+      phone: phone || undefined,
       unitId: type === "resident" ? unitId : undefined,
     });
     setBusy(false);
@@ -37,6 +39,7 @@ export function AddPerson({ units }: { units: { id: string; label: string }[] })
       setResult({ email: r.email, password: r.password });
       setEmail("");
       setName("");
+      setPhone("");
       setUnitId("");
       router.refresh();
     } else {
@@ -84,6 +87,12 @@ export function AddPerson({ units }: { units: { id: string; label: string }[] })
           placeholder="Full name"
           value={name}
           onChange={(e) => setName(e.target.value)}
+        />
+        <Input
+          type="tel"
+          placeholder="Mobile for SMS (optional)"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
         />
         {type === "resident" && (
           <select

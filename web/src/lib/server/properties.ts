@@ -6,6 +6,7 @@ import { units } from "@db/schema/units";
 import { users } from "@db/schema/users";
 import { tenantUsers } from "@db/schema/compliance";
 import { withStaffScope } from "./db";
+import { normalizePhone } from "./phone";
 import { writeAudit } from "./audit";
 import { ensureUserRow } from "./sync-user";
 
@@ -93,12 +94,25 @@ export async function listAssignableTechnicians() {
  */
 export async function setUserPhone(userId: string, phone: string | null) {
   return withStaffScope(async (tx, ctx) => {
-    const normalized = phone?.trim() || null;
+    const normalized = normalizePhone(phone); // E.164 or null (Twilio-ready)
     const updated = await tx
       .update(users)
       .set({ phone: normalized, updatedAt: new Date() })
       .where(and(eq(users.orgId, ctx.orgId), eq(users.id, userId)))
       .returning({ id: users.id });
+    return updated[0] ?? null;
+  });
+}
+
+/** Set (or clear) a resident's mobile number for SMS status updates. */
+export async function setTenantPhone(tenantId: string, phone: string | null) {
+  return withStaffScope(async (tx, ctx) => {
+    const normalized = normalizePhone(phone);
+    const updated = await tx
+      .update(tenantUsers)
+      .set({ phone: normalized, updatedAt: new Date() })
+      .where(and(eq(tenantUsers.orgId, ctx.orgId), eq(tenantUsers.id, tenantId)))
+      .returning({ id: tenantUsers.id });
     return updated[0] ?? null;
   });
 }
@@ -202,6 +216,7 @@ export async function listResidentsAdmin() {
         id: tenantUsers.id,
         name: tenantUsers.name,
         email: tenantUsers.email,
+        phone: tenantUsers.phone,
         status: tenantUsers.status,
         unitId: tenantUsers.unitId,
         unitLabel: units.label,

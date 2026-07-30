@@ -7,6 +7,7 @@ import {
   createUnit,
   setPropertyAssignee,
   setUserPhone,
+  setTenantPhone,
 } from "@/lib/server/properties";
 import { createVendor } from "@/lib/server/vendors";
 import { inviteVendorUser } from "@/lib/server/vendor-invite";
@@ -20,6 +21,7 @@ import { users } from "@db/schema/users";
 import { tenantUsers } from "@db/schema/compliance";
 import { recordAuthEvent } from "@/lib/server/auth-events";
 import { requestPasswordReset } from "@/lib/server/password-reset";
+import { normalizePhone } from "@/lib/server/phone";
 
 async function requireOperator(): Promise<{ orgId: string } | { error: string }> {
   const { userId, orgId, email, role } = await auth();
@@ -153,6 +155,7 @@ export async function addPersonAction(input: {
   email: string;
   name: string;
   unitId?: string;
+  phone?: string;
 }): Promise<{ ok: boolean; email?: string; password?: string; error?: string }> {
   const gate = await requireOperator();
   if ("error" in gate) return { ok: false, error: gate.error };
@@ -161,6 +164,7 @@ export async function addPersonAction(input: {
   const email = input.email.trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Enter a valid email." };
   const password = `Stack-${randomBytes(4).toString("hex")}`; // 14 chars, typeable
+  const phone = normalizePhone(input.phone); // E.164 or null — optional SMS number
 
   try {
     if (input.type === "technician") {
@@ -171,7 +175,7 @@ export async function addPersonAction(input: {
         password,
       });
       await withScope({ orgId, actorType: "system" }, (tx) =>
-        tx.update(users).set({ mustChangePassword: true }).where(eq(users.id, id)));
+        tx.update(users).set({ mustChangePassword: true, phone }).where(eq(users.id, id)));
     } else {
       const id = await provisionTenantAccount(orgId, {
         email,
@@ -180,13 +184,22 @@ export async function addPersonAction(input: {
         password,
       });
       await withScope({ orgId, actorType: "system" }, (tx) =>
-        tx.update(tenantUsers).set({ mustChangePassword: true }).where(eq(tenantUsers.id, id)));
+        tx.update(tenantUsers).set({ mustChangePassword: true, phone }).where(eq(tenantUsers.id, id)));
     }
     revalidatePath("/admin/team");
     return { ok: true, email, password };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
+}
+
+export async function setTenantPhoneAction(formData: FormData) {
+  await assertOperator();
+  await setTenantPhone(
+    String(formData.get("tenantId")),
+    String(formData.get("phone") ?? "") || null,
+  );
+  revalidatePath("/admin/residents");
 }
 
 export async function setUserPhoneAction(formData: FormData) {

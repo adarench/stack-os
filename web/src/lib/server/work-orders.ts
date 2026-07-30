@@ -144,6 +144,7 @@ export async function createWorkOrder(input: CreateWorkOrderInput) {
       body: `Assigned to you on ${row.title}. Open My Work to view and respond.`,
       targetType: "work_order",
       targetId: row.id,
+      url: `/tech/WO-${row.number}`, // techs deep-link into the tech app
       actor: { type: "system" },
     });
   }
@@ -415,6 +416,7 @@ export async function updateWorkOrderStatus(
         targetType: "work_order",
         targetId: result.wo.id,
         url: `/work-orders/${result.wo.id}`,
+        sms: true, // CPM/admin gets a completion text (key event)
         dedupeKey: `wo_resolved_ops:${result.wo.id}:${result.wo.updatedAt.toISOString()}`,
       });
     }
@@ -651,6 +653,7 @@ export async function assignTechnician(input: z.infer<typeof assignTechnicianInp
       body: `You've been assigned WO-${wo.number} "${wo.title}". Open it in My Work.`,
       targetType: "work_order",
       targetId: wo.id,
+      url: `/tech/WO-${wo.number}`,
     });
   }
 }

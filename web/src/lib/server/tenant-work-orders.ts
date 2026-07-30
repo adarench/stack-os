@@ -150,6 +150,7 @@ export async function createWorkOrderFromTenant(
       body: `A resident reported an issue (${parsed.category}). Open Work to triage.`,
       targetType: "work_order",
       targetId: result.row.id,
+      url: `/tech/WO-${result.row.number}`,
       actor: { type: "system" },
     });
   }
@@ -165,6 +166,7 @@ export async function createWorkOrderFromTenant(
     targetType: "work_order",
     targetId: result.row.id,
     url: `/work-orders/${result.row.id}`,
+    sms: true, // CPM/admin gets a new-request text (key event)
     dedupeKey: `wo_submitted:${result.row.id}`,
   });
 
@@ -365,6 +367,7 @@ export async function createTenantComment(
       body: `A resident replied on ${result.wo.title}.`,
       targetType: "work_order",
       targetId: parsed.workOrderId,
+      url: `/tech/WO-${result.wo.number}`,
       actor: { type: "system" },
     });
   }
@@ -444,12 +447,13 @@ export async function tenantConfirmResolved(session: TenantSession, workOrderId:
       orgId: session.orgId,
       recipientUserId: tech.id,
       recipientEmail: tech.email ?? undefined,
-      recipientPhone: tech.phone ?? undefined,
+      // No SMS on confirm — positive closure, not a key-event text (email+push only).
       kind: "wo_verified",
       subject: `Resident confirmed WO-${wo.number} is fixed`,
       body: `The resident verified ${wo.title}. Ready to close.`,
       targetType: "work_order",
       targetId: workOrderId,
+      url: `/tech/WO-${wo.number}`,
       actor: { type: "system" },
     });
   }
@@ -515,6 +519,7 @@ export async function tenantReopen(
       body: `The resident says ${wo.title} isn't resolved. Reopened to in progress.`,
       targetType: "work_order",
       targetId: parsed.workOrderId,
+      url: `/tech/WO-${wo.number}`,
       actor: { type: "system" },
     });
   }

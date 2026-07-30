@@ -1,6 +1,9 @@
 import { listResidentsAdmin, listUnits } from "@/lib/server/properties";
 import { Page, PageHeader } from "@/components/ui/page";
+import { Input } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { setTenantPhoneAction } from "../_actions";
 import { AccountActions } from "../_account-actions";
 import { ReassignUnit } from "./_reassign-unit";
 
@@ -32,11 +35,18 @@ export default async function AdminResidentsPage() {
                   {t.unitLabel ?? "no unit"}
                   {!active && <span className="text-urgency-blocked"> · deactivated</span>}
                 </div>
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <label className="flex items-center gap-2 text-label text-muted-foreground">
                     Unit
                     <ReassignUnit tenantId={t.id} unitId={t.unitId} units={unitOpts} />
                   </label>
+                  {/* Mobile for SMS status updates (E.164-normalized on save). */}
+                  <form action={setTenantPhoneAction} className="flex flex-1 items-center gap-2">
+                    <input type="hidden" name="tenantId" value={t.id} />
+                    <label className="text-label text-muted-foreground">Mobile</label>
+                    <Input name="phone" type="tel" defaultValue={t.phone ?? ""} placeholder="+1 555 555 0123" className="flex-1 font-mono" />
+                    <Button type="submit" variant="outline" size="sm">Save</Button>
+                  </form>
                   <AccountActions type="tenant" id={t.id} active={active} />
                 </div>
               </li>
