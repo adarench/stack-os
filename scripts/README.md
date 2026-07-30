@@ -15,6 +15,19 @@ opt-in** — see `_prod-guard.ts`.
 | `tsx scripts/audit-workorders.ts --org <id>` | `audit-workorders.ts` | **read-only** work-order inventory for an org (requires explicit `--org`/`STACK_ORG_ID`; no default) | no |
 | `tsx scripts/p2-smoke.ts` | `p2-smoke.ts` | read-only HTTP smoke of a deployed URL | no |
 | `tsx scripts/db-verify.mjs` | `db-verify.mjs` | read-only DB verification | no |
+| `tsx scripts/diagnose-account.ts <email>` | `diagnose-account.ts` | **read-only** "why can't this person sign in / reset?" — every staff + resident row for the email, what would block each one, and their auth-event history | no |
+| `tsx scripts/auth-audit.ts [days]` | `auth-audit.ts` | **read-only** recent auth events, live rate-limit buckets, and everyone provisioned who has **never** signed in | no |
+
+### "X can't log in" — start here
+```
+pnpm dlx tsx scripts/diagnose-account.ts someone@example.com
+```
+Answers the account question directly: does a row exist, in which table, is it
+locked/deactivated/passwordless, and has a reset ever actually been issued.
+A reset request that matched nothing records a `reset_no_match` event — the
+user-facing page says "a link is on its way" either way, so that event is the
+only evidence the attempt happened. `auth-audit.ts` shows the same picture
+across everyone at once.
 
 `db-migrate.ts` / `db-rls-apply.ts` / `db-seed.ts` read `DATABASE_URL(_UNPOOLED)`
 from `web/.env.local`. Point them at a dev/preview branch — not production —

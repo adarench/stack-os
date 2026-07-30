@@ -9,6 +9,12 @@ export type AuthEventKind =
   | "login_locked"
   | "reset_requested"
   | "reset_completed"
+  // A reset was asked for but nothing was sent. These exist because the user-facing
+  // response is deliberately identical whether or not an account matched — without
+  // them a failed request leaves no trace at all and is impossible to support.
+  | "reset_no_match"
+  | "reset_rate_limited"
+  | "reset_email_failed"
   | "password_changed"
   | "role_changed"
   | "account_deactivated"

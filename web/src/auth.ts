@@ -65,7 +65,17 @@ function passwordProvider(): Provider {
       // merely imports @/auth (e.g. the sign-in page). authorize() is server-only.
       const { verifyStaffCredentials } = await import("@/lib/server/credentials");
       const u = await verifyStaffCredentials(orgId, identifier, password);
-      if (!u) return null;
+      // Audit both outcomes. The resident sign-in has always done this; staff
+      // did not, so a tech who couldn't get in left no trace anywhere and
+      // "it doesn't work" was unanswerable. Never records the password.
+      const { recordAuthEvent } = await import("@/lib/server/auth-events");
+      const { clientIp } = await import("@/lib/server/rate-limit");
+      const ip = await clientIp();
+      if (!u) {
+        await recordAuthEvent({ event: "login_failed", orgId, actorType: "user", subjectEmail: identifier, ip });
+        return null;
+      }
+      await recordAuthEvent({ event: "login_ok", orgId, actorType: "user", subjectUserId: u.usersId, subjectEmail: u.email, ip });
       return { id: u.subject, email: u.email, name: u.name ?? undefined, role: u.role };
     },
   });

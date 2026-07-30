@@ -14,5 +14,6 @@ export async function completeTenantReset(formData: FormData): Promise<void> {
   if (!r.ok) {
     redirect(`/tenant/reset?token=${encodeURIComponent(token)}&error=${r.error ?? "invalid"}`);
   }
-  redirect("/tenant/sign-in?reset=1");
+  // A staff/tech token can legitimately be redeemed here; send them to ops.
+  redirect(r.actor === "staff" ? "/sign-in?reset=1" : "/tenant/sign-in?reset=1");
 }

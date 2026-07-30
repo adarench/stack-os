@@ -23,6 +23,69 @@ import { logger } from "./logger";
 export type Actor = "staff" | "tenant";
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+/**
+ * Find the account behind an email in **either** table.
+ *
+ * Staff live in `users`, residents in `tenant_users`, and each has its own
+ * reset page (`/forgot` vs `/tenant/forgot`). Filtering by the page the person
+ * happened to open meant a tech who opened the resident page — or a resident
+ * who opened the ops page — got "a reset link is on its way" and no email, with
+ * nothing recorded anywhere. So `preferred` is only a tie-breaker for someone
+ * who exists in both tables; otherwise we use whichever table has them.
+ *
+ * Ordering is explicit because neither table guarantees one row per email:
+ * `users` is unique per (org, email) and `tenant_users` per (org, unit, email),
+ * so the same address can appear in several orgs/units. Prefer a row that can
+ * actually sign in (active, password set), then the oldest — otherwise the
+ * lookup here and the one at login can silently pick different rows, and a
+ * "successful" reset lands on an account the person never signs into.
+ */
+async function findAccount(
+  email: string,
+  preferred: Actor,
+): Promise<
+  | { actor: "staff"; id: string; orgId: string; email: string }
+  | { actor: "tenant"; id: string; orgId: string; email: string }
+  | null
+> {
+  const staff = async () => {
+    const found = await withScope({ orgId: "_", actorType: "system" }, (tx) =>
+      tx
+        .select({ id: users.id, orgId: users.orgId, email: users.email })
+        .from(users)
+        .where(eq(sql`lower(${users.email})`, email))
+        .orderBy(
+          sql`(${users.status} = 'active') desc`,
+          sql`(${users.passwordHash} is not null) desc`,
+          users.createdAt,
+        )
+        .limit(1),
+    );
+    const u = found[0];
+    return u ? ({ actor: "staff", ...u } as const) : null;
+  };
+
+  const tenant = async () => {
+    const found = await withScope({ orgId: "_", actorType: "system" }, (tx) =>
+      tx
+        .select({ id: tenantUsers.id, orgId: tenantUsers.orgId, email: tenantUsers.email })
+        .from(tenantUsers)
+        .where(eq(sql`lower(${tenantUsers.email})`, email))
+        .orderBy(
+          sql`(${tenantUsers.status} <> 'revoked') desc`,
+          sql`(${tenantUsers.passwordHash} is not null) desc`,
+          tenantUsers.createdAt,
+        )
+        .limit(1),
+    );
+    const u = found[0];
+    return u ? ({ actor: "tenant", ...u } as const) : null;
+  };
+
+  const [first, second] = preferred === "staff" ? [staff, tenant] : [tenant, staff];
+  return (await first()) ?? (await second());
+}
+
 /** Request a reset link. Always behaves identically whether or not the email
  *  matches an account — the caller shows one generic message. `invite` frames
  *  the email as a first-time account setup rather than a reset. */
@@ -37,38 +100,25 @@ export async function requestPasswordReset(
   const tokenHash = hashToken(raw);
   const expiresAt = tokenExpiry(RESET_TTL_MS);
 
-  let recipient: { email: string } | null = null;
+  let recipient: { email: string; actor: Actor } | null = null;
   try {
-    if (actor === "staff") {
-      const found = await withScope({ orgId: "_", actorType: "system" }, (tx) =>
-        tx.select({ id: users.id, orgId: users.orgId, email: users.email })
-          .from(users).where(eq(sql`lower(${users.email})`, e)).limit(1),
+    const account = await findAccount(e, actor);
+    if (account?.actor === "staff") {
+      await withScope({ orgId: account.orgId, actorType: "system" }, (tx) =>
+        tx.update(users)
+          .set({ passwordResetTokenHash: tokenHash, passwordResetExpiresAt: expiresAt })
+          .where(eq(users.id, account.id)),
       );
-      const u = found[0];
-      if (u) {
-        await withScope({ orgId: u.orgId, actorType: "system" }, (tx) =>
-          tx.update(users)
-            .set({ passwordResetTokenHash: tokenHash, passwordResetExpiresAt: expiresAt })
-            .where(eq(users.id, u.id)),
-        );
-        recipient = { email: u.email };
-        await recordAuthEvent({ event: opts?.invite ? "invitation_issued" : "reset_requested", orgId: u.orgId, actorType: "user", subjectUserId: u.id, subjectEmail: u.email, ip: await clientIp() });
-      }
-    } else {
-      const found = await withScope({ orgId: "_", actorType: "system" }, (tx) =>
-        tx.select({ id: tenantUsers.id, orgId: tenantUsers.orgId, email: tenantUsers.email })
-          .from(tenantUsers).where(eq(sql`lower(${tenantUsers.email})`, e)).limit(1),
+      recipient = { email: account.email, actor: "staff" };
+      await recordAuthEvent({ event: opts?.invite ? "invitation_issued" : "reset_requested", orgId: account.orgId, actorType: "user", subjectUserId: account.id, subjectEmail: account.email, ip: await clientIp(), meta: { requested_via: actor } });
+    } else if (account?.actor === "tenant") {
+      await withScope({ orgId: account.orgId, actorType: "system" }, (tx) =>
+        tx.update(tenantUsers)
+          .set({ passwordResetTokenHash: tokenHash, passwordResetExpiresAt: expiresAt })
+          .where(eq(tenantUsers.id, account.id)),
       );
-      const u = found[0];
-      if (u) {
-        await withScope({ orgId: u.orgId, actorType: "system" }, (tx) =>
-          tx.update(tenantUsers)
-            .set({ passwordResetTokenHash: tokenHash, passwordResetExpiresAt: expiresAt })
-            .where(eq(tenantUsers.id, u.id)),
-        );
-        recipient = { email: u.email };
-        await recordAuthEvent({ event: opts?.invite ? "invitation_issued" : "reset_requested", orgId: u.orgId, actorType: "tenant", subjectTenantUserId: u.id, subjectEmail: u.email, ip: await clientIp() });
-      }
+      recipient = { email: account.email, actor: "tenant" };
+      await recordAuthEvent({ event: opts?.invite ? "invitation_issued" : "reset_requested", orgId: account.orgId, actorType: "tenant", subjectTenantUserId: account.id, subjectEmail: account.email, ip: await clientIp(), meta: { requested_via: actor } });
     }
   } catch (err) {
     logger.warn("pwreset.request_failed", { actor, err });
@@ -76,13 +126,16 @@ export async function requestPasswordReset(
   }
 
   if (!recipient) {
-    // No account — do nothing (and don't reveal it). Same wall-clock either way
-    // is not required here since we never return an account-specific signal.
+    // No account in either table — say nothing to the caller (no enumeration),
+    // but leave an audit trail. This is the only record that the attempt ever
+    // happened, and it is what turns "the reset is broken" into a five-second
+    // answer: the address typed simply has no account.
     logger.info("pwreset.request_no_account", { actor });
+    await recordAuthEvent({ event: "reset_no_match", actorType: "system", subjectEmail: e, ip: await clientIp(), meta: { requested_via: actor } });
     return;
   }
 
-  const path = actor === "tenant" ? "/tenant/reset" : "/reset";
+  const path = recipient.actor === "tenant" ? "/tenant/reset" : "/reset";
   const link = absoluteUrl(`${path}?token=${raw}`);
   const invite = !!opts?.invite;
   const subject = invite ? "Set up your Stack OS account" : "Reset your Stack OS password";
@@ -96,18 +149,32 @@ export async function requestPasswordReset(
   });
   try {
     await sendEmail({ to: recipient.email, subject, html, text });
-    logger.info("pwreset.email_sent", { actor });
+    logger.info("pwreset.email_sent", { actor: recipient.actor });
   } catch (err) {
-    logger.warn("pwreset.email_failed", { actor, err });
+    // The token is already stored, so the account is now in a state where the
+    // person is waiting on an email that will never arrive. Audit it — a
+    // provider outage otherwise looks identical to "the link went to spam".
+    logger.warn("pwreset.email_failed", { actor: recipient.actor, err });
+    await recordAuthEvent({ event: "reset_email_failed", actorType: "system", subjectEmail: recipient.email, ip: await clientIp(), meta: { reason: err instanceof Error ? err.message : "unknown" } });
   }
 }
 
 export interface ResetResult {
   ok: boolean;
   error?: "invalid" | "weak_password" | "invalid_or_expired";
+  /** Which account the token actually belonged to — the caller uses this to
+   *  send the person to the matching sign-in page. */
+  actor?: Actor;
 }
 
-/** Complete a reset with the emailed token + a new password. */
+/**
+ * Complete a reset with the emailed token + a new password.
+ *
+ * `actor` is the page the link landed on, and is only a preference: the token
+ * is a 32-byte secret, so looking for it in the other table too leaks nothing
+ * and means a link opened on the wrong surface still works instead of reading
+ * as "invalid or expired".
+ */
 export async function completePasswordReset(
   actor: Actor,
   rawToken: string,
@@ -118,13 +185,33 @@ export async function completePasswordReset(
   const tokenHash = hashToken(rawToken);
   const passwordHash = await hashPassword(newPassword);
 
-  if (actor === "staff") {
+  const staffRow = async () => {
     const found = await withScope({ orgId: "_", actorType: "system" }, (tx) =>
       tx.select({ id: users.id, orgId: users.orgId, exp: users.passwordResetExpiresAt })
         .from(users).where(eq(users.passwordResetTokenHash, tokenHash)).limit(1),
     );
-    const row = found[0];
-    if (!row || !row.exp || row.exp.getTime() < Date.now()) return { ok: false, error: "invalid_or_expired" };
+    return found[0] ?? null;
+  };
+  const tenantRow = async () => {
+    const found = await withScope({ orgId: "_", actorType: "system" }, (tx) =>
+      tx.select({ id: tenantUsers.id, orgId: tenantUsers.orgId, exp: tenantUsers.passwordResetExpiresAt })
+        .from(tenantUsers).where(eq(tenantUsers.passwordResetTokenHash, tokenHash)).limit(1),
+    );
+    return found[0] ?? null;
+  };
+
+  // Look in the surface's own table first, then the other one.
+  let staff = actor === "staff" ? await staffRow() : null;
+  let tenant = actor === "tenant" ? await tenantRow() : null;
+  if (!staff && !tenant) {
+    if (actor === "staff") tenant = await tenantRow();
+    else staff = await staffRow();
+  }
+  if (!staff && !tenant) return { ok: false, error: "invalid_or_expired" };
+
+  if (staff) {
+    const row = staff;
+    if (!row.exp || row.exp.getTime() < Date.now()) return { ok: false, error: "invalid_or_expired" };
     await withScope({ orgId: row.orgId, actorType: "system" }, (tx) =>
       tx.update(users)
         .set({
@@ -139,17 +226,13 @@ export async function completePasswordReset(
         })
         .where(eq(users.id, row.id)),
     );
-    logger.info("pwreset.completed", { actor, usersId: row.id });
-    await recordAuthEvent({ event: "reset_completed", orgId: row.orgId, actorType: "user", subjectUserId: row.id, ip: await clientIp() });
-    return { ok: true };
+    logger.info("pwreset.completed", { actor: "staff", usersId: row.id });
+    await recordAuthEvent({ event: "reset_completed", orgId: row.orgId, actorType: "user", subjectUserId: row.id, ip: await clientIp(), meta: { opened_via: actor } });
+    return { ok: true, actor: "staff" };
   }
 
-  const found = await withScope({ orgId: "_", actorType: "system" }, (tx) =>
-    tx.select({ id: tenantUsers.id, orgId: tenantUsers.orgId, exp: tenantUsers.passwordResetExpiresAt })
-      .from(tenantUsers).where(eq(tenantUsers.passwordResetTokenHash, tokenHash)).limit(1),
-  );
-  const row = found[0];
-  if (!row || !row.exp || row.exp.getTime() < Date.now()) return { ok: false, error: "invalid_or_expired" };
+  const row = tenant!;
+  if (!row.exp || row.exp.getTime() < Date.now()) return { ok: false, error: "invalid_or_expired" };
   await withScope({ orgId: row.orgId, actorType: "system" }, (tx) =>
     tx.update(tenantUsers)
       .set({
@@ -160,12 +243,13 @@ export async function completePasswordReset(
         failedLoginCount: 0,
         lockedUntil: null,
         emailVerifiedAt: new Date(),
+        mustChangePassword: false,
       })
       .where(eq(tenantUsers.id, row.id)),
   );
-  logger.info("pwreset.completed", { actor, tenantUserId: row.id });
-  await recordAuthEvent({ event: "reset_completed", orgId: row.orgId, actorType: "tenant", subjectTenantUserId: row.id, ip: await clientIp() });
-  return { ok: true };
+  logger.info("pwreset.completed", { actor: "tenant", tenantUserId: row.id });
+  await recordAuthEvent({ event: "reset_completed", orgId: row.orgId, actorType: "tenant", subjectTenantUserId: row.id, ip: await clientIp(), meta: { opened_via: actor } });
+  return { ok: true, actor: "tenant" };
 }
 
 /** Change password while authenticated — verifies the current password first. */

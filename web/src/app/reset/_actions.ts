@@ -12,5 +12,7 @@ export async function completeStaffReset(formData: FormData): Promise<void> {
 
   const r = await completePasswordReset("staff", token, password);
   if (!r.ok) redirect(`/reset?token=${encodeURIComponent(token)}&error=${r.error ?? "invalid"}`);
-  redirect("/sign-in?reset=1");
+  // A resident token can legitimately be redeemed here; send them to their own
+  // sign-in rather than the ops one they'd never get through.
+  redirect(r.actor === "tenant" ? "/tenant/sign-in?reset=1" : "/sign-in?reset=1");
 }

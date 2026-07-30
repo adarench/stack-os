@@ -46,6 +46,7 @@ afterAll(async () => {
   if (!admin) return;
   await admin.begin(async (tx) => {
     await sys(tx);
+    await tx`delete from auth_events where org_id = ${ORG} or subject_email like ${"ghost_%@nowhere.test"}`;
     await tx`delete from tenant_users where org_id = ${ORG}`;
     await tx`delete from users where org_id = ${ORG}`;
     await tx`delete from units where org_id = ${ORG}`;
@@ -65,6 +66,26 @@ async function plantToken(table: "tenant_users" | "users", id: string, raw: stri
       await tx`update users set password_reset_token_hash=${hash}, password_reset_expires_at=${expiresAt} where id=${id}`;
     }
   });
+}
+
+/** Wipe both fixtures' tokens so a test can assert who a request landed on. */
+async function clearTokens() {
+  await admin!.begin(async (tx) => {
+    await sys(tx);
+    await tx`update users set password_reset_token_hash=null, password_reset_expires_at=null where org_id=${ORG}`;
+    await tx`update tenant_users set password_reset_token_hash=null, password_reset_expires_at=null where org_id=${ORG}`;
+  });
+}
+
+/** Did a live (unexpired) reset token land on this row? */
+async function tokenOn(table: "tenant_users" | "users", id: string): Promise<boolean> {
+  const [row] = await admin!.begin(async (tx) => {
+    await sys(tx);
+    return table === "users"
+      ? tx<{ h: string | null; e: Date | null }[]>`select password_reset_token_hash h, password_reset_expires_at e from users where id=${id}`
+      : tx<{ h: string | null; e: Date | null }[]>`select password_reset_token_hash h, password_reset_expires_at e from tenant_users where id=${id}`;
+  });
+  return !!row?.h && !!row.e && new Date(row.e).getTime() > Date.now();
 }
 
 describe.skipIf(skip)("password reset", () => {
@@ -109,6 +130,65 @@ describe.skipIf(skip)("password reset", () => {
     await plantToken("users", ids.staffId, raw, new Date(Date.now() + 3600_000));
     const r = await completePasswordReset("staff", raw, "StaffNew-Pass99");
     expect(r.ok).toBe(true);
+    expect(r.actor).toBe("staff");
     expect(await verifyStaffCredentials(ORG, S_EMAIL, "StaffNew-Pass99")).not.toBeNull();
+  }, 30_000);
+
+  /**
+   * Wrong-door regression (2026-07-30). A technician opened the *resident*
+   * reset page, typed a real staff address, got "a reset link is on its way",
+   * and no token was ever issued — the request silently matched nothing and
+   * left no audit row, so there was no way to tell it had happened. The reset
+   * surface must not decide which table a person is allowed to live in.
+   */
+  describe("wrong reset surface still reaches the account", () => {
+    it("a staff email submitted on the RESIDENT page issues a staff token", async () => {
+      await clearTokens();
+      await requestPasswordReset("tenant", S_EMAIL); // resident page, staff address
+      expect(await tokenOn("users", ids.staffId)).toBe(true);
+    }, 30_000);
+
+    it("a resident email submitted on the STAFF page issues a resident token", async () => {
+      await clearTokens();
+      await requestPasswordReset("staff", T_EMAIL); // ops page, resident address
+      expect(await tokenOn("tenant_users", ids.tenantId)).toBe(true);
+    }, 30_000);
+
+    it("a staff token opened on the resident page still redeems, and reports staff", async () => {
+      const raw = `cross-surface-${Date.now()}`;
+      await plantToken("users", ids.staffId, raw, new Date(Date.now() + 3600_000));
+      const r = await completePasswordReset("tenant", raw, "CrossDoor-Pass99");
+      expect(r.ok).toBe(true);
+      expect(r.actor).toBe("staff"); // drives the redirect to /sign-in
+      expect(await verifyStaffCredentials(ORG, S_EMAIL, "CrossDoor-Pass99")).not.toBeNull();
+    }, 30_000);
+  });
+
+  /** An unmatched request stays silent to the caller but must leave a trace —
+   *  that absence is what made the original outage undiagnosable. */
+  it("an email with no account anywhere records reset_no_match", async () => {
+    const missing = `ghost_${Date.now()}@nowhere.test`;
+    await requestPasswordReset("staff", missing);
+    const [row] = await admin!.begin(async (tx) => {
+      await sys(tx);
+      return tx<{ n: number }[]>`select count(*)::int n from auth_events where event='reset_no_match' and subject_email=${missing}`;
+    });
+    expect(row!.n).toBe(1);
+  }, 30_000);
+
+  /** A completed reset must not leave the person stuck behind a forced change. */
+  it("completing a resident reset clears must_change_password", async () => {
+    const raw = `mcp-${Date.now()}`;
+    await admin!.begin(async (tx) => {
+      await sys(tx);
+      await tx`update tenant_users set must_change_password = true where id = ${ids.tenantId}`;
+    });
+    await plantToken("tenant_users", ids.tenantId, raw, new Date(Date.now() + 3600_000));
+    expect((await completePasswordReset("tenant", raw, "NoForcedChange-99")).ok).toBe(true);
+    const [row] = await admin!.begin(async (tx) => {
+      await sys(tx);
+      return tx<{ m: boolean }[]>`select must_change_password m from tenant_users where id=${ids.tenantId}`;
+    });
+    expect(row!.m).toBe(false);
   }, 30_000);
 });
