@@ -12,8 +12,8 @@ in [`VERIFICATION_REPORT.md`](./VERIFICATION_REPORT.md).
 | Channel | Transport | State | Notes |
 |---|---|---|---|
 | **A. Email** | Resend, sender `Stack OS <ops@stackstorage.us>` (domain verified) | **Production-verified (delivered)** | reset + invite observed delivered to an external inbox |
-| **B. In-app** | `notifications` table → `/inbox` + bell badge | **Implemented, staff-only** | tenants/vendors get rows written but no inbox UI; "unread" ≈ last 24h (no per-user read state) |
-| **C. Web push** | `web-push` + VAPID; `sw.js` / `tenant-sw.js` | **Implemented + configured; not device-verified** | VAPID set in prod; code correct (audited); deep-link + logout-cleanup fixed 2026-07-29 |
+| **B. In-app** | `notifications` table → `/inbox` + bell badge | **Production-verified (staff)** | real dispatch→inbox exercised against the prod DB (`inbox-inapp.test.ts`); staff-only — tenants/vendors get rows but no inbox UI; "unread" ≈ last 24h (no per-user read state) |
+| **C. Web push** | `web-push` + VAPID; `sw.js` / `tenant-sw.js` | **Automated + configured; not device-verified** | VAPID set in prod; real send path automated (`web-push-send.test.ts`); deep-link + logout-cleanup fixed 2026-07-29 |
 | **D. Native iOS push (APNs)** | — | **Not implemented** | plugin declared in `mobile/` only; no device-token store, no APNs send path |
 
 **One pipeline, many channels.** All events flow through `emitNotification()` →

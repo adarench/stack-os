@@ -37,7 +37,8 @@ not the same as a real person doing it in prod.**
 | Credential UI (Google hidden) | **Production-verified (unauth)** | `curl` of `/sign-in` + `/tenant/sign-in`: password field present, Google absent, forgot-password present |
 | Full WO loop (submit→assign→complete→notify→reopen) | **Auto-verified** | `at-canonical` + m2/m4/m5 integration tests; **not** re-run on a real device this pass |
 | RLS cross-tenant isolation | **Auto-verified + CI-enforced** | `rls`/`tenant-rls`/`auth-matrix` pass as `app_user`; `rls-coverage` fails CI if any table lacks RLS |
-| Web push (browser) | **Configured, code-correct, runtime-unverified** | VAPID set in prod; audited end-to-end (no payload/VAPID bugs); deep-link + logout-cleanup **fixed 2026-07-29**; a real device delivery still not observed; vendor push not wired |
+| In-app (inbox/bell) | **Production-verified (staff)** | real `dispatchInline`→`loadInbox`/`loadInboxSummary` exercised against the **prod DB** 2026-07-29: in_app row written, surfaced with WO ref + unread count (`inbox-inapp.test.ts`). Staff-only; UI bell needs a staff login to see. |
+| Web push (browser) | **Automated + configured; not device-verified** | `web-push-send.test.ts` (6) drives the real send path (payload shape, subscription, 410→prune, dispatcher fan-out w/ deep link); VAPID set in prod; deep-link + logout-cleanup fixed; real on-device delivery still not observed; vendor push not wired |
 | Native iOS push (APNs) | **Not implemented** | no device-token store or APNs send path; design in IOS_APP.md; needs Apple `.p8` |
 | iOS app | **Generated + pods resolved** | `cap add ios` now generates the Xcode project + `pod install` resolves (config-parse bug fixed); **build blocked on full Xcode.app** (this Mac has only CLT) |
 
