@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, sql, inArray, asc } from "drizzle-orm";
+import { and, eq, ne, sql, inArray, asc } from "drizzle-orm";
 import { notifications, notificationPreferences } from "@db/schema/notifications";
 import { attachments } from "@db/schema/attachments";
 import { users } from "@db/schema/users";
@@ -267,7 +267,16 @@ export async function notifyOpsTeam(args: {
     tx
       .select({ id: users.id, email: users.email, phone: users.phone })
       .from(users)
-      .where(and(eq(users.orgId, args.orgId), inArray(users.role, [...OPERATOR_ROLES]))),
+      // Deactivated staff are off the roster — a deactivated account must stop
+      // receiving broadcasts (kept 'invited' so a not-yet-onboarded hire still
+      // gets the email at their address).
+      .where(
+        and(
+          eq(users.orgId, args.orgId),
+          inArray(users.role, [...OPERATOR_ROLES]),
+          ne(users.status, "deactivated"),
+        ),
+      ),
   );
   const excluded = new Set<string>();
   if (args.excludeUserId) excluded.add(args.excludeUserId);

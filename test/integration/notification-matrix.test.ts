@@ -21,7 +21,7 @@ let admin: postgres.Sql | null = null;
 
 // Roster: 4 internal ops roles + 2 techs. Techs must never be on the broadcast.
 const ids = {
-  admin: "", dispatcher: "", manager: "", staff: "",
+  admin: "", dispatcher: "", manager: "", staff: "", deactivated: "",
   techA: "", techB: "",
   bldgA: "", bldgB: "", bldgC: "",
   unitA: "", unitB: "", unitC: "",
@@ -64,6 +64,9 @@ beforeAll(async () => {
     ids.dispatcher = await mkUser(tx, "local:m_disp", "Sara (dispatcher)", "dispatcher", null);
     ids.manager = await mkUser(tx, "local:m_mgr", "Diego (manager)", "manager", null);
     ids.staff = await mkUser(tx, "local:m_staff", "Maya (staff)", "staff", null);
+    // A deactivated ops-role account — must NOT receive broadcasts.
+    ids.deactivated = await mkUser(tx, "local:m_gone", "Gone (deactivated)", "manager", "+18010000099");
+    await tx`update users set status='deactivated' where id=${ids.deactivated}`;
     ids.techA = await mkUser(tx, "local:m_techA", "Oscar (tech A)", "technician", "+18010000010");
     ids.techB = await mkUser(tx, "local:m_techB", "Fernando (tech B)", "technician", "+18010000011");
 
@@ -123,6 +126,9 @@ describe.skipIf(skip)("notification matrix (right people, right messages)", () =
     expect(r.tenants.has(ids.tenantA)).toBe(true);
     // …and no OTHER resident is notified.
     expect(r.tenants.has(ids.tenantB)).toBe(false);
+
+    // A deactivated staff account is off the roster — no channel, ever.
+    expect(r.users.has(ids.deactivated)).toBe(false);
   }, 30_000);
 
   it("routes a different building's resident to a different tech (per-building coverage)", async () => {
