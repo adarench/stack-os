@@ -112,6 +112,14 @@ export default async function TenantSignIn({
           ? "Use the email and password your property manager set up for you."
           : "Use the Google account for the email your property manager invited."}
       </p>
+
+      <p className="mt-3 max-w-xs text-meta text-muted-foreground">
+        By continuing you agree to our{" "}
+        <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">Terms</Link>
+        {" "}and{" "}
+        <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy Policy</Link>
+        , including transactional SMS updates about your maintenance requests. Msg &amp; data rates may apply; reply STOP to opt out.
+      </p>
     </Page>
   );
 }

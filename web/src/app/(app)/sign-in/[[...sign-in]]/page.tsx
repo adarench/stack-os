@@ -146,6 +146,13 @@ export default async function SignInPage({
         <p className="mt-4 text-center text-xs text-muted-foreground">
           Access is invite-only. Trouble signing in? Contact your operator.
         </p>
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          By continuing you agree to our{" "}
+          <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">Terms</Link>
+          {" "}and{" "}
+          <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy Policy</Link>
+          , including transactional SMS about your work orders. Msg &amp; data rates may apply; reply STOP to opt out.
+        </p>
       </div>
     </main>
   );

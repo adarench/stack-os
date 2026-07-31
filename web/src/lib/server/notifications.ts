@@ -463,7 +463,9 @@ export async function dispatchInline(args: {
           const link = absoluteUrl(args.url ?? targetUrl(args.targetType, args.targetId));
           const r = await sendSms({
             to: args.recipientPhone,
-            body: `Stack OS · ${args.subject} — ${args.body}\n${link}`,
+            // Opt-out language on every message (A2P best practice + matches the
+            // samples registered with the carrier; Twilio auto-handles the keyword).
+            body: `Stack OS · ${args.subject} — ${args.body}\n${link}\nReply STOP to opt out.`,
           });
           await markNotificationStatus(tx, id, {
             status: "sent",

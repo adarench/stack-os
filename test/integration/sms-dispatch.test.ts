@@ -82,6 +82,7 @@ describe.skipIf(skip)("SMS dispatch", () => {
     expect(arg.to).toBe(TENANT_PHONE);
     expect(arg.body).toContain("Stack OS ·");
     expect(arg.body).toContain("/tenant/WO-88"); // deep link present
+    expect(arg.body).toContain("Reply STOP to opt out."); // opt-out language
     const rows = await admin!.begin(async (tx) => {
       await sys(tx);
       return tx<{ status: string }[]>`select status from notifications where org_id = ${ORG} and channel = 'sms' and target_id = ${targetId}`;
