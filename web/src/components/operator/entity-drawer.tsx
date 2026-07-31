@@ -99,6 +99,12 @@ interface EntityDetail {
   dueAt: string | null;
   createdAt: string;
   updatedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  category?: string | null;
+  blockedReason?: string | null;
+  assignedTo?: { name: string } | null;
+  requester?: { name: string | null; phone: string | null } | null;
   legacyHref: string;
   activity: ActivityItem[];
   comments: CommentItem[];
@@ -375,6 +381,35 @@ function WorkOverview({
       <TurnBlock turn={data.turn} onMutated={onMutated} />
       {/* Title already lives in the drawer header — don't repeat it. */}
       {subtitle && <Field label="Location">{subtitle}</Field>}
+      {/* Who owns it + what kind of issue — the operator's first questions. */}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Assigned to">
+          {data.assignedTo ? (
+            <span className="font-medium text-foreground">{data.assignedTo.name}</span>
+          ) : (
+            <span className="font-medium text-urgency-blocked">Unassigned</span>
+          )}
+        </Field>
+        {data.category && (
+          <Field label="Category">
+            <span className="capitalize">{data.category.replace(/_/g, " ")}</span>
+          </Field>
+        )}
+      </div>
+      {/* Who filed it + a tap-to-call number. */}
+      {data.requester && (
+        <Field label="Requester">
+          <span className="text-foreground">{data.requester.name ?? "Resident"}</span>
+          {data.requester.phone && (
+            <a
+              href={`tel:${data.requester.phone}`}
+              className="ml-2 font-mono text-xs text-urgency-inflow hover:underline"
+            >
+              {data.requester.phone}
+            </a>
+          )}
+        </Field>
+      )}
       {/* Photos up front — see the request, not a file list (they're what the
           resident actually sent). Non-image files stay in the Files tab. */}
       <PhotoStrip files={data.files} />
@@ -390,12 +425,32 @@ function WorkOverview({
             <span className="lowercase">{data.priority}</span>
           </Field>
         )}
+        {data.status === "blocked" && data.blockedReason && (
+          <Field label="Waiting on">
+            <span className="capitalize text-urgency-blocked">
+              {data.blockedReason.replace(/^waiting_/, "").replace(/_/g, " ")}
+            </span>
+          </Field>
+        )}
         {data.dueAt && (
           <Field label="Due">
             <span className="font-mono text-xs">
               {compactDate(data.dueAt)}
             </span>
             <TimeSince at={data.dueAt} />
+          </Field>
+        )}
+        <Field label="Created">
+          <TimeSince at={data.createdAt} />
+        </Field>
+        {data.startedAt && (
+          <Field label="Started">
+            <TimeSince at={data.startedAt} />
+          </Field>
+        )}
+        {data.completedAt && (
+          <Field label="Completed">
+            <TimeSince at={data.completedAt} />
           </Field>
         )}
         <Field label="Updated">

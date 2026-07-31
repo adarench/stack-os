@@ -12,6 +12,7 @@ import { comments } from "@db/schema/comments";
 import { approvals } from "@db/schema/approvals";
 import { users } from "@db/schema/users";
 import { assignments } from "@db/schema/assignments";
+import { tenantUsers } from "@db/schema/compliance";
 import { vendorUsers } from "@db/schema/vendor-users";
 import { WORK_ORDER_STATUSES, canTransition, type WorkOrderStatus } from "@contracts/state-machines/work-order";
 import { withStaffScope, type ScopedDB } from "./db";
@@ -46,6 +47,17 @@ export interface EntityDetail {
   dueAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Lifecycle timestamps — when work started / completed (null until reached). */
+  startedAt?: string | null;
+  completedAt?: string | null;
+  /** The resident's issue category (plumbing, hvac, …), when set at intake. */
+  category?: string | null;
+  /** Why it's blocked (waiting_tenant | waiting_vendor | other), when blocked. */
+  blockedReason?: string | null;
+  /** The technician currently on the job (name), or null if unassigned. */
+  assignedTo?: { name: string } | null;
+  /** Who filed it — the requester's name + phone for click-to-call, when known. */
+  requester?: { name: string | null; phone: string | null } | null;
   legacyHref: string;
   activity: ActivityItem[];
   costs: CostItem[];
@@ -200,9 +212,14 @@ async function loadWO(
       dueAt: workOrders.dueAt,
       createdAt: workOrders.createdAt,
       updatedAt: workOrders.updatedAt,
+      startedAt: workOrders.startedAt,
+      completedAt: workOrders.completedAt,
       acknowledgedAt: workOrders.acknowledgedAt,
+      category: workOrders.category,
+      blockedReason: workOrders.blockedReason,
       propertyId: workOrders.propertyId,
       unitId: workOrders.unitId,
+      createdByTenantUserId: workOrders.createdByTenantUserId,
       spawnedFromInspectionId: workOrders.spawnedFromInspectionId,
       propertyName: properties.name,
       unitLabel: units.label,
@@ -248,6 +265,8 @@ async function loadWO(
     tenantContext,
     inspectionLineage,
     dispatchTimeline,
+    assignedTo,
+    requester,
   ] = await Promise.all([
     loadActivity(tx, orgId, "work_order", r.id),
     loadCosts(tx, orgId, r.id),
@@ -268,6 +287,31 @@ async function loadWO(
       ? loadInspectionLineage(tx, orgId, r.spawnedFromInspectionId)
       : Promise.resolve(null),
     loadDispatchTimeline(tx, orgId, r.id),
+    // Current technician on the job (name) — the "who owns it" the drawer lacked.
+    tx
+      .select({ name: users.name })
+      .from(assignments)
+      .innerJoin(users, eq(users.id, assignments.assigneeId))
+      .where(
+        and(
+          eq(assignments.orgId, orgId),
+          eq(assignments.targetType, "work_order"),
+          eq(assignments.targetId, r.id),
+          eq(assignments.assigneeType, "user"),
+          isNull(assignments.unassignedAt),
+        ),
+      )
+      .limit(1)
+      .then((rows) => (rows[0] ? { name: rows[0].name ?? "Technician" } : null)),
+    // The actual requester (who filed it) + phone for click-to-call.
+    r.createdByTenantUserId
+      ? tx
+          .select({ name: tenantUsers.name, phone: tenantUsers.phone })
+          .from(tenantUsers)
+          .where(and(eq(tenantUsers.orgId, orgId), eq(tenantUsers.id, r.createdByTenantUserId)))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
   ]);
 
   return {
@@ -283,6 +327,12 @@ async function loadWO(
     dueAt: r.dueAt ? r.dueAt.toISOString() : null,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
+    startedAt: r.startedAt ? r.startedAt.toISOString() : null,
+    completedAt: r.completedAt ? r.completedAt.toISOString() : null,
+    category: r.category,
+    blockedReason: r.blockedReason,
+    assignedTo,
+    requester,
     legacyHref: `/work-orders/${r.id}`,
     activity,
     costs,
