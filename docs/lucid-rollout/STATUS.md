@@ -222,10 +222,24 @@ stays local. Physical-device + real-user passes are the remaining *acceptance* s
 > confirmed `stack_os_ci` run.
 
 ## Deployment summary
-Prod on Vercel at `eef139d` (deployed 2026-07-29, `stack-gufcqqcpv`; aliased stack-os-six.vercel.app).
+Prod on Vercel at `431eacf` (deployed 2026-07-30, `stack-9xuvvmjqk`; aliased stack-os-six.vercel.app).
 Deploy is manual `vercel deploy --prod --yes` (auto-deploy off) via a fast-forward push to
-`redesign/operator-shell`. Migrations 0014–0021 applied to `neondb`; RLS policies re-applied idempotently
+`redesign/operator-shell`. Migrations 0014–0022 applied to `neondb`; RLS policies re-applied idempotently
 (`db:rls:apply`). Security headers live incl. `Content-Security-Policy-Report-Only`.
+
+## Post-SMS iteration (2026-07-30) — deployed, auto-verified (tests), not yet operator-UI-verified
+Incremental UX/admin pass on the live operator shell (no pipeline rewrite). Test gate **321/321**.
+- **Admin › Assignments** — coverage-at-a-glance + inline per-building tech + org fallback; the data-driven
+  routing source of truth (Sojo North/South → Oscar, YONIQUE → Fernando is now set here, not hardcoded). *(#1, #6)*
+- **Operator conversation thread** — the requester-visible back-and-forth renders as a chat thread on a new
+  Conversation tab in the WO drawer; reply inline (locked to requester-visible). Tenant messages now show the
+  resident's real name, not the literal "tenant". *(#2)*
+- **Complete WO metadata** in the drawer — assignee, requester (tap-to-call), category, waiting-on, and the
+  full created/started/completed/updated timeline. *(#4)*
+- **Tenant photos → tech MMS** — tech-facing texts attach the resident's still images (HEIC/video excluded,
+  ≤10/5MB); best-effort, degrades to plain text + the tech's deep link. *(#5)*
+- **Remaining verification:** live operator-UI walkthrough (needs a real operator login) + one live MMS to a
+  real phone through the pipeline.
 
 ## Accepted requirements
 **None formally accepted** (Accepted needs the canonical acceptance test run on prod with real accounts +
