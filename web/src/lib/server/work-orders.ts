@@ -299,10 +299,10 @@ export async function updateWorkOrderStatus(
     }
     // EML-004: resolve the staff creator's email in-scope so the status email
     // actually has a recipient (previously left null → in_app only).
-    let creator: { id: string; email: string | null } | null = null;
+    let creator: { id: string; email: string | null; phone: string | null } | null = null;
     if (updated[0]!.createdByUserId) {
       const [c] = await tx
-        .select({ id: users.id, email: users.email })
+        .select({ id: users.id, email: users.email, phone: users.phone })
         .from(users)
         .where(and(eq(users.orgId, ctx.orgId), eq(users.id, updated[0]!.createdByUserId)))
         .limit(1);
@@ -311,7 +311,7 @@ export async function updateWorkOrderStatus(
     // EML-D7: the assigned technician (active user-assignment) must hear about
     // status changes too — they're doing the work. For tenant-reported WOs
     // (no staff creator) this is the ONLY way staff is told.
-    let assignee: { id: string; email: string | null } | null = null;
+    let assignee: { id: string; email: string | null; phone: string | null } | null = null;
     const [act] = await tx
       .select({ id: assignments.assigneeId })
       .from(assignments)
@@ -327,7 +327,7 @@ export async function updateWorkOrderStatus(
       .limit(1);
     if (act) {
       const [au] = await tx
-        .select({ id: users.id, email: users.email })
+        .select({ id: users.id, email: users.email, phone: users.phone })
         .from(users)
         .where(and(eq(users.orgId, ctx.orgId), eq(users.id, act.id)))
         .limit(1);
@@ -345,79 +345,68 @@ export async function updateWorkOrderStatus(
     };
   });
 
-  // Notify on key transitions only. Vendor is already notified via assignVendor.
+  // Notify on key transitions. Everyone with a stake gets a tailored update with
+  // a correct deep link: the assigned technician + the WO creator (their channels
+  // incl. SMS), AND the internal ops team (CPM/admins/dispatchers) by SMS too.
+  // Vendors are notified via assignVendor.
   if (result.fired) {
-    const interesting: WorkOrderStatus[] = ["blocked", "resolved", "verified"];
+    const interesting = ["blocked", "resolved", "verified"] as const;
     const stamp = result.wo.updatedAt.toISOString();
-    if (interesting.includes(result.wo.status as WorkOrderStatus)) {
-      const kindMap = {
-        blocked: "wo_blocked",
-        resolved: "wo_resolved",
-        verified: "wo_verified",
-      } as const;
-      const kind = kindMap[result.wo.status as keyof typeof kindMap];
-      const subject = `WO-${result.wo.number} → ${result.wo.status}`;
-      const body = `Status changed: ${result.prev} → ${result.wo.status}. Title: ${result.wo.title}`;
+    if ((interesting as readonly string[]).includes(result.wo.status)) {
+      const status = result.wo.status as (typeof interesting)[number];
+      const kind = ({ blocked: "wo_blocked", resolved: "wo_resolved", verified: "wo_verified" } as const)[status];
+      const n = result.wo.number;
+      const title = result.wo.title;
 
-      // Recipients: the WO creator (if staff, per EML-004) + the assigned
-      // technician — the person actually doing the work (EML-D7). The assignee
-      // is dropped when they're the one making the change (no self-ping); the
-      // creator keeps EML-004's semantics. The Map de-dupes when creator ==
-      // assignee. Tenant-reported WOs have no staff creator, so the assignee is
-      // how staff hears about them at all.
-      const staffRecipients = new Map<string, string | null>();
+      const staffSubject = `WO-${n} → ${status}`;
+      const staffBody = `Status changed: ${result.prev} → ${status}. Title: ${title}`;
+      // Ops-facing wording, tailored per transition (different from the tech copy).
+      const opsCopy = {
+        blocked: { subject: `WO-${n} blocked — ${title}`, body: `“${title}” is blocked and needs attention.` },
+        resolved: { subject: `Completed: WO-${n} — ${title}`, body: `“${title}” was marked complete.` },
+        verified: { subject: `WO-${n} confirmed fixed — ${title}`, body: `The resident confirmed “${title}” is fixed.` },
+      }[status];
+
+      // Assigned tech + staff creator — their channels + SMS, with the deep link
+      // that lands each in the right surface (tech → /tech, operator → /work-orders).
+      // Dropped: the assignee when they're the actor (no self-ping). De-duped.
+      const staff = new Map<string, { email: string | null; phone: string | null; url: string }>();
       if (result.wo.createdByUserId) {
-        staffRecipients.set(result.wo.createdByUserId, result.creator?.email ?? null); // EML-004
+        staff.set(result.wo.createdByUserId, { email: result.creator?.email ?? null, phone: result.creator?.phone ?? null, url: `/work-orders/${result.wo.id}` });
       }
       if (result.assignee && result.assignee.id !== result.actorUserId) {
-        staffRecipients.set(result.assignee.id, result.assignee.email);
+        staff.set(result.assignee.id, { email: result.assignee.email, phone: result.assignee.phone, url: `/tech/WO-${n}` });
       }
-      // Dedupe key stable across Inngest retries, unique per transition + recipient.
-      for (const [recipientUserId, recipientEmail] of staffRecipients) {
+      for (const [recipientUserId, r] of staff) {
         await emitNotification({
           orgId: result.orgId,
           recipientUserId,
-          recipientEmail,
+          recipientEmail: r.email,
+          recipientPhone: r.phone,
           kind,
-          subject,
-          body,
+          subject: staffSubject,
+          body: staffBody,
           targetType: "work_order",
           targetId: result.wo.id,
+          url: r.url,
           dedupeKey: `wo_status:${result.wo.id}:${stamp}:staff:${recipientUserId}`,
         });
       }
 
-      // Safety net: a tenant-reported WO with no staff recipient at all (no
-      // creator, unassigned) must not vanish — surface it to the ops team.
-      if (staffRecipients.size === 0 && result.wo.createdByTenantUserId) {
-        await notifyOpsTeam({
-          orgId: result.orgId,
-          excludeUserId: result.actorUserId,
-          kind,
-          subject,
-          body: `“${result.wo.title}” is now: ${result.wo.status} (no one is assigned).`,
-          targetType: "work_order",
-          targetId: result.wo.id,
-          url: `/work-orders/${result.wo.id}`,
-          dedupeKey: `wo_status_ops:${result.wo.id}:${stamp}`,
-        });
-      }
-    }
-    // When a job is done, tell the ops team what was completed (name the WO so
-    // they don't have to dig). Skip the creator and the assignee — already
-    // notified above — so no operator is double-pinged.
-    if (result.wo.status === "resolved") {
+      // Internal ops team (CPM/admins/dispatchers) — text them the progress too,
+      // excluding anyone already notified above and the actor. Techs aren't on
+      // this list (role-based), so no double-ping with the assignee above.
       await notifyOpsTeam({
         orgId: result.orgId,
         excludeUserIds: [result.wo.createdByUserId, result.assignee?.id, result.actorUserId],
-        kind: "wo_resolved",
-        subject: `Completed: WO-${result.wo.number} — ${result.wo.title}`,
-        body: `“${result.wo.title}” was marked complete.`,
+        kind,
+        subject: opsCopy.subject,
+        body: opsCopy.body,
         targetType: "work_order",
         targetId: result.wo.id,
         url: `/work-orders/${result.wo.id}`,
-        sms: true, // CPM/admin gets a completion text (key event)
-        dedupeKey: `wo_resolved_ops:${result.wo.id}:${result.wo.updatedAt.toISOString()}`,
+        sms: true,
+        dedupeKey: `wo_status_ops:${result.wo.id}:${stamp}`,
       });
     }
     // Resident notification: tenant-reported WOs get plain-language status

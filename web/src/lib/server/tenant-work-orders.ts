@@ -170,6 +170,30 @@ export async function createWorkOrderFromTenant(
     dedupeKey: `wo_submitted:${result.row.id}`,
   });
 
+  // Confirm to the resident that we received it (their channels incl. SMS), so
+  // their journey starts with a text and they know updates will follow.
+  const [me] = await withScope({ orgId: session.orgId, actorType: "system" }, (tx) =>
+    tx
+      .select({ phone: tenantUsers.phone, email: tenantUsers.email })
+      .from(tenantUsers)
+      .where(and(eq(tenantUsers.orgId, session.orgId), eq(tenantUsers.id, session.tenantUserId)))
+      .limit(1),
+  );
+  await emitNotification({
+    orgId: session.orgId,
+    recipientTenantUserId: session.tenantUserId,
+    recipientEmail: me?.email ?? undefined,
+    recipientPhone: me?.phone ?? undefined,
+    kind: "wo_status",
+    subject: "Request received",
+    body: `We got your request “${result.row.title}” (WO-${result.row.number}). We'll text you updates.`,
+    targetType: "work_order",
+    targetId: result.row.id,
+    url: `/tenant/WO-${result.row.number}`,
+    dedupeKey: `wo_received:${result.row.id}:tenant`,
+    actor: { type: "system" },
+  });
+
   return result.row;
 }
 
@@ -447,7 +471,7 @@ export async function tenantConfirmResolved(session: TenantSession, workOrderId:
       orgId: session.orgId,
       recipientUserId: tech.id,
       recipientEmail: tech.email ?? undefined,
-      // No SMS on confirm — positive closure, not a key-event text (email+push only).
+      recipientPhone: tech.phone ?? undefined, // tech hears the resident confirmed
       kind: "wo_verified",
       subject: `Resident confirmed WO-${wo.number} is fixed`,
       body: `The resident verified ${wo.title}. Ready to close.`,
