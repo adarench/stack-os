@@ -15,6 +15,8 @@ import {
   ListChecks,
   Users,
   FolderKanban,
+  Route,
+  Home,
 } from "lucide-react";
 
 export interface NavItem {
@@ -98,5 +100,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/templates", label: "Recurring tasks", icon: Repeat },
   { href: "/admin/checklists", label: "Checklists", icon: ListChecks },
   { href: "/admin/properties", label: "Buildings & units", icon: Building2 },
+  { href: "/admin/assignments", label: "Assignments", icon: Route },
   { href: "/admin/team", label: "Team", icon: Users },
+  { href: "/admin/residents", label: "Residents", icon: Home },
 ];

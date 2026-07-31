@@ -5,6 +5,7 @@ import { workOrders } from "@db/schema/work-orders";
 import { assignments } from "@db/schema/assignments";
 import { vendorUsers } from "@db/schema/vendor-users";
 import { properties } from "@db/schema/properties";
+import { orgSettings } from "@db/schema/commercial";
 import { users } from "@db/schema/users";
 import { tenantUsers } from "@db/schema/compliance";
 import { tenantStatusLabel } from "@/lib/labels";
@@ -76,7 +77,7 @@ export async function createWorkOrder(input: CreateWorkOrderInput) {
     // lands Unassigned.
     const tech = parsed.propertyId
       ? await resolvePropertyTech(tx, ctx.orgId, parsed.propertyId)
-      : null;
+      : await resolveFallbackTech(tx, ctx.orgId);
 
     const inserted = await tx
       .insert(workOrders)
@@ -157,6 +158,33 @@ export async function createWorkOrder(input: CreateWorkOrderInput) {
  * contact fields the notifier needs. Returns null when the property has no
  * covering tech set, so the WO falls back to status "new".
  */
+async function loadTechContact(
+  tx: ScopedDB,
+  orgId: string,
+  techId: string,
+): Promise<{ id: string; email: string; phone: string | null } | null> {
+  const [t] = await tx
+    .select({ id: users.id, email: users.email, phone: users.phone })
+    .from(users)
+    .where(and(eq(users.orgId, orgId), eq(users.id, techId)))
+    .limit(1);
+  return t ?? null;
+}
+
+/** Org-level fallback assignee (ASN-003) so a WO on an uncovered/no building
+ *  still auto-assigns instead of landing unassigned. */
+async function resolveFallbackTech(
+  tx: ScopedDB,
+  orgId: string,
+): Promise<{ id: string; email: string; phone: string | null } | null> {
+  const [s] = await tx
+    .select({ fb: orgSettings.fallbackAssigneeUserId })
+    .from(orgSettings)
+    .where(eq(orgSettings.orgId, orgId))
+    .limit(1);
+  return s?.fb ? loadTechContact(tx, orgId, s.fb) : null;
+}
+
 async function resolvePropertyTech(
   tx: ScopedDB,
   orgId: string,
@@ -168,13 +196,12 @@ async function resolvePropertyTech(
     .where(and(eq(properties.orgId, orgId), eq(properties.id, propertyId)))
     .limit(1);
   const techId = prop[0]?.techId;
-  if (!techId) return null;
-  const tech = await tx
-    .select({ id: users.id, email: users.email, phone: users.phone })
-    .from(users)
-    .where(and(eq(users.orgId, orgId), eq(users.id, techId)))
-    .limit(1);
-  return tech[0] ?? null;
+  // Building tech first, then the org fallback (ASN-003) — never silently unassigned.
+  if (techId) {
+    const tech = await loadTechContact(tx, orgId, techId);
+    if (tech) return tech;
+  }
+  return resolveFallbackTech(tx, orgId);
 }
 
 export const listFilter = z.object({

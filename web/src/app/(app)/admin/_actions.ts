@@ -22,6 +22,11 @@ import { tenantUsers } from "@db/schema/compliance";
 import { recordAuthEvent } from "@/lib/server/auth-events";
 import { requestPasswordReset } from "@/lib/server/password-reset";
 import { normalizePhone } from "@/lib/server/phone";
+import {
+  setOrgFallbackAssignee,
+  createTenantCompany,
+  assignTenantToCompany,
+} from "@/lib/server/commercial";
 
 /**
  * Console gate. Any internal staff row — technicians included (LR-014) — may
@@ -195,6 +200,32 @@ export async function addPersonAction(input: {
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
+}
+
+/** Org-level fallback assignee — where requests for uncovered buildings route. */
+export async function setOrgFallbackAssigneeAction(formData: FormData) {
+  await assertStaff();
+  await setOrgFallbackAssignee(String(formData.get("userId") ?? "") || null);
+  revalidatePath("/admin/assignments");
+}
+
+/** Create a tenant company (occupier group). */
+export async function createTenantCompanyAction(formData: FormData) {
+  await assertStaff();
+  const name = String(formData.get("name") ?? "").trim();
+  if (name) await createTenantCompany(name);
+  revalidatePath("/admin/assignments");
+  revalidatePath("/admin/residents");
+}
+
+/** Assign (or clear) a resident's occupying company. */
+export async function assignTenantToCompanyAction(formData: FormData) {
+  await assertStaff();
+  await assignTenantToCompany(
+    String(formData.get("tenantId")),
+    String(formData.get("companyId") ?? "") || null,
+  );
+  revalidatePath("/admin/residents");
 }
 
 export async function setTenantPhoneAction(formData: FormData) {
