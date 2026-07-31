@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { loadTechnicianWorkOrder } from "@/lib/server/technician";
+import { parseWoNumber } from "@/lib/server/work-orders";
 import { StatusChip, location } from "../_ui";
 import {
   ackAction,
@@ -26,7 +27,13 @@ export default async function TechDetailPage({
 }) {
   const { ref } = await params;
   const wo = await loadTechnicianWorkOrder(ref);
-  if (!wo) notFound();
+  if (!wo) {
+    // Not assigned to the caller (an admin, another tech, or a reassigned job
+    // following the deep link) — open the full console drawer any staff member
+    // can see (LR-014) instead of a hard 404. An unparseable ref → the queue.
+    const num = parseWoNumber(ref);
+    redirect(num !== null ? `/work?d=WO-${num}` : "/tech");
+  }
   const can = (s: string) => wo.nextStatuses.includes(s);
 
   return (

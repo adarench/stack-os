@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { readTenantSession } from "@/lib/server/tenant-auth";
 import { loadTenantRequest } from "@/lib/server/tenant-requests";
@@ -24,7 +24,9 @@ export default async function TenantRequestDetailPage({
   if (!session) redirect("/tenant/sign-in");
 
   const req = await loadTenantRequest(session, ref);
-  if (!req) notFound();
+  // Stale/deleted/inaccessible request link → land on the resident home, not a
+  // hard 404 (e.g. an old text after the request was closed out).
+  if (!req) redirect("/tenant");
   const messages = await loadTenantMessages(session, ref);
 
   return (
