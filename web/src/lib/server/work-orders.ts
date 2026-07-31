@@ -146,6 +146,7 @@ export async function createWorkOrder(input: CreateWorkOrderInput) {
       targetType: "work_order",
       targetId: row.id,
       url: `/tech/WO-${row.number}`, // techs deep-link into the tech app
+      attachWoPhotos: true, // resident's photos ride along as MMS
       actor: { type: "system" },
     });
   }
@@ -397,12 +398,12 @@ export async function updateWorkOrderStatus(
       // Assigned tech + staff creator — their channels + SMS, with the deep link
       // that lands each in the right surface (tech → /tech, operator → /work-orders).
       // Dropped: the assignee when they're the actor (no self-ping). De-duped.
-      const staff = new Map<string, { email: string | null; phone: string | null; url: string }>();
+      const staff = new Map<string, { email: string | null; phone: string | null; url: string; tech?: boolean }>();
       if (result.wo.createdByUserId) {
         staff.set(result.wo.createdByUserId, { email: result.creator?.email ?? null, phone: result.creator?.phone ?? null, url: `/work-orders/${result.wo.id}` });
       }
       if (result.assignee && result.assignee.id !== result.actorUserId) {
-        staff.set(result.assignee.id, { email: result.assignee.email, phone: result.assignee.phone, url: `/tech/WO-${n}` });
+        staff.set(result.assignee.id, { email: result.assignee.email, phone: result.assignee.phone, url: `/tech/WO-${n}`, tech: true });
       }
       for (const [recipientUserId, r] of staff) {
         await emitNotification({
@@ -416,6 +417,7 @@ export async function updateWorkOrderStatus(
           targetType: "work_order",
           targetId: result.wo.id,
           url: r.url,
+          attachWoPhotos: r.tech, // only the tech gets the photos as MMS
           dedupeKey: `wo_status:${result.wo.id}:${stamp}:staff:${recipientUserId}`,
         });
       }
@@ -670,6 +672,7 @@ export async function assignTechnician(input: z.infer<typeof assignTechnicianInp
       targetType: "work_order",
       targetId: wo.id,
       url: `/tech/WO-${wo.number}`,
+      attachWoPhotos: true, // resident's photos ride along as MMS
     });
   }
 }

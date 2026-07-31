@@ -151,6 +151,9 @@ export async function createWorkOrderFromTenant(
       targetType: "work_order",
       targetId: result.row.id,
       url: `/tech/WO-${result.row.number}`,
+      // Best-effort: residents often add photos right after submit, so this
+      // first ping may carry none — a later message/assignment picks them up.
+      attachWoPhotos: true,
       actor: { type: "system" },
     });
   }
@@ -392,6 +395,7 @@ export async function createTenantComment(
       targetType: "work_order",
       targetId: parsed.workOrderId,
       url: `/tech/WO-${result.wo.number}`,
+      attachWoPhotos: true, // any photos on the thread go to the tech as MMS
       actor: { type: "system" },
     });
   }
@@ -544,6 +548,7 @@ export async function tenantReopen(
       targetType: "work_order",
       targetId: parsed.workOrderId,
       url: `/tech/WO-${wo.number}`,
+      attachWoPhotos: true, // photos of the still-broken issue help the tech
       actor: { type: "system" },
     });
   }

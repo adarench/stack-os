@@ -19,20 +19,28 @@ export const smsConfigured = (): boolean => !!(client && from);
 export interface SendSmsInput {
   to: string;
   body: string;
+  /**
+   * Optional media to attach — turns the SMS into an MMS (e.g. the resident's
+   * repair photos going to the assigned tech). Each must be a publicly
+   * fetchable HTTPS URL (signed R2 read URLs qualify). Carriers cap US MMS at
+   * 10 items / ~5MB total; the caller enforces that before we get here.
+   */
+  mediaUrl?: string[];
 }
 
 /**
- * Send one SMS. Returns the Twilio message SID on success (null when stubbed).
- * Real-send errors propagate to the caller's try/catch (which marks the
- * notification failed), matching email.ts.
+ * Send one SMS (or MMS when `mediaUrl` is present). Returns the Twilio message
+ * SID on success (null when stubbed). Real-send errors propagate to the
+ * caller's try/catch (which marks the notification failed), matching email.ts.
  */
 export async function sendSms(input: SendSmsInput): Promise<{ id: string | null }> {
   // Defense-in-depth: Twilio only accepts E.164. Numbers are normalized on write,
   // but re-normalize here so a legacy/unnormalized row can't cause a hard failure.
   const to = normalizePhone(input.to);
+  const media = input.mediaUrl?.filter((u) => /^https:\/\//.test(u)) ?? [];
   if (!client || !from) {
     // eslint-disable-next-line no-console
-    console.log("[sms:stub]", to ?? input.to, input.body.slice(0, 60));
+    console.log("[sms:stub]", to ?? input.to, media.length ? `[+${media.length} media]` : "", input.body.slice(0, 60));
     return { id: null };
   }
   if (!to) return { id: null }; // unsendable number — skip rather than throw
@@ -40,6 +48,7 @@ export async function sendSms(input: SendSmsInput): Promise<{ id: string | null 
     to,
     from,
     body: input.body,
+    ...(media.length > 0 ? { mediaUrl: media } : {}),
   });
   return { id: msg.sid };
 }

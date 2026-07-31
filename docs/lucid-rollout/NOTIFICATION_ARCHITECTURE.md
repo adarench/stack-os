@@ -15,12 +15,15 @@ in [`VERIFICATION_REPORT.md`](./VERIFICATION_REPORT.md).
 | **B. In-app** | `notifications` table → `/inbox` + bell badge | **Production-verified (staff)** | real dispatch→inbox exercised against the prod DB (`inbox-inapp.test.ts`); staff-only — tenants/vendors get rows but no inbox UI; "unread" ≈ last 24h (no per-user read state) |
 | **C. Web push** | `web-push` + VAPID; `sw.js` / `tenant-sw.js` | **Automated + configured; not device-verified** | VAPID set in prod; real send path automated (`web-push-send.test.ts`); deep-link + logout-cleanup fixed 2026-07-29 |
 | **D. Native iOS push (APNs)** | ES256 token-auth over HTTP/2 | **Code-complete, stub-until-keyed** | `tenant_device_tokens` + `apns.ts` sender + `/api/tenant/push/apns` + dispatcher fan-out + `NativePushRegister` all shipped; **stub no-op until an Apple `.p8` key is set** (then live, no code change). Delivery needs the key + a device. |
+| **E. SMS / MMS** | Twilio (A2P 10DLC), `sms.ts` | **Live (delivered)** when the 3 Twilio env vars are set; else stub | Body is branded `Stack OS · <subject> — <body>` + the role-correct deep link + `Reply STOP to opt out.` Tech-facing sends set `attachWoPhotos` → the WO's still images (JPEG/PNG/GIF; HEIC + video excluded, ≤10 items / 5MB) are signed and attached as **MMS** so the tech gets the resident's photos in hand. Best-effort: no photos / storage off / MMS error degrades to a plain text — the tech's deep link still shows the photos. |
 
 **One pipeline, many channels.** All events flow through `emitNotification()` →
 Inngest (`dispatch-notification.ts`) when `INNGEST_EVENT_KEY` is set, else an inline
 fallback → `dispatchInline()` (`notifications.ts`), which reads per-recipient channel
-prefs and fans out to A/B/C. Defaults: staff = email + in-app + web push; tenants =
-all channels; vendors = email + in-app (vendor push not wired).
+prefs and fans out to A/B/C/E. Defaults: staff = email + in-app + web push + SMS
+(once a phone is set); tenants = all channels; vendors = email + in-app (vendor push
+not wired). SMS is gated per-emit on a `recipientPhone` being passed, so it stays
+scoped to key events even though the channel is default-on.
 
 - **Payload (push):** `{ title, body, url, tag }` — the exact shape both service
   workers read (no mismatch).

@@ -1,7 +1,9 @@
 import "server-only";
-import { and, eq, sql, inArray } from "drizzle-orm";
+import { and, eq, sql, inArray, asc } from "drizzle-orm";
 import { notifications, notificationPreferences } from "@db/schema/notifications";
+import { attachments } from "@db/schema/attachments";
 import { users } from "@db/schema/users";
+import { signReadUrl, storageConfigured } from "./storage";
 import { OPERATOR_ROLES } from "./roles";
 import { sendEmail } from "./email";
 import { renderNotificationEmail, absoluteUrl } from "./email-templates";
@@ -187,6 +189,13 @@ export async function emitNotification(args: {
   /** Deep link override for push/email (e.g. the tenant route). */
   url?: string;
   /**
+   * Attach the target work order's photos to the SMS (→ MMS). Set on
+   * tech-facing emits so the assigned tech gets the resident's repair photos in
+   * hand. Best-effort: if there are no photos yet, or storage/MMS isn't set up,
+   * the text still sends — the tech's deep link always shows the photos too.
+   */
+  attachWoPhotos?: boolean;
+  /**
    * EML-009 dedupe seed. Combined with the channel to guard against a repeat
    * dispatch (Inngest retry / double emit) resending. Omit for events that may
    * legitimately fire more than once for the same target.
@@ -303,6 +312,7 @@ export async function dispatchInline(args: {
   targetType?: PolymorphicTarget;
   targetId?: string;
   url?: string;
+  attachWoPhotos?: boolean;
   dedupeKey?: string | null;
 }): Promise<{ sent: NotificationChannel[]; failed: NotificationChannel[] }> {
   const sent: NotificationChannel[] = [];
@@ -461,11 +471,19 @@ export async function dispatchInline(args: {
           // the text is tappable straight into the app (tenant/tech/operator route
           // per the caller's `url`).
           const link = absoluteUrl(args.url ?? targetUrl(args.targetType, args.targetId));
+          // Attach the WO's photos as MMS on tech-facing sends. Best-effort:
+          // any failure (no photos yet, storage down, sign error) degrades to a
+          // plain text — the tech's deep link still shows the photos.
+          const mediaUrl =
+            args.attachWoPhotos && args.targetType === "work_order" && args.targetId
+              ? await loadWoPhotoMediaUrls(tx, args.orgId, args.targetId)
+              : undefined;
           const r = await sendSms({
             to: args.recipientPhone,
             // Opt-out language on every message (A2P best practice + matches the
             // samples registered with the carrier; Twilio auto-handles the keyword).
             body: `Stack OS · ${args.subject} — ${args.body}\n${link}\nReply STOP to opt out.`,
+            mediaUrl,
           });
           await markNotificationStatus(tx, id, {
             status: "sent",
@@ -484,6 +502,61 @@ export async function dispatchInline(args: {
   });
 
   return { sent, failed };
+}
+
+/** Twilio US MMS caps: 10 media items, ~5MB total. */
+const MMS_MAX_ITEMS = 10;
+const MMS_MAX_BYTES = 5 * 1024 * 1024;
+/** Carrier-safe still images only — HEIC and video are rejected/transcoded poorly. */
+const MMS_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/gif"]);
+
+/**
+ * Fresh signed read URLs for a work order's photos, for MMS attachment. Loads
+ * whatever images exist right now (residents often upload just after the WO is
+ * created, so an early submit-notification may find none — a later tech ping
+ * picks them up). Returns [] when storage is off or nothing qualifies, so the
+ * caller falls back to a plain text.
+ */
+async function loadWoPhotoMediaUrls(
+  tx: ScopedDB,
+  orgId: string,
+  woId: string,
+): Promise<string[]> {
+  if (!storageConfigured()) return [];
+  try {
+    const rows = await tx
+      .select({
+        storageKey: attachments.storageKey,
+        contentType: attachments.contentType,
+        sizeBytes: attachments.sizeBytes,
+      })
+      .from(attachments)
+      .where(
+        and(
+          eq(attachments.orgId, orgId),
+          eq(attachments.targetType, "work_order"),
+          eq(attachments.targetId, woId),
+        ),
+      )
+      .orderBy(asc(attachments.ordering), asc(attachments.createdAt))
+      .limit(50);
+
+    const urls: string[] = [];
+    let total = 0;
+    for (const r of rows) {
+      if (urls.length >= MMS_MAX_ITEMS) break;
+      if (!MMS_IMAGE_TYPES.has((r.contentType ?? "").toLowerCase())) continue;
+      const size = r.sizeBytes ?? 0;
+      if (size > 0 && total + size > MMS_MAX_BYTES) continue; // stay under the MMS cap
+      // Long expiry so Twilio can fetch the media after this API call returns.
+      urls.push(await signReadUrl(r.storageKey, 3600));
+      total += size;
+    }
+    return urls;
+  } catch (e) {
+    logError("notify.mms_media_failed", e, { orgId });
+    return [];
+  }
 }
 
 /**
