@@ -799,6 +799,7 @@ async function loadComments(
     .limit(50);
 
   const userIds = rows
+    .filter((r) => r.actorType === "user")
     .map((r) => r.actorUserId)
     .filter((v): v is string => !!v);
   const names = new Map<string, string>();
@@ -812,6 +813,21 @@ async function loadComments(
     }
   }
 
+  // Tenant comments store the tenant_users.id in actorUserId — resolve the real
+  // resident name so the thread reads "Sam", not the literal "tenant".
+  const tenantIds = rows
+    .filter((r) => r.actorType === "tenant")
+    .map((r) => r.actorUserId)
+    .filter((v): v is string => !!v);
+  const tenantNames = new Map<string, string>();
+  if (tenantIds.length > 0) {
+    const ts = await tx
+      .select({ id: tenantUsers.id, name: tenantUsers.name })
+      .from(tenantUsers)
+      .where(and(eq(tenantUsers.orgId, orgId), inArray(tenantUsers.id, tenantIds)));
+    for (const t of ts) tenantNames.set(t.id, t.name ?? "Resident");
+  }
+
   return rows.map((r) => ({
     id: r.id,
     body: r.body,
@@ -821,7 +837,9 @@ async function loadComments(
         ? r.actorUserId
           ? names.get(r.actorUserId) ?? null
           : null
-        : r.actorType, // "vendor" / "tenant"
+        : r.actorType === "tenant"
+          ? (r.actorUserId ? tenantNames.get(r.actorUserId) ?? "Resident" : "Resident")
+          : r.actorType, // "vendor"
     visibility: r.visibility as "internal" | "external",
     at: r.createdAt.toISOString(),
   }));

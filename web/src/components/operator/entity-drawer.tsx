@@ -320,6 +320,14 @@ function WorkCockpit({
     <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden">
       <TabsList className="border-b border-border px-3">
         <TabsTrigger value="overview">Overview</TabsTrigger>
+        {data.type === "wo" && (!!data.tenantContext || !!data.requester) && (
+          <TabsTrigger value="conversation">
+            Conversation{" "}
+            <span className="ml-1 font-mono text-[10px] tabular-nums">
+              {data.comments.filter((c) => c.visibility === "external").length}
+            </span>
+          </TabsTrigger>
+        )}
         <TabsTrigger value="timeline">
           Timeline{" "}
           <span className="ml-1 font-mono text-[10px] tabular-nums">
@@ -348,6 +356,11 @@ function WorkCockpit({
       <TabsContent value="overview" className="flex-1 overflow-y-auto px-4 py-3">
         <WorkOverview data={data} onMutated={onMutated} />
       </TabsContent>
+      {data.type === "wo" && (!!data.tenantContext || !!data.requester) && (
+        <TabsContent value="conversation" className="flex flex-1 flex-col overflow-hidden">
+          <ConversationThread data={data} onMutated={onMutated} />
+        </TabsContent>
+      )}
       <TabsContent value="timeline" className="flex flex-1 flex-col overflow-hidden">
         <TimelineFeed data={data} onMutated={onMutated} />
       </TabsContent>
@@ -1191,6 +1204,85 @@ function primaryTransition(current: string, to: string): boolean {
   return false;
 }
 
+/* -------------------- conversation (requester-visible thread) ------- */
+
+/**
+ * The support conversation with the requester — the same messages the resident
+ * sees in /tenant, rendered as a chat thread so ops can read the back-and-forth
+ * and reply in one place. Inbound (resident) sits left/muted; the team's replies
+ * sit right/filled. Internal notes + the full audit stay on Timeline.
+ */
+function ConversationThread({
+  data,
+  onMutated,
+}: {
+  data: EntityDetail;
+  onMutated: () => void;
+}) {
+  const messages = data.comments.filter((c) => c.visibility === "external");
+  const requesterName =
+    data.requester?.name ?? data.tenantContext?.name ?? "Resident";
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {messages.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No messages yet. Reply below to reach {requesterName} — they&rsquo;ll
+            get it by email, push, and text (if enabled) and can reply from the
+            resident app.
+          </p>
+        ) : (
+          <ul className="space-y-2.5">
+            {messages.map((m) => {
+              const inbound = m.actorType !== "user"; // resident / vendor → us
+              const who = inbound
+                ? m.actorName ?? requesterName
+                : m.actorName ?? "Team";
+              return (
+                <li
+                  key={m.id}
+                  className={cn("flex", inbound ? "justify-start" : "justify-end")}
+                >
+                  <div
+                    className={cn(
+                      "max-w-[82%] rounded-2xl px-3 py-2 text-sm",
+                      inbound
+                        ? "rounded-bl-sm bg-muted text-foreground"
+                        : "rounded-br-sm bg-primary text-primary-foreground",
+                    )}
+                  >
+                    <p className="whitespace-pre-wrap">{m.body}</p>
+                    <div
+                      className={cn(
+                        "mt-0.5 flex items-baseline gap-1.5 text-[10px]",
+                        inbound
+                          ? "text-muted-foreground"
+                          : "text-primary-foreground/70",
+                      )}
+                    >
+                      <span>{who}</span>
+                      <span>·</span>
+                      <TimeSince at={m.at} />
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <CommentComposer
+        entityRef={data.ref}
+        onPosted={onMutated}
+        lockExternal
+        placeholder={`Reply to ${requesterName}…`}
+      />
+    </div>
+  );
+}
+
 /* -------------------- timeline (audit + comments + composer) -------- */
 
 function TimelineFeed({
@@ -1284,15 +1376,20 @@ function CommentComposer({
   entityRef,
   onPosted,
   defaultExternal = false,
+  lockExternal = false,
+  placeholder,
 }: {
   entityRef: string;
   onPosted: () => void;
   /** MSG-001: default to a requester-visible reply on tenant-reported WOs. */
   defaultExternal?: boolean;
+  /** Conversation view — every reply is requester-visible; hide the toggle. */
+  lockExternal?: boolean;
+  placeholder?: string;
 }) {
   const [body, setBody] = React.useState("");
   const [visibility, setVisibility] = React.useState<"internal" | "external">(
-    defaultExternal ? "external" : "internal",
+    defaultExternal || lockExternal ? "external" : "internal",
   );
   const [pending, startTransition] = React.useTransition();
 
@@ -1321,7 +1418,8 @@ function CommentComposer({
         value={body}
         onChange={(e) => setBody(e.target.value)}
         placeholder={
-          defaultExternal ? "Reply to the requester…" : "Add a note for the team…"
+          placeholder ??
+          (defaultExternal ? "Reply to the requester…" : "Add a note for the team…")
         }
         className="w-full resize-none rounded-md border border-input bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         onKeyDown={(e) => {
@@ -1332,20 +1430,26 @@ function CommentComposer({
         }}
       />
       <div className="mt-2 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() =>
-            setVisibility((v) => (v === "internal" ? "external" : "internal"))
-          }
-          className={cn(
-            "rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors",
-            visibility === "external"
-              ? "bg-urgency-blocked/15 text-urgency-blocked"
-              : "bg-muted text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {visibility === "external" ? "visible to resident / vendor" : "internal (team only)"}
-        </button>
+        {lockExternal ? (
+          <span className="rounded bg-urgency-blocked/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-urgency-blocked">
+            sent to requester
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() =>
+              setVisibility((v) => (v === "internal" ? "external" : "internal"))
+            }
+            className={cn(
+              "rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors",
+              visibility === "external"
+                ? "bg-urgency-blocked/15 text-urgency-blocked"
+                : "bg-muted text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {visibility === "external" ? "visible to resident / vendor" : "internal (team only)"}
+          </button>
+        )}
         <span className="text-[10px] text-muted-foreground">
           ⌘↵ to post
         </span>
