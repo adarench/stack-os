@@ -16,7 +16,7 @@
   verification pass + fixes (OAuth-role authz, notification routing, CSP, RLS). **Next:** a real person logs in
   as Oscar/Fernando and as a Lucid tenant on a physical phone (turns Auto-verified → User/Device-verified);
   Apple enrollment for the native iOS track.
-- **Last updated:** 2026-07-30
+- **Last updated:** 2026-08-02
 - **Prod DB schema note:** migrations **0014–0021** are applied to the shared `neondb` (all additive/reversible;
   0018 reset cols · 0019 rate_limits + auth_events · 0020 email uniqueness · 0021 must_change_password).
   `stack_os_ci` mirrors it and is the isolated target for the automated suite.
@@ -40,6 +40,7 @@ not the same as a real person doing it in prod.**
 | In-app (inbox/bell) | **Production-verified (staff)** | real `dispatchInline`→`loadInbox`/`loadInboxSummary` exercised against the **prod DB** 2026-07-29: in_app row written, surfaced with WO ref + unread count (`inbox-inapp.test.ts`). Staff-only; UI bell needs a staff login to see. |
 | Web push (browser) | **Automated + configured; not device-verified** | `web-push-send.test.ts` (6) drives the real send path (payload shape, subscription, 410→prune, dispatcher fan-out w/ deep link); VAPID set in prod; deep-link + logout-cleanup fixed; real on-device delivery still not observed; vendor push not wired |
 | Native iOS push (APNs) | **Code-complete, stub-until-keyed** | `tenant_device_tokens` + `apns.ts` (ES256 JWT/HTTP2) + register route + dispatcher fan-out + `NativePushRegister` shipped 2026-07-30; **no-op until an Apple `.p8` key is set** (then live, no code change); delivery needs key + device (IOS_APP.md §8) |
+| SMS / MMS (Twilio A2P) | **Production-verified (delivered, on device)** | Full WO lifecycle texted to a real phone 2026-08-01 (submit→scheduled→in_progress→resolved→verified→closed), real Twilio SIDs; branded body + role deep link + STOP; MMS attaches resident photos (JPEG/PNG/GIF, HEIC/video excluded). Gated per-emit on a phone → key-events-only. Sender "STACK OS" on the approved Fresno number |
 | iOS app | **Generated + pods resolved** | `cap add ios` now generates the Xcode project + `pod install` resolves (config-parse bug fixed); **build blocked on full Xcode.app** (this Mac has only CLT) |
 
 ## Shipped since M0–M10 (2026-07-28 → 07-30)
@@ -222,15 +223,15 @@ stays local. Physical-device + real-user passes are the remaining *acceptance* s
 > confirmed `stack_os_ci` run.
 
 ## Deployment summary
-Prod on Vercel at `431eacf` (deployed 2026-07-30, `stack-9xuvvmjqk`; aliased stack-os-six.vercel.app).
+Prod on Vercel at `f8ba33c` (deployed 2026-08-02; aliased stack-os-six.vercel.app).
 Deploy is manual `vercel deploy --prod --yes` (auto-deploy off) via a fast-forward push to
 `redesign/operator-shell`. Migrations 0014–0022 applied to `neondb`; RLS policies re-applied idempotently
 (`db:rls:apply`). Security headers live incl. `Content-Security-Policy-Report-Only`.
 
-## Post-SMS iteration (2026-07-30) — deployed, auto-verified (tests), not yet operator-UI-verified
-Incremental UX/admin pass on the live operator shell (no pipeline rewrite). Test gate **321/321**.
+## Post-SMS iteration (2026-07-30 → 08-02) — deployed. Test gate **326/326**.
+Incremental UX/admin + data-integrity pass on the live operator shell (no pipeline rewrite).
 - **Admin › Assignments** — coverage-at-a-glance + inline per-building tech + org fallback; the data-driven
-  routing source of truth (Sojo North/South → Oscar, YONIQUE → Fernando is now set here, not hardcoded). *(#1, #6)*
+  routing source of truth (Sojo → Oscar, YONIQUE → Fernando is set here, not hardcoded). *(#1, #6)*
 - **Operator conversation thread** — the requester-visible back-and-forth renders as a chat thread on a new
   Conversation tab in the WO drawer; reply inline (locked to requester-visible). Tenant messages now show the
   resident's real name, not the literal "tenant". *(#2)*
@@ -238,8 +239,20 @@ Incremental UX/admin pass on the live operator shell (no pipeline rewrite). Test
   full created/started/completed/updated timeline. *(#4)*
 - **Tenant photos → tech MMS** — tech-facing texts attach the resident's still images (HEIC/video excluded,
   ≤10/5MB); best-effort, degrades to plain text + the tech's deep link. *(#5)*
-- **Remaining verification:** live operator-UI walkthrough (needs a real operator login) + one live MMS to a
-  real phone through the pipeline.
+- **"Waiting on" reason when blocking** *(#3)* — blocking a WO now asks what it's waiting on (resident /
+  vendor / other), threading it to the row so the "Waiting on" field is real and the resident's text can say
+  the actionable "Waiting on you". Was silently defaulting to "other".
+- **Notification correctness** — verified + test-locked (`notification-matrix`): a resident's WO routes to
+  **their** building's tech (never another's), every ops role gets the broadcast, techs don't, the resident is
+  confirmed, uncovered buildings fall back. **Bug fixed:** `notifyOpsTeam` ignored account status, so
+  deactivated staff kept getting broadcasts — now excluded.
+- **Prod data cleanup (2026-08-01/02, owner-approved, full backup first):** deactivated 4 seed staff + revoked
+  13 seed tenants; purged all seed/demo/test data down to the **9 real Lucid WOs** (Sam Lumpkins), 2 real
+  buildings, 4 real tenants, 4 staff, and routing config (atomic + hard-guarded). Remodeled to the real
+  structure: **Sojo** is the building; **Lucid** is a tenant company inside it (Sam/Ben/Janet). Ready for Jen
+  to add current tenants.
+- **Remaining:** Ben James & Janet need phone numbers for SMS (email/in-app works now); a real operator login
+  to eyeball the drawer changes on-screen.
 
 ## Accepted requirements
 **None formally accepted** (Accepted needs the canonical acceptance test run on prod with real accounts +
