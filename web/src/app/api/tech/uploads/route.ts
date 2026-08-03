@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/server/auth";
 import { storageConfigured } from "@/lib/server/storage";
 import { techAttachPhoto } from "@/lib/server/technician";
+import { isAllowedUploadType, normalizeImageUpload } from "@/lib/server/upload-media";
 
 /**
  * Technician photo upload (multipart). Gated on a staff session; `techAttachPhoto`
@@ -29,15 +30,23 @@ export async function POST(req: Request) {
   if (file.size > 50 * 1024 * 1024) {
     return NextResponse.json({ error: "file_too_large" }, { status: 413 });
   }
+  const declaredType = file.type || "application/octet-stream";
+  if (!isAllowedUploadType(declaredType)) {
+    return NextResponse.json({ error: "unsupported_type" }, { status: 415 });
+  }
 
-  const filename = file.name || `tech-upload-${Date.now()}`;
-  const contentType = file.type || "application/octet-stream";
+  // Transcode HEIC → JPEG so a tech's iPhone photo renders everywhere.
+  const media = await normalizeImageUpload({
+    bytes: new Uint8Array(await file.arrayBuffer()),
+    contentType: declaredType,
+    filename: file.name || `tech-upload-${Date.now()}`,
+  });
   try {
     await techAttachPhoto(ref, orgId, {
-      bytes: new Uint8Array(await file.arrayBuffer()),
-      filename,
-      contentType,
-      sizeBytes: file.size,
+      bytes: media.bytes,
+      filename: media.filename,
+      contentType: media.contentType,
+      sizeBytes: media.bytes.byteLength,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

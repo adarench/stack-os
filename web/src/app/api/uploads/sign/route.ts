@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/server/auth";
 import { z } from "zod";
 import { signUploadUrl, storageConfigured } from "@/lib/server/storage";
+import { isAllowedStaffUploadType } from "@/lib/server/upload-media";
 import { POLYMORPHIC_TARGETS } from "@contracts/polymorphic";
 
 const body = z.object({
@@ -25,6 +26,10 @@ export async function POST(req: Request) {
     parsed = body.parse(await req.json());
   } catch (err) {
     return NextResponse.json({ error: "invalid_body", detail: String(err) }, { status: 400 });
+  }
+
+  if (!isAllowedStaffUploadType(parsed.contentType)) {
+    return NextResponse.json({ error: "unsupported_type" }, { status: 415 });
   }
 
   const signed = await signUploadUrl({
