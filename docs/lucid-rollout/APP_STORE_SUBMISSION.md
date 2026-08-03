@@ -148,27 +148,33 @@ noted).
 
 ### B5. Reviewer notes (App Review Information → Notes)
 ```
-Stack OS is a B2B resident maintenance app — a native shell over our
+Bedrock Work is a B2B resident maintenance app — a native shell over our
 authenticated web app (WKWebView pinned to stack-os-six.vercel.app), adding
 native camera capture and push notifications.
 
 Flow to review:
 1. Sign in with the demo account below.
-2. Tap "New request", pick a category, add a photo, submit.
-3. See it appear in the list with a status; open it to message the team.
+2. The account already contains a full history — completed, open, and
+   in-progress maintenance requests across Electrical, Plumbing, HVAC, and
+   General, with photos, conversations, and status timelines.
+3. Open any request to see its detail, message thread, and photos. Tap
+   "New request" to submit one (pick a category, add a photo, submit).
 
 The app requires an account created by a property manager; the demo account is a
 real resident in a demo building so all features are exercisable.
 ```
 
-**Demo account** (App Review Information → Sign-In required: **Yes**)
+**Demo account** (App Review Information → Sign-In required: **Yes**) — a
+permanent, idempotent seed (`pnpm --filter web db:seed:apple-review`; re-run
+after any DB reset). Isolated in its own demo org — never touches real tenant data.
 ```
 URL:      https://stack-os-six.vercel.app/tenant
-Email:    slumpkins@lucidchart.com
-Password: <set/confirm a current password before submitting — reset at /tenant/forgot>
+Email:    apple-review@bedrock-ai.co
+Password: Review2026!    (overridable via APPLE_REVIEW_PASSWORD; re-seed if changed)
 ```
-> ⚠️ Confirm this password works right before you submit. If unsure, reset it and
-> put the working one here.
+> The seed sets this password (bcrypt-hashed). It works immediately after the
+> seed runs; no reset needed. Re-run the seed after any database migration/reset
+> so the account always exists.
 
 ### B6. Submit
 - [ ] Attach the uploaded build to the 1.0 version

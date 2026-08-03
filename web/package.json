@@ -17,7 +17,8 @@
     "db:migrate": "tsx ../scripts/db-migrate.ts",
     "db:rls:apply": "tsx ../scripts/db-rls-apply.ts",
     "db:rls:test": "vitest run ../test/integration/rls.test.ts",
-    "db:seed": "tsx ../scripts/db-seed.ts"
+    "db:seed": "tsx ../scripts/db-seed.ts",
+    "db:seed:apple-review": "tsx ../scripts/seed-apple-review.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.700.0",
