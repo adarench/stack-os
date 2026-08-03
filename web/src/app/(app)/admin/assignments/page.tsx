@@ -46,6 +46,22 @@ export default async function AssignmentsPage() {
         technician; anything uncovered goes to the fallback.
       </p>
 
+      {/* Guard the "never silently unassigned" invariant: if a building has no
+          covering tech AND there's no org fallback, its requests land unassigned
+          in the triage queue with no one notified. Make that visible. */}
+      {!fallback && unassigned.length > 0 && (
+        <div className="mb-6 rounded-lg border border-urgency-overdue/40 bg-urgency-overdue/10 px-4 py-3">
+          <p className="text-body font-medium text-urgency-overdue">
+            {unassigned.length} building{unassigned.length === 1 ? "" : "s"} have no technician and no fallback is set.
+          </p>
+          <p className="mt-0.5 text-label text-muted-foreground">
+            New requests for {unassigned.join(", ")} won&rsquo;t be assigned to anyone or trigger a
+            notification — they&rsquo;ll sit in the triage queue. Set a covering technician below, or a
+            fallback, so nothing is missed.
+          </p>
+        </div>
+      )}
+
       <Panel className="mb-6">
         <SectionHeading>Coverage at a glance</SectionHeading>
         {byTech.size === 0 && unassigned.length === 0 ? (
