@@ -254,6 +254,24 @@ Incremental UX/admin + data-integrity pass on the live operator shell (no pipeli
 - **Remaining:** Ben James & Janet need phone numbers for SMS (email/in-app works now); a real operator login
   to eyeball the drawer changes on-screen.
 
+## Production-readiness hardening (2026-08-03) — deployed. Test gate **334/334**.
+Closing the gaps from the four-agent readiness audit.
+- **HEIC → JPEG on upload (ATT-006).** iPhone HEIC photos are transcoded to JPEG (via sharp, EXIF-rotated) on
+  the tenant + tech upload paths, so they render on desktop Chrome/Firefox + Android, not just iOS Safari.
+  Best-effort (an undecodable HEIC keeps its original bytes); mislabeled HEIC caught by magic-byte sniff.
+- **Server-side MIME allowlist (ATT-007).** Uploads gated server-side (image+video on tenant/tech; +PDF on the
+  staff/COI path); the bypassable client `accept=` is no longer the only filter. Non-allowed → 415.
+- **Notification opt-out UI (PUSH-004).** New /settings page with per-channel toggles (email/text/push); the
+  dispatch pipeline already honored `notification_preferences` — this adds the missing write side.
+- **CSP enforced (SEC-005).** Report-only → enforced (object-src/base-uri/form-action/frame-ancestors/
+  upgrade-insecure-requests now actively block). `script-src` keeps `'unsafe-inline'` for now — dropping it
+  needs a nonce + forcing 18 prerendered pages (incl. public /privacy /support) dynamic, a browser-verified
+  preview follow-up.
+- **Never-unassigned guard (ASN-003/008).** Assignments page warns when a building has no tech AND no fallback
+  is set (the live org has a fallback, so hidden there).
+- **ADM-007 confirmed as intended (LR-014).** Owner decision: technicians are trusted internal staff and keep
+  full console access incl. financials — not a gap, a product choice.
+
 ## Accepted requirements
 **None formally accepted** (Accepted needs the canonical acceptance test run on prod with real accounts +
 stakeholder sign-off). **Now production-verified** (one step below acceptance): tenant credential login,
