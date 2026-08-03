@@ -29,17 +29,24 @@ const REDIRECTS = [
 ];
 
 /**
- * Content-Security-Policy — shipped **report-only** first (SEC/D4). Report-only
- * never blocks a request; the browser just reports what *would* have been
- * refused, so we can watch for violations before switching to enforcing without
- * risking a broken page. `script-src`/`style-src` keep `'unsafe-inline'` for now
- * because the App Router injects an inline hydration bootstrap and Tailwind/inline
- * styles are pervasive; the enforce step is a follow-up that adds per-request
- * nonces. Even report-only, the value is real: it documents the intended policy
- * and surfaces regressions. `img-src`/`connect-src` allow `https:` because photos
- * are served from and uploaded to R2 signed URLs on a Cloudflare host.
+ * Content-Security-Policy — now **enforced** (was report-only, SEC/D4). The
+ * browser actively refuses anything the policy disallows: plugins/embeds
+ * (`object-src 'none'`), `<base>` hijacking (`base-uri`), form posts to a
+ * foreign origin (`form-action`), clickjacking (`frame-ancestors`), non-HTTPS
+ * sub-resources (`upgrade-insecure-requests`), and any origin outside our own +
+ * R2/Cloudflare for images/connects.
+ *
+ * `script-src`/`style-src` retain `'unsafe-inline'`: the App Router serves
+ * statically-prerendered pages whose inline hydration (`__next_f`) scripts carry
+ * no per-request value, and Tailwind/inline styles are pervasive. Dropping
+ * `'unsafe-inline'` for scripts requires a per-request **nonce**, which in turn
+ * forces every prerendered page (incl. the public /privacy, /terms, /support)
+ * to render dynamically — a change that must be browser-verified on a preview
+ * before prod, so it's deliberately a separate follow-up. Enforcing the rest now
+ * is the safe, high-value step. `img-src`/`connect-src` allow `https:` because
+ * photos are served from + uploaded to R2 signed URLs on a Cloudflare host.
  */
-const CSP_REPORT_ONLY = [
+const CSP = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
@@ -52,12 +59,13 @@ const CSP_REPORT_ONLY = [
   "connect-src 'self' https:",
   "worker-src 'self'",
   "manifest-src 'self'",
+  "upgrade-insecure-requests",
 ].join("; ");
 
 /**
  * Baseline security headers. Covers the checks a client's IT reviewer will run:
  * clickjacking, MIME-sniffing, referrer leakage, HSTS, a locked-down permissions
- * policy (camera allowed for photo capture only), and a report-only CSP.
+ * policy (camera allowed for photo capture only), and an enforced CSP.
  */
 const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
@@ -68,7 +76,7 @@ const SECURITY_HEADERS = [
     key: "Permissions-Policy",
     value: "camera=(self), microphone=(), geolocation=()",
   },
-  { key: "Content-Security-Policy-Report-Only", value: CSP_REPORT_ONLY },
+  { key: "Content-Security-Policy", value: CSP },
 ];
 
 const nextConfig: NextConfig = {
