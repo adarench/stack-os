@@ -1148,6 +1148,12 @@ function SiblingWorkBlock({
   );
 }
 
+const BLOCKED_REASONS = [
+  { value: "waiting_tenant", label: "Waiting on resident" },
+  { value: "waiting_vendor", label: "Waiting on vendor" },
+  { value: "other", label: "Something else" },
+] as const;
+
 function StatusButtons({
   ref,
   current,
@@ -1160,11 +1166,16 @@ function StatusButtons({
   onMutated: () => void;
 }) {
   const [pending, startTransition] = React.useTransition();
-  const move = (to: string) => {
+  // When "blocked" is chosen we ask what it's waiting on before committing —
+  // that drives the "Waiting on" field and the resident's text ("Waiting on
+  // you" vs a generic "On hold").
+  const [blocking, setBlocking] = React.useState(false);
+  const move = (to: string, blockedReason?: string) => {
     startTransition(async () => {
-      const r = await setStatusAction({ ref, to });
+      const r = await setStatusAction({ ref, to, blockedReason: blockedReason as never });
       if (r.ok) {
         toast.success(`${ref} → ${workOrderStatusLabel(to)}`);
+        setBlocking(false);
         onMutated();
       } else {
         toast.error(`Couldn't move: ${r.error}`);
@@ -1174,6 +1185,40 @@ function StatusButtons({
   // Don't suggest moving back to current.
   const visible = options.filter((s) => s !== current);
   if (visible.length === 0) return null;
+
+  if (blocking) {
+    return (
+      <div className="w-full space-y-1.5">
+        <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+          What&rsquo;s it waiting on?
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {BLOCKED_REASONS.map((r) => (
+            <Button
+              key={r.value}
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => move("blocked", r.value)}
+            >
+              {r.label}
+            </Button>
+          ))}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={() => setBlocking(false)}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-wrap gap-1.5">
       {visible.map((to) => (
@@ -1183,7 +1228,7 @@ function StatusButtons({
           size="sm"
           variant={primaryTransition(current, to) ? "default" : "outline"}
           disabled={pending}
-          onClick={() => move(to)}
+          onClick={() => (to === "blocked" ? setBlocking(true) : move(to))}
         >
           {workOrderTransitionLabel(to)}
         </Button>

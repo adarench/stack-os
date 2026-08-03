@@ -51,6 +51,9 @@ export async function addCommentAction(input: z.input<typeof addCommentInput>) {
 const setStatusInput = z.object({
   ref: z.string(),
   to: z.string(),
+  // LIF-007: when blocking, who it's waiting on — drives the "Waiting on" field
+  // and the tenant-facing split ("Waiting on you" vs "On hold").
+  blockedReason: z.enum(["waiting_tenant", "waiting_vendor", "other"]).optional(),
 });
 
 export async function setStatusAction(input: z.input<typeof setStatusInput>) {
@@ -60,7 +63,11 @@ export async function setStatusAction(input: z.input<typeof setStatusInput>) {
     return { ok: false as const, error: "not_a_work_order" };
   }
   try {
-    await updateWorkOrderStatus({ id: detail.id, to: parsed.to as never });
+    await updateWorkOrderStatus({
+      id: detail.id,
+      to: parsed.to as never,
+      blockedReason: parsed.blockedReason,
+    });
     revalidatePath("/now");
     revalidatePath("/work");
     return { ok: true as const };
