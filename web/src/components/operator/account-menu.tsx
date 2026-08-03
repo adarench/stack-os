@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { CircleUser, LogOut } from "lucide-react";
+import { CircleUser, LogOut, Settings } from "lucide-react";
 import { unsubscribePush } from "@/lib/push-client";
 import {
   DropdownMenu,
@@ -58,6 +58,12 @@ export function AccountMenu() {
         })}
 
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/settings">
+            <Settings />
+            Settings
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={async () => { await unsubscribePush("/api/me/push/subscribe"); signOut({ redirectTo: "/sign-in" }); }}>
           <LogOut />
           Sign out
