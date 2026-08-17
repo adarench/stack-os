@@ -1,5 +1,16 @@
-# Capacitor-generated native project + deps (regenerate with `npm run add:ios`)
-/ios/
+# Track the native iOS project source (bundle id, version, Info.plist camera
+# permissions, capabilities, icons) so the App Store submission config is
+# reproducible and survives regeneration. Ignore only regenerated deps + build
+# output — restore them with `pod install` and a build.
 /node_modules/
 /www/js/
 .DS_Store
+
+# CocoaPods dependencies + Xcode build artifacts (regenerated)
+/ios/App/Pods/
+/ios/App/build/
+/ios/**/build-dd/
+build-dd/
+DerivedData/
+xcuserdata/
+*.xcuserstate
