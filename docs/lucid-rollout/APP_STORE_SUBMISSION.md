@@ -148,7 +148,7 @@ noted).
 
 ### B5. Reviewer notes (App Review Information → Notes)
 ```
-Bedrock Work is a B2B resident maintenance app — a native shell over our
+Stack OS is a B2B resident maintenance app — a native shell over our
 authenticated web app (WKWebView pinned to stack-os-six.vercel.app), adding
 native camera capture and push notifications.
 
@@ -169,7 +169,7 @@ permanent, idempotent seed (`pnpm --filter web db:seed:apple-review`; re-run
 after any DB reset). Isolated in its own demo org — never touches real tenant data.
 ```
 URL:      https://stack-os-six.vercel.app/tenant
-Email:    apple-review@bedrock-ai.co
+Email:    apple-review@stackwithus.com
 Password: Review2026!    (overridable via APPLE_REVIEW_PASSWORD; re-seed if changed)
 ```
 > The seed sets this password (bcrypt-hashed). It works immediately after the

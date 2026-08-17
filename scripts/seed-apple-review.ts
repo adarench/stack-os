@@ -1,9 +1,9 @@
 /**
- * Permanent Apple App Review demo account for **Bedrock Work**.
+ * Permanent Apple App Review demo account for **Stack OS**.
  *
  *   pnpm --filter web db:seed:apple-review        # writes to the DB in web/.env.local
  *
- * Creates a self-contained demo org (`org_bedrock_demo`) with a realistic
+ * Creates a self-contained demo org (`org_stackos_demo`) with a realistic
  * resident account Apple can sign into and immediately understand the product:
  * a mix of completed / open / in-progress maintenance requests across
  * categories, with conversations, photos, timeline history, technician
@@ -38,8 +38,8 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dir, "..", "web", ".env.local"), quiet: true });
 config({ path: resolve(__dir, "..", "web", ".env"), quiet: true });
 
-const ORG = "org_bedrock_demo";
-const REVIEW_EMAIL = "apple-review@bedrock-ai.co";
+const ORG = "org_stackos_demo";
+const REVIEW_EMAIL = "apple-review@stackwithus.com";
 const REVIEW_PASSWORD = process.env.APPLE_REVIEW_PASSWORD || "Review2026!";
 const REVIEW_NAME = "Apple Reviewer";
 const BCRYPT_COST = 12; // matches web/src/lib/server/password.ts
@@ -82,7 +82,7 @@ async function uploadDemoPhoto(woId: string, label: string, tint: string): Promi
       <text x="512" y="392" font-family="Helvetica, Arial, sans-serif" font-size="44" font-weight="600"
         fill="#ffffff" text-anchor="middle" opacity="0.92">${label}</text>
       <text x="512" y="700" font-family="Helvetica, Arial, sans-serif" font-size="22"
-        fill="#ffffff" text-anchor="middle" opacity="0.55">Bedrock Work · resident photo</text>
+        fill="#ffffff" text-anchor="middle" opacity="0.55">Stack OS · resident photo</text>
     </svg>`;
     const jpeg = await sharp(Buffer.from(svg)).jpeg({ quality: 82 }).toBuffer();
     const safe = label.replace(/[^a-zA-Z0-9._-]/g, "_");
