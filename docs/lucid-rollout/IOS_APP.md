@@ -6,21 +6,33 @@ Everything that can be built without the client's Apple account is in the repo
 (`mobile/`). This is the packaging approach, the exact build steps, the App Store
 metadata, and precisely what Stack must supply.
 
-## 0. Build validation (2026-07-29) — how far it actually got
+## 0. Build validation (2026-08-17) — verified building + running
 
-Run on this macOS machine (Command Line Tools only — **no** Xcode.app):
+Run on this macOS machine (**Xcode 26.6 / iOS SDK 26.5** — a currently-accepted
+App Store SDK):
 
 | Step | Result |
 |---|---|
-| `npm install` in `mobile/` | ✓ all Capacitor deps resolve (`ios`, `camera`, `push-notifications`) |
-| `npx cap --version` (parse `capacitor.config.ts`) | ✓ **after** adding a `typescript` devDep — the CLI needs it to parse a `.ts` config (fixed in `mobile/package.json`) |
-| `npx cap add ios` | ✓ generates `ios/App/App.xcodeproj` + `App.xcworkspace` + `AppDelegate.swift` + `Info.plist` |
-| `pod install` (CocoaPods) | ✓ pods resolve |
-| Simulator / device build | ✗ **blocked** — requires **full Xcode.app** (only CLT installed here); no simulators |
+| `npm install` in `mobile/` | ✓ Capacitor deps resolve (`ios`, `camera`, `push-notifications`, `splash-screen`) |
+| `capacitor-assets generate` | ✓ app icons + launch/splash generated into the project |
+| `cap sync ios` | ✓ web assets + 4 plugins copied; `pod install` runs |
+| Info.plist permissions | ✓ camera + photo-library usage strings + `ITSAppUsesNonExemptEncryption=false` present |
+| `xcodebuild … -sdk iphonesimulator clean build` | ✓ **BUILD SUCCEEDED, 0 errors** (no signing needed for simulator) |
+| Launch on iPhone 17 Pro simulator | ✓ installs, launches, **loads the production Resident portal over HTTPS** (ATS + `allowNavigation` OK); sign-in renders |
+| Built bundle config | ✓ `Stack OS` · `us.stackstorage.tenant` · `1.0.0`/`1` · permission strings baked in |
 
-**Build stage reached: `generated` (project + pods).** The next stage
-(`simulator-build`) needs a Mac with Xcode.app — not just Command Line Tools.
-`mobile/ios/` is gitignored (regenerate with `npm run add:ios` on the build Mac).
+**Build stage reached: `simulator-build` (compiles + runs).** The native project
+is now **committed** (`mobile/ios/`, Pods excluded) so the submission config —
+Info.plist permissions, bundle id, version — is reproducible and can't be lost on
+regeneration. On the build Mac: `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
+(activate Xcode) → `pod install` in `mobile/ios/App` → open `App.xcworkspace`.
+
+**Not yet done (needs Stack's Apple credentials):** signing, archive, upload,
+Submit for Review. The interactive reviewer path (login → submit a WO → attach a
+photo → completion) is the same web app rendered in the WKWebView — verified at
+the web/DB level (demo login authenticates; 8 seeded WOs visible with photos +
+conversations) — but a manual tap-through login on the simulator/device is the
+remaining human check, and is how the populated App Store screenshots get taken.
 
 ## 1. Packaging approach (and why)
 

@@ -29,14 +29,21 @@ camera capture + push. No separate backend — the app is the web app.
 
 ## Part A — Build & configure in Xcode
 
-### A1. Generate the native project
+> **State:** the native iOS project is **committed** (`mobile/ios/`, Pods excluded)
+> and a clean simulator build is **verified** (BUILD SUCCEEDED, 0 errors; app
+> launches + loads the production Resident portal). Do **NOT** run `cap add ios`
+> — it would overwrite the committed Info.plist (camera permissions) + config.
+
+### A1. Prepare the project (deps only — project already exists)
 ```bash
+# One-time: point the toolchain at Xcode (not Command Line Tools)
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
 cd mobile
 npm install
-npm run add:ios     # generates mobile/ios/ (Xcode project)
-npm run assets      # icon + splash from mobile/resources
-npm run sync        # copy config + plugins into the native project
-npm run open        # opens ios/App/App.xcworkspace in Xcode
+npm run sync                 # cap sync ios (copies web + plugins, runs pod install)
+# If pods didn't install:  (cd ios/App && pod install)
+npm run open                 # opens ios/App/App.xcworkspace in Xcode
 ```
 
 ### A2. Signing (Xcode → target "App" → Signing & Capabilities)
@@ -45,14 +52,16 @@ npm run open        # opens ios/App/App.xcworkspace in Xcode
 - [ ] Confirm **Bundle Identifier** reads `us.stackstorage.tenant`
 
 ### A3. Capabilities (same tab → "+ Capability")
-- [ ] **Push Notifications**
-- [ ] **Background Modes** → check **Remote notifications**
-- [ ] *(optional, for universal links)* **Associated Domains** → add
-      `applinks:stack-os-six.vercel.app`
+- **v1 ships without native push** (APNs isn't keyed — the app has no push in v1;
+  residents still get email + SMS). So **do not add** the Push Notifications
+  capability for the first submission — it would require an APNs-enabled App ID +
+  entitlement and add avoidable review friction. (To add push later, see Part C.)
+- *(optional, for universal links)* **Associated Domains** →
+  `applinks:stack-os-six.vercel.app`
 
-### A4. Info.plist — paste these keys
-Open `ios/App/App/Info.plist` as source (right-click → Open As → Source Code) and
-paste inside the top-level `<dict>`:
+### A4. Info.plist — already set (verify only)
+These are **committed** in `mobile/ios/App/App/Info.plist` and confirmed in the
+built bundle — no need to paste; just confirm they're present:
 
 ```xml
 <key>NSCameraUsageDescription</key>
@@ -119,14 +128,25 @@ maintenance,work order,property,repair,facilities,tenant,resident,building,reque
 **Marketing URL** *(optional)* → `https://stack-os-six.vercel.app`
 **Privacy Policy URL** → `https://stack-os-six.vercel.app/privacy`
 
-> All three URLs are live and public (no login) as of 2026-08-02.
+> All three URLs are live and public (no login), Stack-branded, verified 200
+> (2026-08-17).
 
 ### B3. Screenshots (required)
-Capture from the running app on a simulator/device. Apple needs **6.7"**
-(iPhone 15/16 Pro Max) at minimum; 6.5" and 5.5" are optional now.
-Suggested 4 shots: **request list · new-request form · a request with a photo +
-status · the completion summary.** (Sign in as the demo account below to populate
-real content.)
+Capture from the running app. Apple's current minimum is one **6.9"/6.7"** set
+(iPhone 17 Pro Max / 16 Pro Max); a 6.5" set is optional.
+
+**How to capture** (the app is already installed on the iPhone 17 Pro simulator
+from the build verification): sign in as the demo account (Part B5) to populate
+real content, then for each screen run:
+```bash
+xcrun simctl io booted screenshot ~/Desktop/shot-<name>.png
+```
+Suggested 4 shots (all present in the seeded demo account):
+**request list · a completed request with photo + timeline · the message thread ·
+the new-request form.**
+
+> The sign-in screen is already verified rendering in the simulator; the four
+> populated shots need a one-time manual login (the demo credentials are in B5).
 
 ### B4. App Privacy questionnaire (Apple's exact structure)
 Data collected → **Yes**. For each type below: *Linked to identity = Yes;
@@ -176,10 +196,21 @@ Password: Review2026!    (overridable via APPLE_REVIEW_PASSWORD; re-seed if chan
 > seed runs; no reset needed. Re-run the seed after any database migration/reset
 > so the account always exists.
 
-### B6. Submit
-- [ ] Attach the uploaded build to the 1.0 version
+### B6. Release settings (Version → the 1.0 version)
+- **Version number:** `1.0.0` · **Build:** `1` (matches the project).
+- **Release:** choose **"Automatically release this version"** (goes live on
+  approval) — or **"Manually release"** if you want to control the go-live moment.
+- **Phased release:** optional (gradual rollout over 7 days); fine to leave off for v1.
+- **Content Rights:** does not use third-party content → No.
+- **Export compliance:** already answered by `ITSAppUsesNonExemptEncryption=false`
+  in Info.plist (standard HTTPS only) → no prompt.
+- **Pricing:** Free.
+- **Availability:** all territories (or restrict as desired).
+
+### B7. Submit
+- [ ] Attach the uploaded build to the 1.0.0 version
 - [ ] *(recommended)* TestFlight → add yourself as an internal tester, install,
-      run the flow once on a real device
+      run the reviewer flow once on a real device
 - [ ] **Add for Review → Submit**
 
 ---
@@ -215,17 +246,28 @@ To turn it on:
 
 ---
 
-## Part D — What only Stack can supply (I'm blocked on these by policy/account)
-1. **Apple Developer Program account** (Team ID) + accept agreements — *the long
-   pole; nothing else can proceed without it.*
-2. **A Mac with full Xcode.app.**
-3. **Signing** — happens in Xcode with that account.
-4. **The Archive → Upload → Submit action** from the authorized account.
-5. **APNs `.p8` key** — only if enabling native push (Part C).
-6. Confirm the **demo-account password** is current before submitting.
+## Part D — What remains (only these need Stack's Apple credentials)
 
-Everything else — config, assets, deps, listing copy, privacy answers, reviewer
-notes, and the live support/privacy/terms pages — is done and in the repo.
+**Done / verified (in the repo + prod):** Stack OS branding resolved; live +
+Stack-branded support/privacy/terms URLs; permanent demo review account
+(`apple-review@stackwithus.com`) with seeded history (verified login + 8 WOs);
+committed native iOS project (bundle id, version 1.0.0/1, Info.plist camera
+permissions); **clean simulator build succeeds and the app launches + loads the
+production tenant app**; all App Store Connect listing copy, privacy answers,
+reviewer notes, and release settings drafted below.
+
+**Remaining — all require the Apple account under `adam.rencher12@gmail.com`:**
+1. **Enroll in the Apple Developer Program** (Team ID) + accept agreements — the
+   long pole; ~1–3 days for identity verification.
+2. **Sign** the build in Xcode with that account (Automatically manage signing).
+3. **Archive → Upload** to App Store Connect (Any iOS Device destination).
+4. **Capture the 4 populated screenshots** after a one-time manual login (B3).
+5. **Submit for Review.**
+6. *(optional, post-v1)* APNs `.p8` key to enable native push (Part C).
+
+Not blocking, already handled: Xcode 26.6 / iOS SDK 26.5 installed; CocoaPods
+resolved; export-compliance pre-answered. The only new thing to *decide* is
+whether to confirm the demo password (it's set by the seed — works as-is).
 
 **Realistic timeline:** Apple enrollment (~1–3 days, identity check) → build +
 archive (~an afternoon) → optional TestFlight → App Review (typically 1–3 days).
