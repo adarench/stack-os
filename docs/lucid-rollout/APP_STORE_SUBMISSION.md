@@ -52,10 +52,13 @@ npm run open                 # opens ios/App/App.xcworkspace in Xcode
 - [ ] Confirm **Bundle Identifier** reads `us.stackstorage.tenant`
 
 ### A3. Capabilities (same tab → "+ Capability")
-- **v1 ships without native push** (APNs isn't keyed — the app has no push in v1;
-  residents still get email + SMS). So **do not add** the Push Notifications
-  capability for the first submission — it would require an APNs-enabled App ID +
-  entitlement and add avoidable review friction. (To add push later, see Part C.)
+- **Push Notifications is enabled** via the committed entitlement
+  (`App/App.entitlements`, `aps-environment`) + `UIBackgroundModes:
+  remote-notification`. With **Automatically manage signing** on, Xcode detects
+  `aps-environment` and enables Push on the App ID + provisioning automatically —
+  you shouldn't need to click anything. If Xcode shows "Push Notifications" under
+  Signing & Capabilities, that's expected. (Delivery goes live once the APNs key
+  is set — Part C.)
 - *(optional, for universal links)* **Associated Domains** →
   `applinks:stack-os-six.vercel.app`
 
@@ -218,14 +221,18 @@ Password: Review2026!    (overridable via APPLE_REVIEW_PASSWORD; re-seed if chan
 
 ---
 
-## Part C — Native push (optional for v1; flips on with no code change)
+## Part C — Native push: enable delivery (set the APNs key)
 
-The backend, device-token storage, and app registration are **already built and
-deployed** — push runs as a no-op until the APNs key is set, then goes live.
-You can ship v1 **without** it (residents still get email + SMS + web-push) and
-turn it on in a point release, or include it now.
+Native push is **wired into v1**: the iOS entitlement + background mode, the app
+registration (`NativePushRegister`), the device-token store, the APNs sender, and
+the dispatcher fan-out are all in place. On a real device the app requests the
+iOS notification-permission prompt and registers a token today. The **only**
+remaining step is the APNs signing key so the server can actually send — this is
+**not blocking submission** (the app + permission prompt work without it; pushes
+just don't deliver until it's set), but do it before/around launch so residents
+get pushes.
 
-To turn it on:
+To enable delivery:
 
 1. **Apple Developer portal → Keys → +** → enable **Apple Push Notifications
    service (APNs)** → download the `.p8` (you can only download once). Note the
