@@ -176,12 +176,14 @@ Flow to review:
 1. Sign in with the demo account below.
 2. The account already contains a full history — completed, open, and
    in-progress maintenance requests across Electrical, Plumbing, HVAC, and
-   General, with photos, conversations, and status timelines.
+   General, with photos, conversations, and status timelines, plus an active
+   renter's-insurance policy on the coverage screen.
 3. Open any request to see its detail, message thread, and photos. Tap
    "New request" to submit one (pick a category, add a photo, submit).
 
 The app requires an account created by a property manager; the demo account is a
-real resident in a demo building so all features are exercisable.
+real resident in a demo building so all features are exercisable. Sign-in is
+email + password only — no MFA, magic link, or email verification needed.
 ```
 
 **Demo account** (App Review Information → Sign-In required: **Yes**) — a
@@ -189,12 +191,13 @@ permanent, idempotent seed (`pnpm --filter web db:seed:apple-review`; re-run
 after any DB reset). Isolated in its own demo org — never touches real tenant data.
 ```
 URL:      https://stack-os-six.vercel.app/tenant
-Email:    apple-review@stackwithus.com
+Email:    apple-review@bedrockwork.ai
 Password: Review2026!    (overridable via APPLE_REVIEW_PASSWORD; re-seed if changed)
 ```
 > The seed sets this password (bcrypt-hashed). It works immediately after the
-> seed runs; no reset needed. Re-run the seed after any database migration/reset
-> so the account always exists.
+> seed runs — no reset, MFA, magic link, or admin approval. The email is a pure
+> login credential (no mail is ever sent to it). Re-run the seed after any
+> database migration/reset so the account always exists.
 
 ### B6. Release settings (Version → the 1.0 version)
 - **Version number:** `1.0.0` · **Build:** `1` (matches the project).

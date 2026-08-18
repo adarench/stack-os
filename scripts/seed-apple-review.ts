@@ -1,5 +1,6 @@
 /**
- * Permanent Apple App Review demo account for **Stack OS**.
+ * Permanent Apple App Review demo account for the resident portal
+ * (public App Store name: **Bedrock Work**; "Stack OS" is the internal name).
  *
  *   pnpm --filter web db:seed:apple-review        # writes to the DB in web/.env.local
  *
@@ -38,8 +39,8 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dir, "..", "web", ".env.local"), quiet: true });
 config({ path: resolve(__dir, "..", "web", ".env"), quiet: true });
 
-const ORG = "org_stackos_demo";
-const REVIEW_EMAIL = "apple-review@stackwithus.com";
+const ORG = "org_stackos_demo"; // internal org id — never surfaced to the app UI or App Store
+const REVIEW_EMAIL = "apple-review@bedrockwork.ai";
 const REVIEW_PASSWORD = process.env.APPLE_REVIEW_PASSWORD || "Review2026!";
 const REVIEW_NAME = "Apple Reviewer";
 const BCRYPT_COST = 12; // matches web/src/lib/server/password.ts
@@ -82,7 +83,7 @@ async function uploadDemoPhoto(woId: string, label: string, tint: string): Promi
       <text x="512" y="392" font-family="Helvetica, Arial, sans-serif" font-size="44" font-weight="600"
         fill="#ffffff" text-anchor="middle" opacity="0.92">${label}</text>
       <text x="512" y="700" font-family="Helvetica, Arial, sans-serif" font-size="22"
-        fill="#ffffff" text-anchor="middle" opacity="0.55">Stack OS · resident photo</text>
+        fill="#ffffff" text-anchor="middle" opacity="0.55">Resident-submitted photo</text>
     </svg>`;
     const jpeg = await sharp(Buffer.from(svg)).jpeg({ quality: 82 }).toBuffer();
     const safe = label.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -222,8 +223,8 @@ async function main() {
   await sql.begin(async (tx) => {
     for (const t of [
       "notifications", "comments", "attachments", "assignments", "audit_log",
-      "task_costs", "work_orders", "tenant_users", "units", "properties",
-      "org_settings", "users",
+      "task_costs", "tenant_insurance_policies", "work_orders", "tenant_users",
+      "units", "properties", "org_settings", "users",
     ]) {
       await tx.unsafe(`delete from ${t} where org_id = '${ORG}'`);
     }
@@ -267,6 +268,17 @@ async function main() {
 
   // org fallback so any future WO still routes.
   await sql`insert into org_settings (org_id, fallback_assignee_user_id) values (${ORG}, ${techIds[0]})`;
+
+  // 4b) Active renter's insurance policy — so the coverage screen shows a real,
+  //     in-force state (effective 5mo ago, expires 7mo out → stays "active").
+  await sql`
+    insert into tenant_insurance_policies (
+      org_id, tenant_user_id, unit_id, policy_number, carrier, coverage_amount_cents,
+      effective_at, expires_at, status, uploaded_by_actor_type, uploaded_by_tenant_user_id
+    ) values (
+      ${ORG}, ${tenantId}, ${unitId}, ${"RTR-2026-004821"}, ${"Lemonade Insurance"}, ${"10000000"},
+      ${days(150)}, ${days(-210)}, 'active', 'tenant', ${tenantId}
+    )`;
 
   // 5) Work orders + conversations + audit + assignments + photos + completion.
   let photoCount = 0;
@@ -369,6 +381,7 @@ async function main() {
   console.log(`  staff:     ${staff.length} (1 manager + 2 technicians)`);
   console.log(`  workOrders: ${WORK_ORDERS.length} — ${counts.completed} completed, ${counts.open} open, ${counts.inProgress} in progress`);
   console.log(`  photos:    ${photoCount} uploaded${s3 ? "" : " (R2 not configured — skipped)"}`);
+  console.log(`  insurance: 1 active renter's policy (Lemonade Insurance)`);
   await sql.end();
 }
 
