@@ -12,7 +12,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  */
 const config: CapacitorConfig = {
   appId: "us.stackstorage.tenant",
-  appName: "Stack OS",
+  appName: "Bedrock Work",
   webDir: "www", // local fallback shell (shown until the live URL loads)
   server: {
     url: "https://stack-os-six.vercel.app/tenant",

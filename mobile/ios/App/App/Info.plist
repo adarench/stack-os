@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Stack OS</string>
+	<string>Bedrock Work</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -46,11 +46,11 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Stack OS uses the camera so you can add a photo to a maintenance request.</string>
+	<string>Bedrock Work uses the camera so you can add a photo to a maintenance request.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Stack OS lets you attach photos from your library to a maintenance request.</string>
+	<string>Bedrock Work lets you attach photos from your library to a maintenance request.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Stack OS can save photos you capture for a maintenance request.</string>
+	<string>Bedrock Work can save photos you capture for a maintenance request.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>
