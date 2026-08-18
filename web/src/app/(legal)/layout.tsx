@@ -1,5 +1,6 @@
-import type { Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 import { LegalFooter, LegalHeader } from "./_components";
+import { PRODUCT_NAME } from "./_config";
 
 /**
  * Public legal-document chrome. These routes (/privacy, /terms) sit outside
@@ -14,6 +15,16 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   userScalable: true,
+};
+
+/**
+ * Override the root layout's internal-name metadata (application-name +
+ * apple-web-app title) so the public legal pages carry the public product name
+ * — no "Stack OS" anywhere in their HTML.
+ */
+export const metadata: Metadata = {
+  applicationName: PRODUCT_NAME,
+  appleWebApp: { capable: true, statusBarStyle: "default", title: PRODUCT_NAME },
 };
 
 export default function LegalLayout({
