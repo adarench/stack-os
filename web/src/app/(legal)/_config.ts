@@ -10,8 +10,8 @@
 /** Canonical public origin. Used for canonical + Open Graph URLs. */
 export const SITE_URL = "https://stack-os-six.vercel.app";
 
-/** Product name as referenced throughout the documents. */
-export const PRODUCT_NAME = "StackOS";
+/** Product name as referenced throughout the documents (public App Store name). */
+export const PRODUCT_NAME = "Bedrock Work";
 
 /** Legal operating entity behind the product. */
 export const COMPANY_LEGAL_NAME = "Stack Real Estate";

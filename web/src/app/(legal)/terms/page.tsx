@@ -20,7 +20,7 @@ import {
 
 const TITLE = "Terms of Service";
 const DESCRIPTION =
-  "The terms governing use of StackOS, the property management operations platform — including consent to receive transactional, operational SMS messages. Reply STOP to opt out, HELP for help. Message and data rates may apply.";
+  "The terms governing use of Bedrock Work, the resident maintenance app — including consent to receive transactional, operational SMS messages. Reply STOP to opt out, HELP for help. Message and data rates may apply.";
 const URL = `${SITE_URL}/terms`;
 
 export const metadata: Metadata = {

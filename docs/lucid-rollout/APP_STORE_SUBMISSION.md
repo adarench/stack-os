@@ -1,4 +1,4 @@
-# Stack OS — iOS App Store Submission Runbook (ready-to-paste)
+# Bedrock Work — iOS App Store Submission Runbook (ready-to-paste)
 
 **Audience:** whoever has the Mac + Apple Developer account. Everything here is
 copy-paste; you shouldn't have to *decide* anything, only *do* it. Detail/why is
@@ -12,7 +12,7 @@ camera capture + push. No separate backend — the app is the web app.
 
 | Field | Value |
 |---|---|
-| App name | `Stack OS` |
+| App name | `Bedrock Work` |
 | Bundle ID | `us.stackstorage.tenant` |
 | Version / Build | `1.0.0` / `1` |
 | Deployment target | iOS 15+ · Portrait only · brand `#0a0a0a` |
@@ -65,11 +65,11 @@ built bundle — no need to paste; just confirm they're present:
 
 ```xml
 <key>NSCameraUsageDescription</key>
-<string>Stack OS uses the camera so you can add a photo to a maintenance request.</string>
+<string>Bedrock Work uses the camera so you can add a photo to a maintenance request.</string>
 <key>NSPhotoLibraryUsageDescription</key>
-<string>Stack OS lets you attach photos from your library to a maintenance request.</string>
+<string>Bedrock Work lets you attach photos from your library to a maintenance request.</string>
 <key>NSPhotoLibraryAddUsageDescription</key>
-<string>Stack OS can save photos you capture for a maintenance request.</string>
+<string>Bedrock Work can save photos you capture for a maintenance request.</string>
 <key>ITSAppUsesNonExemptEncryption</key>
 <false/>
 ```
@@ -88,13 +88,13 @@ built bundle — no need to paste; just confirm they're present:
 ## Part B — App Store Connect (copy-paste every field)
 
 Create the app at appstoreconnect.apple.com → Apps → **+** → New App
-(Platform iOS, Name `Stack OS`, Primary language English (U.S.), Bundle ID
+(Platform iOS, Name `Bedrock Work`, Primary language English (U.S.), Bundle ID
 `us.stackstorage.tenant`, SKU `stack-os-tenant`).
 
 ### B1. App information
 | Field | Value |
 |---|---|
-| **Name** | `Stack OS` |
+| **Name** | `Bedrock Work` |
 | **Subtitle** | `Maintenance requests, handled` |
 | **Category** | Primary: **Productivity** · Secondary: **Business** |
 | **Age rating** | 4+ (answer "None" to all content questions) |
@@ -107,7 +107,7 @@ Report a maintenance issue in seconds and track it all the way to done.
 
 **Description**
 ```
-Stack OS is the resident app for maintenance at your building. Snap a photo,
+Bedrock Work is the resident app for maintenance at your building. Snap a photo,
 describe the issue, and submit — it routes straight to the on-site team.
 
 • Submit a request in seconds with a photo and a category
@@ -168,7 +168,7 @@ noted).
 
 ### B5. Reviewer notes (App Review Information → Notes)
 ```
-Stack OS is a B2B resident maintenance app — a native shell over our
+Bedrock Work is a B2B resident maintenance app — a native shell over our
 authenticated web app (WKWebView pinned to stack-os-six.vercel.app), adding
 native camera capture and push notifications.
 
@@ -251,7 +251,7 @@ To turn it on:
 
 ## Part D — What remains (only these need Stack's Apple credentials)
 
-**Done / verified (in the repo + prod):** Stack OS branding resolved; live +
+**Done / verified (in the repo + prod):** Bedrock Work branding resolved; live +
 Stack-branded support/privacy/terms URLs; permanent demo review account
 (`apple-review@stackwithus.com`) with seeded history (verified login + 8 WOs);
 committed native iOS project (bundle id, version 1.0.0/1, Info.plist camera

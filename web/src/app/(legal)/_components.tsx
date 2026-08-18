@@ -20,7 +20,7 @@ export function LegalHeader() {
           href="/"
           className="font-mono text-[12px] font-semibold uppercase tracking-[0.22em] text-foreground transition-colors hover:text-foreground/70"
         >
-          Stack&nbsp;·&nbsp;OS
+          Bedrock&nbsp;Work
         </Link>
         <nav className="flex items-center gap-1 text-sm">
           <HeaderLink href="/privacy">Privacy</HeaderLink>
@@ -56,11 +56,11 @@ export function LegalFooter() {
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-sm">
             <span className="font-mono text-[12px] font-semibold uppercase tracking-[0.22em] text-foreground">
-              Stack&nbsp;·&nbsp;OS
+              Bedrock&nbsp;Work
             </span>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {PRODUCT_NAME} is a property management operations platform. SMS
-              messages we send are transactional and operational only — never
+              {PRODUCT_NAME} is the resident maintenance app for {COMPANY_LEGAL_NAME}.
+              SMS messages we send are transactional and operational only — never
               marketing.
             </p>
           </div>

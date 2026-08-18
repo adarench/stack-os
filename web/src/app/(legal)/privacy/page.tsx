@@ -14,7 +14,7 @@ import { LAST_UPDATED, PRIVACY_EMAIL, PRODUCT_NAME, SITE_URL } from "../_config"
 
 const TITLE = "Privacy Policy";
 const DESCRIPTION =
-  "How StackOS collects, uses, and protects information — including how mobile phone numbers are used solely for transactional, operational property-management SMS and are never shared for marketing.";
+  "How Bedrock Work collects, uses, and protects information — including how mobile phone numbers are used solely for transactional, operational property-management SMS and are never shared for marketing.";
 const URL = `${SITE_URL}/privacy`;
 
 export const metadata: Metadata = {
