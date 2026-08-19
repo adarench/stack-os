@@ -11,7 +11,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * `allowNavigation` is pinned to our host so the app can't be navigated off-site.
  */
 const config: CapacitorConfig = {
-  appId: "us.stackstorage.tenant",
+  appId: "com.bedrockai.work",
   appName: "Bedrock Work",
   webDir: "www", // local fallback shell (shown until the live URL loads)
   server: {
