@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getWorkOrder } from "@/lib/server/work-orders";
-import { listComments } from "@/lib/server/comments";
+import { listCommentsWithAuthors, tenantLabelForUnit } from "@/lib/server/comments";
 import { listAttachments } from "@/lib/server/attachments";
 import { listVendors, listVendorUsersForVendor } from "@/lib/server/vendors";
 import { signReadUrl, storageConfigured } from "@/lib/server/storage";
@@ -24,10 +24,11 @@ export default async function WorkOrderPage({
   const wo = await getWorkOrder(id);
   if (!wo) notFound();
 
-  const [comments, atts, vendors] = await Promise.all([
-    listComments("work_order", id),
+  const [comments, atts, vendors, tenantLabel] = await Promise.all([
+    listCommentsWithAuthors("work_order", id),
     listAttachments("work_order", id),
     listVendors(),
+    tenantLabelForUnit(wo.unitId),
   ]);
 
   // Resolve all vendor_users in this org so the assign dropdown has them.
@@ -129,16 +130,30 @@ export default async function WorkOrderPage({
 
       <section className="mt-5">
         <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-          Comments
+          Messages
         </h2>
+        <p className="mb-2 text-sm text-neutral-700">
+          <span className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Tenant{" "}
+          </span>
+          {tenantLabel ? (
+            <span className="font-medium">{tenantLabel}</span>
+          ) : (
+            <span className="italic text-neutral-400">UNKNOWN — no tenant on file for this unit</span>
+          )}
+        </p>
         {comments.length === 0 ? (
-          <p className="text-xs text-neutral-500">No comments.</p>
+          <p className="text-xs text-neutral-500">No messages yet.</p>
         ) : (
           <ul className="space-y-2">
             {comments.map((c) => (
               <li key={c.id} className="rounded border border-neutral-200 bg-white p-2 text-sm">
                 <div className="text-xs text-neutral-500">
-                  {new Date(c.createdAt).toLocaleString()} · {c.visibility}
+                  <span className="font-medium text-neutral-700">{c.authorLabel}</span>
+                  {" · "}
+                  {new Date(c.createdAt).toLocaleString()}
+                  {" · "}
+                  {c.visibility}
                 </div>
                 <div className="mt-1 whitespace-pre-wrap">{c.body}</div>
               </li>
