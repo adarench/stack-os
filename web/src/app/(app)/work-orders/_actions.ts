@@ -9,6 +9,7 @@ import {
   assignVendor,
 } from "@/lib/server/work-orders";
 import type { WorkOrderStatus } from "@contracts/state-machines/work-order";
+import { techActions, type TechActionKind } from "@contracts/state-machines/work-order-tech-ux";
 import { createComment } from "@/lib/server/comments";
 import { createAttachment } from "@/lib/server/attachments";
 import { signUploadUrl, storageConfigured } from "@/lib/server/storage";
@@ -31,10 +32,32 @@ export async function transitionStatusAction(formData: FormData) {
   revalidatePath("/board");
 }
 
+
 /**
- * Used by the kanban board on drop. Throws on invalid transition; the client
- * pre-checks via `canTransition` so this is a defense-in-depth.
+ * Tech detail Complete/Waiting action (ops #20).
+ * Applies the chained FSM path from techActions — never invents transitions.
  */
+export async function applyTechActionAction(formData: FormData) {
+  const id = String(formData.get("id"));
+  const kind = String(formData.get("kind")) as TechActionKind;
+  if (kind !== "complete" && kind !== "waiting") {
+    throw new Error(`unknown_tech_action:${kind}`);
+  }
+  const { getWorkOrder } = await import("@/lib/server/work-orders");
+  const wo = await getWorkOrder(id);
+  if (!wo) throw new Error("work_order_not_found");
+  const action = techActions(wo.status as WorkOrderStatus).find((a) => a.kind === kind);
+  if (!action) {
+    throw new Error(`tech_action_not_available:${kind}:from:${wo.status}`);
+  }
+  for (const to of action.path) {
+    await updateWorkOrderStatus({ id, to });
+  }
+  revalidatePath(`/work-orders/${id}`);
+  revalidatePath("/work-orders");
+  revalidatePath("/board");
+}
+
 export async function moveWorkOrderAction(
   id: string,
   to: WorkOrderStatus,
