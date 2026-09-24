@@ -64,35 +64,9 @@ export default async function WorkOrderPage({
 
       <section className="mt-5">
         <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-          Move forward
+          Status
         </h2>
         <StatusActions workOrderId={wo.id} status={wo.status as WorkOrderStatus} />
-      </section>
-
-      <section className="mt-5">
-        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-          Assign vendor
-        </h2>
-        <form action={assignVendorAction} className="flex gap-2">
-          <input type="hidden" name="workOrderId" value={wo.id} />
-          <select
-            name="vendorUserId"
-            className="flex-1 rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
-            <option value="">— select vendor user —</option>
-            {vendorUserOptions.map((vu) => (
-              <option key={vu.id} value={vu.id}>
-                {vu.name ?? vu.email}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white"
-          >
-            Assign
-          </button>
-        </form>
       </section>
 
       <section className="mt-5">
@@ -124,10 +98,6 @@ export default async function WorkOrderPage({
       </section>
 
       <section className="mt-5">
-        <WoCosts workOrderId={wo.id} />
-      </section>
-
-      <section className="mt-5">
         <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
           Comments
         </h2>
@@ -147,6 +117,45 @@ export default async function WorkOrderPage({
         )}
         <CommentForm targetId={wo.id} />
       </section>
+      {/* Office chrome demoted for tech mobile path (ops #20) */}
+      <details className="mt-6 rounded border border-neutral-200 bg-neutral-50 p-3">
+        <summary className="cursor-pointer select-none text-xs font-medium uppercase tracking-wide text-neutral-500">
+          More (assign vendor · costs)
+        </summary>
+        <div className="mt-3 space-y-4">
+      <section className="mt-5">
+        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+          Assign vendor
+        </h2>
+        <form action={assignVendorAction} className="flex gap-2">
+          <input type="hidden" name="workOrderId" value={wo.id} />
+          <select
+            name="vendorUserId"
+            className="flex-1 rounded border border-neutral-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">— select vendor user —</option>
+            {vendorUserOptions.map((vu) => (
+              <option key={vu.id} value={vu.id}>
+                {vu.name ?? vu.email}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white"
+          >
+            Assign
+          </button>
+        </form>
+      </section>
+
+      <section className="mt-5">
+        <WoCosts workOrderId={wo.id} />
+      </section>
+
+        </div>
+      </details>
+
     </main>
   );
 }
